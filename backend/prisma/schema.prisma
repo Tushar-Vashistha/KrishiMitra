@@ -1,0 +1,380 @@
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum UserRole {
+  FARMER
+  CENTRE_STAFF
+  CENTRE_MANAGER
+  ADMIN
+}
+
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+  SUSPENDED
+}
+
+enum BookingStatus {
+  BOOKED
+  ARRIVED
+  WEIGHING
+  QUALITY_CHECK
+  ACCEPTED
+  REJECTED
+  COMPLETED
+  CANCELLED
+}
+
+enum TokenStatus {
+  WAITING
+  CALLED
+  ARRIVED
+  PROCESSING
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum CounterStatus {
+  AVAILABLE
+  BUSY
+  OFFLINE
+  MAINTENANCE
+}
+
+enum QualityResult {
+  PASSED
+  FAILED
+  CONDITIONAL
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  SUCCESS
+  FAILED
+  CANCELLED
+}
+
+model User {
+  id                      Int                         @id @default(autoincrement())
+  mobile                  String                      @unique
+  password                String
+  role                    UserRole
+  createdAt               DateTime                    @default(now())
+  updatedAt               DateTime                    @updatedAt
+  farmerProfile           FarmerProfile?
+  staffProfile            StaffProfile?
+  verifiedFarmerHistories FarmerVerificationHistory[] @relation("VerifiedByAdmin")
+  notifications           Notification[]
+  auditLogs               AuditLog[]
+  weighedRecords          WeighingRecord[]
+  qualityInspections      QualityInspection[]
+}
+
+model FarmerProfile {
+  id                  Int                         @id @default(autoincrement())
+  userId              Int                         @unique
+  user                User                        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name                String
+  dob                 DateTime
+  gender              String
+  aadhaarMasked       String
+  aadhaarHash         String                      @unique
+  mobile              String
+  village             String
+  district            String
+  state               String
+  tehsil              String
+  block               String
+  pincode             String
+  khasraNumber        String
+  landOwnerName       String
+  bankName            String
+  accountNumberMasked String
+  accountNumberHash   String
+  ifscCode            String
+  trustScore          Float                       @default(100.0)
+  status              VerificationStatus          @default(PENDING)
+  createdAt           DateTime                    @default(now())
+  updatedAt           DateTime                    @updatedAt
+  verificationHistory FarmerVerificationHistory[]
+  cropRegistrations   FarmerCropRegistration[]
+  bookings            ProcurementBooking[]
+}
+
+model FarmerVerificationHistory {
+  id              Int                @id @default(autoincrement())
+  farmerProfileId Int
+  farmerProfile   FarmerProfile      @relation(fields: [farmerProfileId], references: [id], onDelete: Cascade)
+  status          VerificationStatus
+  remarks         String?
+  verifiedById    Int
+  verifiedBy      User               @relation("VerifiedByAdmin", fields: [verifiedById], references: [id])
+  createdAt       DateTime           @default(now())
+}
+
+model StaffProfile {
+  id          Int               @id @default(autoincrement())
+  userId      Int               @unique
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  designation String
+  mobile      String
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  assignments StaffAssignment[]
+}
+
+model ProcurementCentre {
+  id               Int                  @id @default(autoincrement())
+  centreId         String               @unique
+  name             String
+  nameHi           String
+  type             String
+  address          String
+  lat              Float
+  lng              Float
+  openingTime      String
+  closingTime      String
+  open             Boolean              @default(true)
+  phone            String
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  counters         Counter[]
+  staffAssignments StaffAssignment[]
+  bookings         ProcurementBooking[]
+  tokens           QueueToken[]
+  prices           CropPrice[]
+  slotConfigs      SlotConfig[]
+}
+
+model Counter {
+  id               Int               @id @default(autoincrement())
+  centreId         Int
+  centre           ProcurementCentre @relation(fields: [centreId], references: [id], onDelete: Cascade)
+  counterNumber    Int
+  status           CounterStatus     @default(AVAILABLE)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  staffAssignments StaffAssignment[]
+  tokens           QueueToken[]
+}
+
+model StaffAssignment {
+  id             Int               @id @default(autoincrement())
+  staffProfileId Int
+  staffProfile   StaffProfile      @relation(fields: [staffProfileId], references: [id], onDelete: Cascade)
+  centreId       Int
+  centre         ProcurementCentre @relation(fields: [centreId], references: [id], onDelete: Cascade)
+  counterId      Int?
+  counter        Counter?          @relation(fields: [counterId], references: [id])
+  assignedAt     DateTime          @default(now())
+  active         Boolean           @default(true)
+}
+
+model Crop {
+  id            Int                      @id @default(autoincrement())
+  name          String                   @unique
+  nameHi        String
+  code          String                   @unique
+  unit          String                   @default("₹/Qtl")
+  createdAt     DateTime                 @default(now())
+  updatedAt     DateTime                 @updatedAt
+  registrations FarmerCropRegistration[]
+  bookings      ProcurementBooking[]
+  grades        CropGrade[]
+  prices        CropPrice[]
+}
+
+model ProcurementSeason {
+  id        Int                  @id @default(autoincrement())
+  name      String
+  startDate DateTime
+  endDate   DateTime
+  active    Boolean              @default(true)
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+  bookings  ProcurementBooking[]
+}
+
+model FarmerCropRegistration {
+  id              Int           @id @default(autoincrement())
+  farmerProfileId Int
+  farmerProfile   FarmerProfile @relation(fields: [farmerProfileId], references: [id], onDelete: Cascade)
+  cropId          Int
+  crop            Crop          @relation(fields: [cropId], references: [id], onDelete: Cascade)
+  area            Float
+  estimatedYield  Float
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
+model SlotConfig {
+  id       Int                @id @default(autoincrement())
+  centreId Int?
+  centre   ProcurementCentre? @relation(fields: [centreId], references: [id], onDelete: Cascade)
+  slotTime String
+  capacity Int                @default(10)
+}
+
+model SystemSetting {
+  id    Int    @id @default(autoincrement())
+  key   String @unique
+  value String
+}
+
+model ProcurementBooking {
+  id              String                  @id
+  farmerProfileId Int
+  farmerProfile   FarmerProfile           @relation(fields: [farmerProfileId], references: [id], onDelete: Cascade)
+  centreId        Int
+  centre          ProcurementCentre       @relation(fields: [centreId], references: [id], onDelete: Cascade)
+  cropId          Int
+  crop            Crop                    @relation(fields: [cropId], references: [id], onDelete: Cascade)
+  seasonId        Int
+  season          ProcurementSeason       @relation(fields: [seasonId], references: [id])
+  weight          Float
+  date            DateTime
+  slotTime        String
+  status          BookingStatus           @default(BOOKED)
+  isTatkaal       Boolean                 @default(false)
+  tatkaalFeePaid  Float?
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+  queueToken      QueueToken?
+  transaction     ProcurementTransaction?
+}
+
+model QueueToken {
+  id                  Int                  @id @default(autoincrement())
+  bookingId           String               @unique
+  booking             ProcurementBooking   @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  tokenNumber         Int
+  centreId            Int
+  centre              ProcurementCentre    @relation(fields: [centreId], references: [id], onDelete: Cascade)
+  counterId           Int?
+  counter             Counter?             @relation(fields: [counterId], references: [id])
+  status              TokenStatus          @default(WAITING)
+  queuePosition       Int
+  calledAt            DateTime?
+  arrivedAt           DateTime?
+  processingStartedAt DateTime?
+  completedAt         DateTime?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  statusHistory       TokenStatusHistory[]
+}
+
+model TokenStatusHistory {
+  id        Int         @id @default(autoincrement())
+  tokenId   Int
+  token     QueueToken  @relation(fields: [tokenId], references: [id], onDelete: Cascade)
+  status    TokenStatus
+  changedAt DateTime    @default(now())
+}
+
+model ProcurementTransaction {
+  id                Int                @id @default(autoincrement())
+  bookingId         String             @unique
+  booking           ProcurementBooking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  netWeight         Float
+  rateUsed          Float
+  amount            Float
+  status            BookingStatus
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  weighingRecord    WeighingRecord?
+  qualityInspection QualityInspection?
+  payment           Payment?
+}
+
+model WeighingRecord {
+  id             Int                    @id @default(autoincrement())
+  transactionId  Int                    @unique
+  transaction    ProcurementTransaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  grossWeight    Float
+  tareWeight     Float
+  netWeight      Float
+  operatorId     Int
+  operator       User                   @relation(fields: [operatorId], references: [id])
+  timestamp      DateTime               @default(now())
+  deviceMetadata String?
+}
+
+model CropGrade {
+  id              Int    @id @default(autoincrement())
+  cropId          Int
+  crop            Crop   @relation(fields: [cropId], references: [id], onDelete: Cascade)
+  name            String
+  priceAdjustment Float  @default(0.0)
+}
+
+model CropPrice {
+  id            Int                @id @default(autoincrement())
+  cropId        Int
+  crop          Crop               @relation(fields: [cropId], references: [id], onDelete: Cascade)
+  centreId      Int?
+  centre        ProcurementCentre? @relation(fields: [centreId], references: [id])
+  mspPrice      Float
+  marketPrice   Float
+  effectiveDate DateTime
+  createdAt     DateTime           @default(now())
+}
+
+model QualityInspection {
+  id              Int                    @id @default(autoincrement())
+  transactionId   Int                    @unique
+  transaction     ProcurementTransaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  moisture        Float
+  foreignMatter   Float
+  grade           String
+  result          QualityResult
+  rejectionReason String?
+  inspectorId     Int
+  inspector       User                   @relation(fields: [inspectorId], references: [id])
+  timestamp       DateTime               @default(now())
+}
+
+model Payment {
+  id                Int                    @id @default(autoincrement())
+  transactionId     Int                    @unique
+  transaction       ProcurementTransaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  transactionNumber String                 @unique
+  amount            Float
+  status            PaymentStatus          @default(PENDING)
+  processedAt       DateTime?
+  referenceId       String?
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+}
+
+model Notification {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  type      String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  userId    Int?
+  user      User?    @relation(fields: [userId], references: [id])
+  action    String
+  entity    String
+  entityId  String?
+  metadata  String?
+  timestamp DateTime @default(now())
+}
