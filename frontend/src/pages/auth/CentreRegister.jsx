@@ -1,428 +1,1296 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../hooks/useAuth';
 import { mockUser } from '../../data/mockData';
-import { Building2, ChevronRight, ChevronLeft, CheckCircle, Upload, X } from 'lucide-react';
+import {
+  Building2,
+  Landmark,
+  Building,
+  UserCheck,
+  MapPin,
+  Scale,
+  CheckCircle,
+  Check,
+  X,
+  Briefcase,
+  Mail,
+  Phone,
+  Warehouse,
+  FlaskConical,
+  Users,
+  Shield,
+  BadgeCheck,
+  Download,
+  ArrowRight,
+  Copy,
+  Sparkles
+} from 'lucide-react';
 
-const STATES = ["Uttar Pradesh","Madhya Pradesh","Punjab","Haryana","Bihar","Rajasthan","Maharashtra","Gujarat","Andhra Pradesh","Karnataka","Tamil Nadu","West Bengal","Odisha","Chhattisgarh","Jharkhand","Uttarakhand","Himachal Pradesh","Telangana"];
-const CROP_LIST = ['Wheat','Paddy','Maize','Mustard','Soybean','Gram (Chana)','Bajra','Jowar'];
+const STATES = [
+  "Uttar Pradesh", "Madhya Pradesh", "Punjab", "Haryana", "Bihar",
+  "Rajasthan", "Maharashtra", "Gujarat", "Andhra Pradesh", "Karnataka",
+  "Tamil Nadu", "West Bengal", "Odisha", "Chhattisgarh", "Jharkhand",
+  "Uttarakhand", "Himachal Pradesh", "Telangana", "Assam", "Kerala"
+];
 
-const generateCentreId = () => {
-  const state = 'UP';
-  const dist = 'LKO';
-  const num = Math.floor(Math.random() * 900) + 100;
-  return `${state}-${dist}-${num}`;
+const generateCentreId = (stateName, districtName) => {
+  const stCode = stateName ? stateName.slice(0, 2).toUpperCase() : 'UP';
+  const dtCode = districtName && districtName.trim().length >= 3 ? districtName.trim().slice(0, 3).toUpperCase() : 'LKO';
+  const randomNum = Math.floor(100 + Math.random() * 900);
+  return `${stCode}-${dtCode}-${randomNum}`;
 };
 
 const CentreRegister = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { login } = useAuth();
   const navigate = useNavigate();
-  const fileRef = useRef(null);
+  const isHindi = i18n.language === 'hi';
 
-  const [step, setStep] = useState(1);
-  const [centreId] = useState(generateCentreId());
+  const [centreId, setCentreId] = useState(generateCentreId('Uttar Pradesh', 'Lucknow'));
+
   const [form, setForm] = useState({
-    centreName: '', centreType: 'Government',
-    state: '', district: '', blockTehsil: '', villageTown: '', fullAddress: '', pincode: '',
-    managerName: '', designation: '', mobile: '',
-    storageCapacity: '', loadingBays: '', counters: '', operators: '',
-    crops: ['Wheat', 'Paddy'],
-    procurementType: 'MSP Procurement',
-    openingTime: '08:00', closingTime: '18:00',
-    authRegNo: '', issuingAuthority: '', validFrom: '', validUntil: '',
-    uploadedDocs: [],
-    agreeTerms: false,
-    otp: '',
+    // 1. Centre Basic Details
+    centreName: '',
+    centreType: 'Government', // 'Government' | 'Corporate'
+    agencyName: '',
+    regLicenseNumber: '',
+    panGstin: '',
+
+    // 2. Authorized Person
+    managerName: '',
+    mobile: '',
+    email: '',
+    designation: '',
+
+    // 3. Location
+    state: 'Uttar Pradesh',
+    district: '',
+    blockTehsil: '',
+    villageTown: '',
+    fullAddress: '',
+    pincode: '',
+
+    // 4. Procurement Capacity & Facilities
+    dailyCapacity: '',
+    maxStorageCapacity: '',
+    weighingFacility: 'Yes',
+    qualityTestingFacility: 'Yes',
+    godownStorage: 'Yes',
+    staffCount: '5',
   });
+
   const [errors, setErrors] = useState({});
   const [submitted, setSubmitted] = useState(false);
+  const [copiedId, setCopiedId] = useState(false);
 
-  const update = (field, val) => setForm(f => ({ ...f, [field]: val }));
+  const update = (field, val) => {
+    setForm(f => {
+      const next = { ...f, [field]: val };
+      if (field === 'state' || field === 'district') {
+        setCentreId(generateCentreId(next.state, next.district));
+      }
+      return next;
+    });
 
-  const toggleCrop = (crop) => {
-    setForm(f => ({
-      ...f,
-      crops: f.crops.includes(crop)
-        ? f.crops.filter(c => c !== crop)
-        : [...f.crops, crop],
-    }));
+    if (errors[field]) {
+      setErrors(prev => ({ ...prev, [field]: undefined }));
+    }
   };
 
-  const handleFileUpload = (e) => {
-    const files = Array.from(e.target.files);
-    setForm(f => ({
-      ...f,
-      uploadedDocs: [...f.uploadedDocs, ...files.map(fi => fi.name)],
-    }));
-  };
-
-  const steps = [
-    { label: 'Centre Details' },
-    { label: 'Manager & Infrastructure' },
-    { label: 'Authorization & Docs' },
-    { label: 'OTP Verify' },
-  ];
-
-  const validate = () => {
+  const validateAll = () => {
     const errs = {};
-    if (step === 1) {
-      if (!form.centreName) errs.centreName = 'Centre name is required';
-      if (!form.state) errs.state = 'State is required';
-      if (!form.district) errs.district = 'District is required';
-      if (!form.fullAddress) errs.fullAddress = 'Address is required';
-      if (!form.pincode || form.pincode.length !== 6) errs.pincode = 'Enter valid 6-digit PIN';
+
+    // 1. Basic Details
+    if (!form.centreName.trim()) {
+      errs.centreName = isHindi ? 'खरीद केंद्र का नाम अनिवार्य है' : 'Procurement Centre Name is required';
     }
-    if (step === 2) {
-      if (!form.managerName) errs.managerName = 'Manager name is required';
-      if (!form.designation) errs.designation = 'Designation is required';
-      if (!form.mobile || form.mobile.length !== 10) errs.mobile = 'Enter valid mobile';
+    if (!form.centreType) {
+      errs.centreType = isHindi ? 'केंद्र का प्रकार चुनें' : 'Centre Type is required';
     }
-    if (step === 3) {
-      if (!form.authRegNo) errs.authRegNo = 'Auth number is required';
+    if (!form.agencyName.trim()) {
+      errs.agencyName = isHindi ? 'खरीद एजेंसी / संस्था का नाम अनिवार्य है' : 'Procurement Agency / Organization Name is required';
     }
+
+    // 2. Authorized Person
+    if (!form.managerName.trim()) {
+      errs.managerName = isHindi ? 'प्रबंधक / अधिकृत अधिकारी का नाम अनिवार्य है' : 'Manager / Authorized Officer Name is required';
+    }
+    if (!form.mobile || !/^\d{10}$/.test(form.mobile.replace(/\s+/g, ''))) {
+      errs.mobile = isHindi ? 'वैध 10 अंकों का मोबाइल नंबर दर्ज करें' : 'Enter a valid 10-digit mobile number';
+    }
+    if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+      errs.email = isHindi ? 'वैध ईमेल पता दर्ज करें' : 'Enter a valid email address';
+    }
+    if (!form.designation.trim()) {
+      errs.designation = isHindi ? 'पदनाम अनिवार्य है' : 'Designation is required';
+    }
+
+    // 3. Location
+    if (!form.state) {
+      errs.state = isHindi ? 'राज्य का चयन करें' : 'State is required';
+    }
+    if (!form.district.trim()) {
+      errs.district = isHindi ? 'जिला अनिवार्य है' : 'District is required';
+    }
+    if (!form.blockTehsil.trim()) {
+      errs.blockTehsil = isHindi ? 'ब्लॉक / तहसील अनिवार्य है' : 'Block / Tehsil is required';
+    }
+    if (!form.villageTown.trim()) {
+      errs.villageTown = isHindi ? 'गांव / कस्बा अनिवार्य है' : 'Village / Town is required';
+    }
+    if (!form.fullAddress.trim()) {
+      errs.fullAddress = isHindi ? 'केंद्र का पूरा पता अनिवार्य है' : 'Full Centre Address is required';
+    }
+    if (form.pincode && !/^\d{6}$/.test(form.pincode.trim())) {
+      errs.pincode = isHindi ? '6 अंकों का पिन कोड दर्ज करें' : 'Enter a valid 6-digit PIN code';
+    }
+
+    // 4. Procurement Capacity
+    if (!form.staffCount || isNaN(Number(form.staffCount)) || Number(form.staffCount) < 1) {
+      errs.staffCount = isHindi ? 'कर्मचारियों की संख्या कम से कम 1 होनी चाहिए' : 'Staff count must be at least 1';
+    }
+
     return errs;
   };
 
-  const handleNext = () => {
-    const errs = validate();
+  const handleSubmit = (e) => {
+    if (e) e.preventDefault();
+    const errs = validateAll();
     setErrors(errs);
-    if (Object.keys(errs).length > 0) return;
-    setStep(s => s + 1);
-  };
 
-  const handleSubmit = () => {
-    login('centre', { ...mockUser.centre, name: form.managerName, mobile: form.mobile });
+    if (Object.keys(errs).length > 0) {
+      // Smooth scroll to top error
+      window.scrollTo({ top: 120, behavior: 'smooth' });
+      return;
+    }
+
+    // Save centre user in auth context
+    const centreUser = {
+      ...mockUser.centre,
+      name: form.centreName,
+      centreId: centreId,
+      centreType: form.centreType,
+      agencyName: form.agencyName,
+      regLicenseNumber: form.regLicenseNumber,
+      panGstin: form.panGstin,
+      manager: form.managerName,
+      mobile: form.mobile,
+      email: form.email,
+      designation: form.designation,
+      state: form.state,
+      district: form.district,
+      blockTehsil: form.blockTehsil,
+      villageTown: form.villageTown,
+      fullAddress: form.fullAddress,
+      pincode: form.pincode,
+      dailyCapacity: form.dailyCapacity ? `${form.dailyCapacity} Quintal/day` : '500 Quintal/day',
+      storageCapacity: form.maxStorageCapacity ? `${form.maxStorageCapacity} Quintal` : '2,000 Quintal',
+      weighingFacility: form.weighingFacility,
+      qualityTestingFacility: form.qualityTestingFacility,
+      godownStorage: form.godownStorage,
+      staffCount: form.staffCount,
+    };
+
+    login('centre', centreUser);
     setSubmitted(true);
-    setTimeout(() => navigate('/centre/dashboard'), 2000);
   };
 
+  const copyToClipboard = () => {
+    navigator.clipboard.writeText(centreId);
+    setCopiedId(true);
+    setTimeout(() => setCopiedId(false), 2000);
+  };
+
+  // ── Success State Pass / Acknowledgment Slip ──
   if (submitted) {
     return (
-      <div style={{ minHeight: '80vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ textAlign: 'center', padding: '2rem' }}>
-          <CheckCircle size={64} color="#2E7D32" style={{ marginBottom: '1rem' }} />
-          <h2 style={{ color: '#2E7D32', fontWeight: 800 }}>Centre Registered Successfully! 🎉</h2>
-          <p style={{ color: '#6B7280' }}>Centre ID: <strong>{centreId}</strong></p>
-          <p style={{ color: '#6B7280' }}>Redirecting to dashboard...</p>
+      <div style={{
+        minHeight: '100vh',
+        background: 'linear-gradient(135deg, #FFFFFF 0%, #F0FDF4 45%, #DCFCE7 100%)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '2.5rem 1rem'
+      }}>
+        <div style={{
+          width: '100%',
+          maxWidth: '560px',
+          background: '#FFFFFF',
+          borderRadius: '24px',
+          overflow: 'hidden',
+          boxShadow: '0 20px 40px -15px rgba(6, 78, 59, 0.18), 0 0 0 1px rgba(16, 185, 129, 0.1)',
+          animation: 'fadeIn 0.4s ease-out'
+        }}>
+          {/* Header Banner */}
+          <div style={{
+            background: 'linear-gradient(135deg, #065F46 0%, #047857 50%, #059669 100%)',
+            padding: '2.25rem 2rem',
+            textAlign: 'center',
+            color: '#FFFFFF',
+            position: 'relative'
+          }}>
+            <div style={{
+              width: 72,
+              height: 72,
+              borderRadius: '50%',
+              background: 'rgba(255, 255, 255, 0.2)',
+              backdropFilter: 'blur(8px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 1rem',
+              border: '2px solid rgba(255, 255, 255, 0.4)'
+            }}>
+              <CheckCircle size={42} color="#FFFFFF" />
+            </div>
+
+            <span style={{
+              background: 'rgba(255, 255, 255, 0.2)',
+              padding: '4px 14px',
+              borderRadius: '20px',
+              fontSize: '0.75rem',
+              fontWeight: 800,
+              letterSpacing: '0.05em',
+              textTransform: 'uppercase',
+              display: 'inline-block',
+              marginBottom: '0.5rem'
+            }}>
+              ✨ {isHindi ? 'पंजीकरण सत्यापित' : 'REGISTRATION VERIFIED'}
+            </span>
+
+            <h2 style={{ fontSize: '1.6rem', fontWeight: 900, margin: '0 0 0.4rem 0' }}>
+              {isHindi ? 'खरीद केंद्र सफलतापूर्वक पंजीकृत हुआ!' : 'Procurement Centre Registered!'}
+            </h2>
+            <p style={{ margin: 0, opacity: 0.9, fontSize: '0.88rem' }}>
+              {isHindi ? 'आपका खरीद केंद्र पोर्टल उपयोग के लिए तैयार है।' : 'Your official procurement centre portal is ready for operation.'}
+            </p>
+          </div>
+
+          {/* Body Pass / Slip */}
+          <div style={{ padding: '2rem' }}>
+            <div style={{
+              background: '#F8FAFC',
+              border: '1.5px dashed #CBD5E1',
+              borderRadius: '18px',
+              padding: '1.4rem',
+              marginBottom: '1.75rem'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #E2E8F0', paddingBottom: '0.9rem', marginBottom: '0.9rem' }}>
+                <div>
+                  <div style={{ fontSize: '0.75rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase' }}>
+                    {isHindi ? 'आधिकारिक केंद्र ID' : 'Official Centre ID'}
+                  </div>
+                  <div style={{ fontSize: '1.35rem', fontWeight: 900, color: '#0F172A', letterSpacing: '0.02em', marginTop: '2px' }}>
+                    {centreId}
+                  </div>
+                </div>
+                <button
+                  onClick={copyToClipboard}
+                  style={{
+                    background: copiedId ? '#DCFCE7' : '#FFFFFF',
+                    border: `1px solid ${copiedId ? '#86EFAC' : '#CBD5E1'}`,
+                    color: copiedId ? '#166534' : '#334155',
+                    padding: '0.45rem 0.85rem',
+                    borderRadius: '8px',
+                    fontSize: '0.78rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    transition: 'all 0.15s'
+                  }}
+                >
+                  <Copy size={13} />
+                  {copiedId ? (isHindi ? 'कॉपी हो गया!' : 'Copied!') : (isHindi ? 'कॉपी ID' : 'Copy ID')}
+                </button>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.9rem', fontSize: '0.85rem' }}>
+                <div>
+                  <div style={{ color: '#64748B', fontSize: '0.75rem', fontWeight: 600 }}>
+                    {isHindi ? 'केंद्र का नाम' : 'Centre Name'}
+                  </div>
+                  <div style={{ fontWeight: 800, color: '#1E293B', marginTop: '2px' }}>
+                    {form.centreName || 'Govt. Procurement Centre'}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ color: '#64748B', fontSize: '0.75rem', fontWeight: 600 }}>
+                    {isHindi ? 'केंद्र प्रकार' : 'Centre Type'}
+                  </div>
+                  <div style={{ fontWeight: 800, color: '#047857', marginTop: '2px' }}>
+                    {form.centreType === 'Government' ? '🏛️ Government' : '🏢 Corporate'}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ color: '#64748B', fontSize: '0.75rem', fontWeight: 600 }}>
+                    {isHindi ? 'खरीद एजेंसी' : 'Agency'}
+                  </div>
+                  <div style={{ fontWeight: 700, color: '#1E293B', marginTop: '2px' }}>
+                    {form.agencyName || 'State Civil Supplies / Mandi Board'}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ color: '#64748B', fontSize: '0.75rem', fontWeight: 600 }}>
+                    {isHindi ? 'स्थान' : 'Location'}
+                  </div>
+                  <div style={{ fontWeight: 700, color: '#1E293B', marginTop: '2px' }}>
+                    {form.district || 'Lucknow'}, {form.state}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ color: '#64748B', fontSize: '0.75rem', fontWeight: 600 }}>
+                    {isHindi ? 'अधिकृत अधिकारी' : 'Authorized Officer'}
+                  </div>
+                  <div style={{ fontWeight: 700, color: '#1E293B', marginTop: '2px' }}>
+                    {form.managerName || 'Anil Verma'} ({form.designation || 'Manager'})
+                  </div>
+                </div>
+                <div>
+                  <div style={{ color: '#64748B', fontSize: '0.75rem', fontWeight: 600 }}>
+                    {isHindi ? 'दैनिक क्षमता' : 'Daily Capacity'}
+                  </div>
+                  <div style={{ fontWeight: 800, color: '#0284C7', marginTop: '2px' }}>
+                    ⚡ {form.dailyCapacity ? `${form.dailyCapacity} Qtl/day` : '500 Qtl/day'}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* CTA Buttons */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <button
+                onClick={() => navigate('/centre/dashboard')}
+                className="btn-primary"
+                style={{
+                  background: 'linear-gradient(135deg, #047857 0%, #059669 100%)',
+                  padding: '0.85rem 1.5rem',
+                  fontSize: '1rem',
+                  fontWeight: 800,
+                  borderRadius: '12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.5rem',
+                  boxShadow: '0 4px 14px rgba(4, 120, 87, 0.35)'
+                }}
+              >
+                {isHindi ? 'केंद्र डैशबोर्ड पर जाएं' : 'Go to Centre Dashboard'}
+                <ArrowRight size={18} />
+              </button>
+
+              <button
+                onClick={() => window.print()}
+                style={{
+                  background: '#F1F5F9',
+                  border: '1px solid #E2E8F0',
+                  color: '#475569',
+                  padding: '0.75rem 1.25rem',
+                  borderRadius: '12px',
+                  fontWeight: 700,
+                  fontSize: '0.9rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.4rem',
+                  transition: 'background 0.2s'
+                }}
+              >
+                <Download size={16} />
+                {isHindi ? 'पंजीकरण पर्ची डाउनलोड / प्रिंट करें' : 'Print / Download Acknowledgment'}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     );
   }
 
-  const field = (label, key, type = 'text', placeholder = '', extras = {}) => (
-    <div style={{ marginBottom: '0.9rem' }}>
-      <label className="input-label">{label} <span style={{ color: '#D32F2F' }}>*</span></label>
-      <input type={type} value={form[key]} onChange={e => update(key, e.target.value)}
-        placeholder={placeholder} className="input-field" {...extras} />
-      {errors[key] && <div style={{ color: '#D32F2F', fontSize: '0.78rem', marginTop: '0.2rem' }}>{errors[key]}</div>}
-    </div>
-  );
-
-  const sel = (label, key, opts, required = true) => (
-    <div style={{ marginBottom: '0.9rem' }}>
-      <label className="input-label">{label}{required && <span style={{ color: '#D32F2F' }}>*</span>}</label>
-      <select value={form[key]} onChange={e => update(key, e.target.value)} className="input-field" style={{ cursor: 'pointer' }}>
-        {opts.map(o => <option key={o} value={o}>{o}</option>)}
-      </select>
-      {errors[key] && <div style={{ color: '#D32F2F', fontSize: '0.78rem', marginTop: '0.2rem' }}>{errors[key]}</div>}
-    </div>
-  );
-
   return (
     <div style={{
       minHeight: '100vh',
-      background: 'linear-gradient(135deg, #F5F5F0, #E3F2FD)',
-      padding: '2rem 1rem',
+      background: 'linear-gradient(135deg, #F0FDF4 0%, #F8FAFC 50%, #EFF6FF 100%)',
+      padding: '2.5rem 1rem',
     }}>
-      <div style={{ maxWidth: '580px', margin: '0 auto' }}>
-        {/* Header */}
+      <div style={{ maxWidth: '720px', margin: '0 auto' }}>
+
+        {/* Top Header Card */}
         <div style={{
-          background: 'linear-gradient(135deg, #1565C0, #1976D2)',
-          borderRadius: '16px 16px 0 0',
-          padding: '1.5rem',
-          textAlign: 'center',
-          color: 'white',
+          background: 'linear-gradient(135deg, #064E3B 0%, #047857 60%, #0284C7 100%)',
+          borderRadius: '24px 24px 0 0',
+          padding: '2rem 2rem 1.75rem',
+          color: '#FFFFFF',
+          position: 'relative',
+          overflow: 'hidden',
+          boxShadow: '0 10px 25px -5px rgba(6, 78, 59, 0.3)'
         }}>
-          <Building2 size={32} color="#F9A825" style={{ marginBottom: '0.5rem' }} />
-          <h1 style={{ fontWeight: 800, fontSize: '1.3rem', margin: 0 }}>{t('centreRegistration')}</h1>
-          <p style={{ opacity: 0.8, fontSize: '0.82rem', marginTop: '0.3rem' }}>
-            Centre ID: <strong>{centreId}</strong> (Auto-generated)
-          </p>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem', position: 'relative' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+              <div style={{
+                width: 52,
+                height: 52,
+                borderRadius: '16px',
+                background: '#FFFFFF',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                flexShrink: 0
+              }}>
+                <Building2 size={28} color="#047857" />
+              </div>
+              <div>
+                <span style={{
+                  background: 'rgba(255, 255, 255, 0.2)',
+                  color: '#FEF3C7',
+                  padding: '2px 10px',
+                  borderRadius: '12px',
+                  fontSize: '0.72rem',
+                  fontWeight: 800,
+                  letterSpacing: '0.05em',
+                  textTransform: 'uppercase'
+                }}>
+                  {isHindi ? 'खरीद पोर्टल पंजीकरण' : 'GOVT. PROCUREMENT SYSTEM'}
+                </span>
+                <h1 style={{ fontWeight: 900, fontSize: '1.5rem', margin: '0.2rem 0 0', lineHeight: 1.2 }}>
+                  {t('centreRegistration')}
+                </h1>
+                <p style={{ margin: '0.25rem 0 0', opacity: 0.85, fontSize: '0.84rem' }}>
+                  {t('centreRegistrationSubtitle')}
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* Step indicator */}
-        <div style={{
-          background: 'white', padding: '0.85rem 1.5rem',
-          borderBottom: '1px solid #E5E7EB',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem',
+        {/* Single-Page Form Body */}
+        <form onSubmit={handleSubmit} style={{
+          background: '#FFFFFF',
+          padding: '2.25rem 2rem',
+          borderRadius: '0 0 24px 24px',
+          boxShadow: '0 12px 30px rgba(0,0,0,0.06)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '2.25rem'
         }}>
-          {steps.map((s, i) => (
-            <React.Fragment key={i}>
-              <div style={{
-                width: 30, height: 30, borderRadius: '50%',
-                background: i + 1 <= step ? '#1565C0' : '#E5E7EB',
-                color: i + 1 <= step ? 'white' : '#9E9E9E',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontWeight: 700, fontSize: '0.8rem',
-              }}>
-                {i + 1 < step ? '✓' : i + 1}
+
+          {/* ════════════════════════════════════════════════════════════════════
+              SECTION 1: Centre Basic Details
+             ════════════════════════════════════════════════════════════════════ */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.6rem',
+              paddingBottom: '0.75rem',
+              borderBottom: '2px solid #ECFDF5'
+            }}>
+              <div style={{ width: 32, height: 32, borderRadius: '8px', background: '#ECFDF5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Building2 size={18} color="#047857" />
               </div>
-              {i < steps.length - 1 && (
-                <div style={{ flex: 1, height: 2, background: i + 1 < step ? '#1565C0' : '#E5E7EB', maxWidth: '50px' }} />
-              )}
-            </React.Fragment>
-          ))}
-        </div>
-
-        <div style={{ background: 'white', padding: '1.5rem', borderRadius: '0 0 16px 16px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}>
-          <h3 style={{ fontWeight: 700, color: '#1565C0', marginBottom: '1.25rem', fontSize: '1rem' }}>
-            Step {step}: {steps[step - 1].label}
-          </h3>
-
-          {/* ── Step 1: Centre Details ── */}
-          {step === 1 && (
-            <>
-              {field(t('centreName'), 'centreName', 'text', 'e.g. Bhagwanpur Govt. Centre')}
-
-              <div style={{ marginBottom: '0.9rem' }}>
-                <label className="input-label">{t('centreType')} <span style={{ color: '#D32F2F' }}>*</span></label>
-                {['Government', 'Cooperative', 'Authorized Private Centre'].map(type => (
-                  <label key={type} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem', cursor: 'pointer', minHeight: 'unset', fontSize: '0.9rem' }}>
-                    <input type="radio" name="centreType" value={type}
-                      checked={form.centreType === type}
-                      onChange={() => update('centreType', type)}
-                      style={{ width: 16, height: 16, minHeight: 'unset', accentColor: '#1565C0' }} />
-                    {type === 'Government' ? t('government') :
-                     type === 'Cooperative' ? t('cooperative') :
-                     type === 'Authorized Private Centre' ? t('authorizedPrivate') :
-                     type}
-                  </label>
-                ))}
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: '#064E3B' }}>
+                  {isHindi ? '1. केंद्र का बुनियादी विवरण' : '1. Centre Basic Details'}
+                </h3>
+                <p style={{ margin: 0, fontSize: '0.78rem', color: '#64748B' }}>
+                  {isHindi ? 'केंद्र का नाम, प्रकार और एजेंसी' : 'Procurement centre identity and organization'}
+                </p>
               </div>
+            </div>
 
-              {sel(t('state'), 'state', ['— Select State —', ...STATES])}
-              {field(t('district'), 'district', 'text', 'e.g. Lucknow')}
-              {field(t('blockTehsil'), 'blockTehsil', 'text', 'e.g. Malihabad')}
-              {field(t('villageTown'), 'villageTown', 'text', 'e.g. Bhagwanpur')}
-
-              <div style={{ marginBottom: '0.9rem' }}>
-                <label className="input-label">{t('fullAddress')} <span style={{ color: '#D32F2F' }}>*</span></label>
-                <textarea
-                  value={form.fullAddress}
-                  onChange={e => update('fullAddress', e.target.value)}
-                  placeholder="Full postal address of the centre"
-                  className="input-field"
-                  rows={3}
-                  style={{ resize: 'vertical', minHeight: '72px' }}
-                />
-                {errors.fullAddress && <div style={{ color: '#D32F2F', fontSize: '0.78rem', marginTop: '0.2rem' }}>{errors.fullAddress}</div>}
-              </div>
-
-              {field(t('pincode'), 'pincode', 'text', '6-digit PIN', { maxLength: 6 })}
-            </>
-          )}
-
-          {/* ── Step 2: Manager & Infrastructure ── */}
-          {step === 2 && (
-            <>
-              <div style={{ fontWeight: 600, color: '#555', marginBottom: '0.75rem', fontSize: '0.9rem', borderBottom: '1px solid #E5E7EB', paddingBottom: '0.4rem' }}>
-                👤 {t('managerDetails')}
-              </div>
-              {field(t('managerName'), 'managerName', 'text', 'Full name of centre manager')}
-              {field(t('designation'), 'designation', 'text', 'e.g. Centre Manager')}
-              {field(t('mobile'), 'mobile', 'tel', '10-digit mobile', { maxLength: 10 })}
-
-              <div style={{ fontWeight: 600, color: '#555', margin: '1rem 0 0.75rem', fontSize: '0.9rem', borderBottom: '1px solid #E5E7EB', paddingBottom: '0.4rem' }}>
-                🏗️ {t('infrastructure')}
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-                {[
-                  [t('storageCapacity'), 'storageCapacity', 'e.g. 500'],
-                  [t('loadingBays'), 'loadingBays', 'e.g. 4'],
-                  [t('counters'), 'counters', 'e.g. 6'],
-                  [t('operators'), 'operators', 'e.g. 12'],
-                ].map(([label, key, ph]) => (
-                  <div key={key} style={{ marginBottom: '0.9rem' }}>
-                    <label className="input-label" style={{ fontSize: '0.82rem' }}>{label}</label>
-                    <input type="number" value={form[key]} onChange={e => update(key, e.target.value)}
-                      placeholder={ph} className="input-field" min="0" />
-                  </div>
-                ))}
-              </div>
-
-              <div style={{ marginBottom: '0.9rem' }}>
-                <label className="input-label">{t('supportedCrops')}</label>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.4rem' }}>
-                  {CROP_LIST.map(crop => (
-                    <label key={crop} style={{
-                      display: 'flex', alignItems: 'center', gap: '0.3rem',
-                      background: form.crops.includes(crop) ? '#E3F2FD' : '#F9F9F9',
-                      border: `1.5px solid ${form.crops.includes(crop) ? '#1565C0' : '#E5E7EB'}`,
-                      borderRadius: '8px', padding: '0.35rem 0.7rem',
-                      cursor: 'pointer', fontSize: '0.85rem', fontWeight: 500,
-                      minHeight: 'unset', transition: 'all 0.15s',
-                    }}>
-                      <input type="checkbox" checked={form.crops.includes(crop)}
-                        onChange={() => toggleCrop(crop)}
-                        style={{ width: 14, height: 14, minHeight: 'unset', accentColor: '#1565C0' }} />
-                      {crop}
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              <div style={{ marginBottom: '0.9rem' }}>
-                <label className="input-label">{t('procurementType')}</label>
-                <div style={{ display: 'flex', gap: '1rem', marginTop: '0.4rem' }}>
-                  {['MSP Procurement', 'Other'].map(pt => (
-                    <label key={pt} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', fontSize: '0.9rem', minHeight: 'unset' }}>
-                      <input type="radio" name="procType" value={pt}
-                        checked={form.procurementType === pt}
-                        onChange={() => update('procurementType', pt)}
-                        style={{ width: 16, height: 16, minHeight: 'unset', accentColor: '#1565C0' }} />
-                      {pt}
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-                <div>
-                  <label className="input-label">{t('openingTime')}</label>
-                  <input type="time" value={form.openingTime} onChange={e => update('openingTime', e.target.value)} className="input-field" />
-                </div>
-                <div>
-                  <label className="input-label">{t('closingTime')}</label>
-                  <input type="time" value={form.closingTime} onChange={e => update('closingTime', e.target.value)} className="input-field" />
-                </div>
-              </div>
-            </>
-          )}
-
-          {/* ── Step 3: Authorization & Docs ── */}
-          {step === 3 && (
-            <>
-              <div style={{
-                background: '#FFF9C4', borderRadius: '8px', padding: '0.75rem 1rem',
-                marginBottom: '1rem', fontSize: '0.82rem', color: '#795548',
-              }}>
-                ⚠️ These details are for SIH demo purposes. In production, documents will be verified by the ministry.
-              </div>
-
-              <div style={{ fontWeight: 600, color: '#555', marginBottom: '0.75rem', fontSize: '0.9rem' }}>
-                📋 {t('authorization')}
-              </div>
-
-              {field(t('authRegNo'), 'authRegNo', 'text', 'e.g. APMC-UP-2024-001')}
-              {field(t('issuingAuthority'), 'issuingAuthority', 'text', 'e.g. UP State Govt.')}
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.9rem' }}>
-                <div>
-                  <label className="input-label">{t('validFrom')}</label>
-                  <input type="date" value={form.validFrom} onChange={e => update('validFrom', e.target.value)} className="input-field" />
-                </div>
-                <div>
-                  <label className="input-label">{t('validUntil')}</label>
-                  <input type="date" value={form.validUntil} onChange={e => update('validUntil', e.target.value)} className="input-field" />
-                </div>
-              </div>
-
-              <div style={{ fontWeight: 600, color: '#555', marginBottom: '0.75rem', fontSize: '0.9rem' }}>
-                📁 {t('documentUpload')}
-              </div>
-
-              <div style={{
-                border: '2px dashed #1565C0', borderRadius: '10px', padding: '1.5rem',
-                textAlign: 'center', background: '#F0F4FF', cursor: 'pointer', marginBottom: '0.9rem',
-              }} onClick={() => fileRef.current?.click()}>
-                <Upload size={32} color="#1565C0" style={{ margin: '0 auto 0.5rem' }} />
-                <div style={{ fontWeight: 600, color: '#1565C0', fontSize: '0.9rem' }}>
-                  Click to upload documents
-                </div>
-                <div style={{ fontSize: '0.78rem', color: '#6B7280', marginTop: '0.2rem' }}>
-                  Centre Authorization, Agency Approval, Other docs (PDF, JPG, PNG)
-                </div>
-                <input
-                  ref={fileRef} type="file" multiple accept=".pdf,.jpg,.jpeg,.png"
-                  onChange={handleFileUpload} style={{ display: 'none' }}
-                />
-              </div>
-
-              {form.uploadedDocs.length > 0 && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginBottom: '0.9rem' }}>
-                  {form.uploadedDocs.map((doc, i) => (
-                    <div key={i} style={{
-                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      background: '#E3F2FD', borderRadius: '8px', padding: '0.5rem 0.75rem',
-                      fontSize: '0.85rem',
-                    }}>
-                      <span>📄 {doc}</span>
-                      <button onClick={() => setForm(f => ({ ...f, uploadedDocs: f.uploadedDocs.filter((_, j) => j !== i) }))}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#D32F2F' }}>
-                        <X size={14} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem', color: '#555', minHeight: 'unset' }}>
-                <input type="checkbox" checked={form.agreeTerms} onChange={e => update('agreeTerms', e.target.checked)}
-                  style={{ width: 16, height: 16, minHeight: 'unset', marginTop: 2, flexShrink: 0, accentColor: '#1565C0' }} />
-                I certify that all information provided is accurate and I agree to the KrishiMitra Terms & Conditions.
+            {/* Procurement Centre Name * */}
+            <div>
+              <label className="input-label" style={{ fontWeight: 700, color: '#1E293B', marginBottom: '0.35rem' }}>
+                {isHindi ? 'खरीद केंद्र का नाम' : 'Procurement Centre Name'} <span style={{ color: '#DC2626' }}>*</span>
               </label>
-            </>
-          )}
+              <input
+                type="text"
+                value={form.centreName}
+                onChange={e => update('centreName', e.target.value)}
+                placeholder={isHindi ? 'उदा. भगवानपुर सरकारी कृषि खरीद केंद्र' : 'e.g. Bhagwanpur Procurement Centre'}
+                className="input-field"
+                style={{
+                  borderColor: errors.centreName ? '#EF4444' : undefined,
+                  boxShadow: errors.centreName ? '0 0 0 2px rgba(239, 68, 68, 0.15)' : undefined
+                }}
+              />
+              {errors.centreName && (
+                <div style={{ color: '#DC2626', fontSize: '0.78rem', marginTop: '0.25rem', fontWeight: 600 }}>
+                  {errors.centreName}
+                </div>
+              )}
+            </div>
 
-          {/* ── Step 4: OTP ── */}
-          {step === 4 && (
-            <>
-              <div style={{ background: '#E3F2FD', borderRadius: '10px', padding: '1rem', marginBottom: '1.25rem', textAlign: 'center' }}>
-                <p style={{ color: '#1565C0', fontWeight: 500, fontSize: '0.9rem' }}>
-                  OTP sent to <strong>+91 {form.mobile}</strong>
-                </p>
-                <p style={{ color: '#6B7280', fontSize: '0.8rem', marginTop: '0.3rem' }}>
-                  Demo OTP: <strong>123456</strong>
-                </p>
-              </div>
-              <div style={{ marginBottom: '1rem' }}>
-                <label className="input-label">Enter 6-digit OTP</label>
-                <input type="tel" value={form.otp} onChange={e => update('otp', e.target.value.slice(0, 6))}
-                  placeholder="123456" className="input-field"
-                  style={{ textAlign: 'center', letterSpacing: '0.5em', fontSize: '1.2rem', fontWeight: 700 }} maxLength={6} />
-              </div>
-            </>
-          )}
+            {/* Centre Type * — 2 Options: Government vs Corporate */}
+            <div>
+              <label className="input-label" style={{ fontWeight: 700, color: '#1E293B', marginBottom: '0.5rem' }}>
+                {isHindi ? 'केंद्र का प्रकार' : 'Centre Type'} <span style={{ color: '#DC2626' }}>*</span>
+                <span style={{ fontSize: '0.78rem', fontWeight: 500, color: '#64748B', marginLeft: '6px' }}>
+                  ({isHindi ? 'सरकारी अथवा कॉर्पोरेट चुनें' : 'Select Government or Corporate'})
+                </span>
+              </label>
 
-          {/* Buttons */}
-          <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1rem' }}>
-            {step > 1 && (
-              <button onClick={() => setStep(s => s - 1)} className="btn-outline" style={{ flex: 1, justifyContent: 'center' }}>
-                <ChevronLeft size={16} /> Back
-              </button>
-            )}
-            {step < 4 ? (
-              <button onClick={handleNext} className="btn-primary" style={{ flex: 1, justifyContent: 'center', background: '#1565C0' }}>
-                Next <ChevronRight size={16} />
-              </button>
-            ) : (
-              <button onClick={handleSubmit} className="btn-primary" style={{ flex: 1, justifyContent: 'center', background: '#1565C0' }}>
-                <CheckCircle size={16} /> Register Centre
-              </button>
-            )}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                {/* Government Card */}
+                <div
+                  onClick={() => update('centreType', 'Government')}
+                  style={{
+                    background: form.centreType === 'Government' ? '#ECFDF5' : '#F8FAFC',
+                    border: form.centreType === 'Government' ? '2.5px solid #059669' : '1.5px solid #E2E8F0',
+                    borderRadius: '16px',
+                    padding: '1.1rem 1rem',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    boxShadow: form.centreType === 'Government' ? '0 6px 16px rgba(5, 150, 105, 0.15)' : 'none',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    textAlign: 'center',
+                    position: 'relative'
+                  }}
+                >
+                  {form.centreType === 'Government' && (
+                    <div style={{
+                      position: 'absolute',
+                      top: 10,
+                      right: 10,
+                      width: 20,
+                      height: 20,
+                      borderRadius: '50%',
+                      background: '#059669',
+                      color: '#FFFFFF',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}>
+                      <Check size={13} strokeWidth={3} />
+                    </div>
+                  )}
+                  <div style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: '12px',
+                    background: form.centreType === 'Government' ? '#D1FAE5' : '#E2E8F0',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginBottom: '0.5rem'
+                  }}>
+                    <Landmark size={24} color={form.centreType === 'Government' ? '#047857' : '#475569'} />
+                  </div>
+                  <div style={{ fontWeight: 800, fontSize: '1rem', color: form.centreType === 'Government' ? '#065F46' : '#1E293B' }}>
+                    {isHindi ? 'सरकारी केंद्र (Government)' : 'Government'}
+                  </div>
+                  <div style={{ fontSize: '0.74rem', color: form.centreType === 'Government' ? '#047857' : '#64748B', marginTop: '3px' }}>
+                    {isHindi ? 'राज्य / केंद्रीय खाद्य निगम, मंडी समिति' : 'State / Central Civil Supplies, Mandi Board'}
+                  </div>
+                </div>
+
+                {/* Corporate Card */}
+                <div
+                  onClick={() => update('centreType', 'Corporate')}
+                  style={{
+                    background: form.centreType === 'Corporate' ? '#F0F9FF' : '#F8FAFC',
+                    border: form.centreType === 'Corporate' ? '2.5px solid #0284C7' : '1.5px solid #E2E8F0',
+                    borderRadius: '16px',
+                    padding: '1.1rem 1rem',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    boxShadow: form.centreType === 'Corporate' ? '0 6px 16px rgba(2, 132, 199, 0.15)' : 'none',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    textAlign: 'center',
+                    position: 'relative'
+                  }}
+                >
+                  {form.centreType === 'Corporate' && (
+                    <div style={{
+                      position: 'absolute',
+                      top: 10,
+                      right: 10,
+                      width: 20,
+                      height: 20,
+                      borderRadius: '50%',
+                      background: '#0284C7',
+                      color: '#FFFFFF',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}>
+                      <Check size={13} strokeWidth={3} />
+                    </div>
+                  )}
+                  <div style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: '12px',
+                    background: form.centreType === 'Corporate' ? '#E0F2FE' : '#E2E8F0',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginBottom: '0.5rem'
+                  }}>
+                    <Building size={24} color={form.centreType === 'Corporate' ? '#0284C7' : '#475569'} />
+                  </div>
+                  <div style={{ fontWeight: 800, fontSize: '1rem', color: form.centreType === 'Corporate' ? '#0369A1' : '#1E293B' }}>
+                    {isHindi ? 'कॉर्पोरेट (Corporate / Private)' : 'Corporate / Private'}
+                  </div>
+                  <div style={{ fontSize: '0.74rem', color: form.centreType === 'Corporate' ? '#0284C7' : '#64748B', marginTop: '3px' }}>
+                    {isHindi ? 'अधिकृत निजी / कॉर्पोरेट कृषि खरीद संस्था' : 'Authorized Private / Corporate Agri Buyer'}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Procurement Agency/Organization Name * */}
+            <div>
+              <label className="input-label" style={{ fontWeight: 700, color: '#1E293B', marginBottom: '0.35rem' }}>
+                {isHindi ? 'खरीद एजेंसी / संस्था का नाम' : 'Procurement Agency / Organization Name'} <span style={{ color: '#DC2626' }}>*</span>
+              </label>
+              <input
+                type="text"
+                value={form.agencyName}
+                onChange={e => update('agencyName', e.target.value)}
+                placeholder={isHindi ? 'उदा. FCI / NAFED / HAFED / राज्य खाद्य एवं रसद निगम / ITC' : 'e.g. Food Corporation of India (FCI) / NAFED / State Mandi Board / Corporate Ltd.'}
+                className="input-field"
+                style={{
+                  borderColor: errors.agencyName ? '#EF4444' : undefined,
+                  boxShadow: errors.agencyName ? '0 0 0 2px rgba(239, 68, 68, 0.15)' : undefined
+                }}
+              />
+              {errors.agencyName && (
+                <div style={{ color: '#DC2626', fontSize: '0.78rem', marginTop: '0.25rem', fontWeight: 600 }}>
+                  {errors.agencyName}
+                </div>
+              )}
+            </div>
+
+            {/* 2-Column row: Reg License No & PAN / GSTIN */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem' }}>
+              <div>
+                <label className="input-label" style={{ fontWeight: 700, color: '#1E293B', marginBottom: '0.4rem', minHeight: '26px', display: 'flex', alignItems: 'flex-end', gap: '0.35rem' }}>
+                  <span>{isHindi ? 'पंजीकरण / लाइसेंस संख्या' : 'Registration / License Number'}</span>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 500, color: '#64748B' }}>
+                    ({isHindi ? 'यदि लागू हो' : 'optional'})
+                  </span>
+                </label>
+                <input
+                  type="text"
+                  value={form.regLicenseNumber}
+                  onChange={e => update('regLicenseNumber', e.target.value)}
+                  placeholder="e.g. REG-GOV-2024-8841"
+                  className="input-field"
+                />
+              </div>
+
+              <div>
+                <label className="input-label" style={{ fontWeight: 700, color: '#1E293B', marginBottom: '0.4rem', minHeight: '26px', display: 'flex', alignItems: 'flex-end', gap: '0.35rem' }}>
+                  <span>{isHindi ? 'पैन / जीएसटी (PAN / GSTIN)' : 'PAN / GSTIN'}</span>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 500, color: '#64748B' }}>
+                    ({isHindi ? 'यदि लागू हो' : 'optional'})
+                  </span>
+                </label>
+                <input
+                  type="text"
+                  value={form.panGstin}
+                  onChange={e => update('panGstin', e.target.value.toUpperCase())}
+                  placeholder="e.g. 09AAACK1234F1Z5 / ABCDE1234F"
+                  className="input-field"
+                />
+              </div>
+            </div>
           </div>
 
-          <div style={{ textAlign: 'center', marginTop: '1rem', fontSize: '0.85rem', color: '#6B7280' }}>
-            {t('alreadyAccount')}{' '}
-            <Link to="/login" style={{ color: '#1565C0', fontWeight: 600, textDecoration: 'none' }}>{t('loginHere')}</Link>
+          {/* ════════════════════════════════════════════════════════════════════
+              SECTION 2: Authorized Person
+             ════════════════════════════════════════════════════════════════════ */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.6rem',
+              paddingBottom: '0.75rem',
+              borderBottom: '2px solid #ECFDF5'
+            }}>
+              <div style={{ width: 32, height: 32, borderRadius: '8px', background: '#ECFDF5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <UserCheck size={18} color="#047857" />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: '#064E3B' }}>
+                  {isHindi ? '2. अधिकृत व्यक्ति का विवरण' : '2. Authorized Person'}
+                </h3>
+                <p style={{ margin: 0, fontSize: '0.78rem', color: '#64748B' }}>
+                  {isHindi ? 'केंद्र प्रबंधक अथवा अधिकृत अधिकारी का संपर्क' : 'Centre manager or authorized officer contact details'}
+                </p>
+              </div>
+            </div>
+
+            {/* Row 1: Manager / Officer Name & Designation */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem' }}>
+              <div>
+                <label className="input-label" style={{ fontWeight: 700, color: '#1E293B', marginBottom: '0.4rem', minHeight: '26px', display: 'flex', alignItems: 'flex-end', gap: '0.25rem' }}>
+                  <span>{isHindi ? 'प्रबंधक / अधिकृत अधिकारी का नाम' : 'Manager / Authorized Officer Name'}</span>
+                  <span style={{ color: '#DC2626' }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  value={form.managerName}
+                  onChange={e => update('managerName', e.target.value)}
+                  placeholder={isHindi ? 'उदा. अनिल कुमार वर्मा' : 'e.g. Anil Kumar Verma'}
+                  className="input-field"
+                  style={{
+                    borderColor: errors.managerName ? '#EF4444' : undefined,
+                    boxShadow: errors.managerName ? '0 0 0 2px rgba(239, 68, 68, 0.15)' : undefined
+                  }}
+                />
+                {errors.managerName && (
+                  <div style={{ color: '#DC2626', fontSize: '0.78rem', marginTop: '0.25rem', fontWeight: 600 }}>
+                    {errors.managerName}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="input-label" style={{ fontWeight: 700, color: '#1E293B', marginBottom: '0.4rem', minHeight: '26px', display: 'flex', alignItems: 'flex-end', gap: '0.25rem' }}>
+                  <span>{isHindi ? 'पदनाम (Designation)' : 'Designation'}</span>
+                  <span style={{ color: '#DC2626' }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  value={form.designation}
+                  onChange={e => update('designation', e.target.value)}
+                  placeholder={isHindi ? 'उदा. केंद्र प्रभारी / खरीद अधिकारी / प्रबंधक' : 'e.g. Centre Manager / Procurement Officer'}
+                  className="input-field"
+                  style={{
+                    borderColor: errors.designation ? '#EF4444' : undefined,
+                    boxShadow: errors.designation ? '0 0 0 2px rgba(239, 68, 68, 0.15)' : undefined
+                  }}
+                />
+                {errors.designation && (
+                  <div style={{ color: '#DC2626', fontSize: '0.78rem', marginTop: '0.25rem', fontWeight: 600 }}>
+                    {errors.designation}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Row 2: Mobile Number & Email */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem' }}>
+              <div>
+                <label className="input-label" style={{ fontWeight: 700, color: '#1E293B', marginBottom: '0.4rem', minHeight: '26px', display: 'flex', alignItems: 'flex-end', gap: '0.25rem' }}>
+                  <span>{isHindi ? 'मोबाइल नंबर' : 'Mobile Number'}</span>
+                  <span style={{ color: '#DC2626' }}>*</span>
+                </label>
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                  <span style={{
+                    position: 'absolute',
+                    left: '12px',
+                    fontSize: '0.9rem',
+                    fontWeight: 700,
+                    color: '#64748B'
+                  }}>
+                    +91
+                  </span>
+                  <input
+                    type="tel"
+                    value={form.mobile}
+                    onChange={e => update('mobile', e.target.value.replace(/\D/g, '').slice(0, 10))}
+                    placeholder="9876543210"
+                    className="input-field"
+                    style={{
+                      paddingLeft: '48px',
+                      borderColor: errors.mobile ? '#EF4444' : undefined,
+                      boxShadow: errors.mobile ? '0 0 0 2px rgba(239, 68, 68, 0.15)' : undefined
+                    }}
+                    maxLength={10}
+                  />
+                </div>
+                {errors.mobile && (
+                  <div style={{ color: '#DC2626', fontSize: '0.78rem', marginTop: '0.25rem', fontWeight: 600 }}>
+                    {errors.mobile}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="input-label" style={{ fontWeight: 700, color: '#1E293B', marginBottom: '0.4rem', minHeight: '26px', display: 'flex', alignItems: 'flex-end' }}>
+                  <span>{isHindi ? 'ईमेल (Email)' : 'Email'}</span>
+                </label>
+                <input
+                  type="email"
+                  value={form.email}
+                  onChange={e => update('email', e.target.value)}
+                  placeholder="manager@procure.gov.in"
+                  className="input-field"
+                  style={{
+                    borderColor: errors.email ? '#EF4444' : undefined
+                  }}
+                />
+                {errors.email && (
+                  <div style={{ color: '#DC2626', fontSize: '0.78rem', marginTop: '0.25rem', fontWeight: 600 }}>
+                    {errors.email}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
-        </div>
+
+          {/* ════════════════════════════════════════════════════════════════════
+              SECTION 3: Location
+             ════════════════════════════════════════════════════════════════════ */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.6rem',
+              paddingBottom: '0.75rem',
+              borderBottom: '2px solid #ECFDF5'
+            }}>
+              <div style={{ width: 32, height: 32, borderRadius: '8px', background: '#ECFDF5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <MapPin size={18} color="#047857" />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: '#064E3B' }}>
+                  {isHindi ? '3. स्थान (लोकेशन)' : '3. Location'}
+                </h3>
+                <p style={{ margin: 0, fontSize: '0.78rem', color: '#64748B' }}>
+                  {isHindi ? 'राज्य, जिला, ब्लॉक व केंद्र का पूरा पता' : 'Geographic location and physical address'}
+                </p>
+              </div>
+            </div>
+
+            {/* State * & District * */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem' }}>
+              <div>
+                <label className="input-label" style={{ fontWeight: 700, color: '#1E293B', marginBottom: '0.4rem', minHeight: '26px', display: 'flex', alignItems: 'flex-end', gap: '0.25rem' }}>
+                  <span>{isHindi ? 'राज्य (State)' : 'State'}</span>
+                  <span style={{ color: '#DC2626' }}>*</span>
+                </label>
+                <select
+                  value={form.state}
+                  onChange={e => update('state', e.target.value)}
+                  className="input-field"
+                  style={{ cursor: 'pointer' }}
+                >
+                  {STATES.map(st => (
+                    <option key={st} value={st}>{st}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="input-label" style={{ fontWeight: 700, color: '#1E293B', marginBottom: '0.4rem', minHeight: '26px', display: 'flex', alignItems: 'flex-end', gap: '0.25rem' }}>
+                  <span>{isHindi ? 'जिला (District)' : 'District'}</span>
+                  <span style={{ color: '#DC2626' }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  value={form.district}
+                  onChange={e => update('district', e.target.value)}
+                  placeholder={isHindi ? 'उदा. लखनऊ' : 'e.g. Lucknow'}
+                  className="input-field"
+                  style={{
+                    borderColor: errors.district ? '#EF4444' : undefined,
+                    boxShadow: errors.district ? '0 0 0 2px rgba(239, 68, 68, 0.15)' : undefined
+                  }}
+                />
+                {errors.district && (
+                  <div style={{ color: '#DC2626', fontSize: '0.78rem', marginTop: '0.25rem', fontWeight: 600 }}>
+                    {errors.district}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Block/Tehsil * & Village/Town * */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem' }}>
+              <div>
+                <label className="input-label" style={{ fontWeight: 700, color: '#1E293B', marginBottom: '0.4rem', minHeight: '26px', display: 'flex', alignItems: 'flex-end', gap: '0.25rem' }}>
+                  <span>{isHindi ? 'ब्लॉक / तहसील' : 'Block / Tehsil'}</span>
+                  <span style={{ color: '#DC2626' }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  value={form.blockTehsil}
+                  onChange={e => update('blockTehsil', e.target.value)}
+                  placeholder={isHindi ? 'उदा. मलिहाबाद' : 'e.g. Malihabad'}
+                  className="input-field"
+                  style={{
+                    borderColor: errors.blockTehsil ? '#EF4444' : undefined,
+                    boxShadow: errors.blockTehsil ? '0 0 0 2px rgba(239, 68, 68, 0.15)' : undefined
+                  }}
+                />
+                {errors.blockTehsil && (
+                  <div style={{ color: '#DC2626', fontSize: '0.78rem', marginTop: '0.25rem', fontWeight: 600 }}>
+                    {errors.blockTehsil}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="input-label" style={{ fontWeight: 700, color: '#1E293B', marginBottom: '0.4rem', minHeight: '26px', display: 'flex', alignItems: 'flex-end', gap: '0.25rem' }}>
+                  <span>{isHindi ? 'गांव / कस्बा' : 'Village / Town'}</span>
+                  <span style={{ color: '#DC2626' }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  value={form.villageTown}
+                  onChange={e => update('villageTown', e.target.value)}
+                  placeholder={isHindi ? 'उदा. भगवानपुर' : 'e.g. Bhagwanpur'}
+                  className="input-field"
+                  style={{
+                    borderColor: errors.villageTown ? '#EF4444' : undefined,
+                    boxShadow: errors.villageTown ? '0 0 0 2px rgba(239, 68, 68, 0.15)' : undefined
+                  }}
+                />
+                {errors.villageTown && (
+                  <div style={{ color: '#DC2626', fontSize: '0.78rem', marginTop: '0.25rem', fontWeight: 600 }}>
+                    {errors.villageTown}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Full Centre Address * */}
+            <div>
+              <label className="input-label" style={{ fontWeight: 700, color: '#1E293B', marginBottom: '0.35rem' }}>
+                {isHindi ? 'केंद्र का पूरा पता' : 'Full Centre Address'} <span style={{ color: '#DC2626' }}>*</span>
+              </label>
+              <textarea
+                value={form.fullAddress}
+                onChange={e => update('fullAddress', e.target.value)}
+                placeholder={isHindi ? 'मंडी समिति परिसर, मुख्य मार्ग, निकट ब्लॉक मुख्यालय...' : 'Plot No., Mandi Campus, Main Highway, Near Block Office...'}
+                className="input-field"
+                rows={3}
+                style={{
+                  resize: 'vertical',
+                  minHeight: '76px',
+                  borderColor: errors.fullAddress ? '#EF4444' : undefined,
+                  boxShadow: errors.fullAddress ? '0 0 0 2px rgba(239, 68, 68, 0.15)' : undefined
+                }}
+              />
+              {errors.fullAddress && (
+                <div style={{ color: '#DC2626', fontSize: '0.78rem', marginTop: '0.25rem', fontWeight: 600 }}>
+                  {errors.fullAddress}
+                </div>
+              )}
+            </div>
+
+            {/* PIN Code */}
+            <div style={{ maxWidth: '240px' }}>
+              <label className="input-label" style={{ fontWeight: 700, color: '#1E293B', marginBottom: '0.35rem' }}>
+                {isHindi ? 'पिन कोड (PIN Code)' : 'PIN Code'}
+              </label>
+              <input
+                type="text"
+                value={form.pincode}
+                onChange={e => update('pincode', e.target.value.replace(/\D/g, '').slice(0, 6))}
+                placeholder="226001"
+                className="input-field"
+                maxLength={6}
+                style={{
+                  borderColor: errors.pincode ? '#EF4444' : undefined
+                }}
+              />
+              {errors.pincode && (
+                <div style={{ color: '#DC2626', fontSize: '0.78rem', marginTop: '0.25rem', fontWeight: 600 }}>
+                  {errors.pincode}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* ════════════════════════════════════════════════════════════════════
+              SECTION 4: Procurement Capacity & Facilities
+             ════════════════════════════════════════════════════════════════════ */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.6rem',
+              paddingBottom: '0.75rem',
+              borderBottom: '2px solid #ECFDF5'
+            }}>
+              <div style={{ width: 32, height: 32, borderRadius: '8px', background: '#ECFDF5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Scale size={18} color="#047857" />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: '#064E3B' }}>
+                  {isHindi ? '4. खरीद क्षमता एवं सुविधाएं' : '4. Procurement Capacity & Facilities'}
+                </h3>
+                <p style={{ margin: 0, fontSize: '0.78rem', color: '#64748B' }}>
+                  {isHindi ? 'दैनिक क्षमता, भंडारण व बुनियादी सुविधाएं' : 'Daily volume, storage limit, and facility availability'}
+                </p>
+              </div>
+            </div>
+
+            {/* Capacity row: Daily Capacity & Max Storage Capacity */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem' }}>
+              <div>
+                <label className="input-label" style={{ fontWeight: 700, color: '#1E293B', marginBottom: '0.4rem', minHeight: '26px', display: 'flex', alignItems: 'flex-end' }}>
+                  <span>{isHindi ? 'दैनिक खरीद क्षमता' : 'Daily Procurement Capacity'}</span>
+                </label>
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                  <input
+                    type="number"
+                    value={form.dailyCapacity}
+                    onChange={e => update('dailyCapacity', e.target.value)}
+                    placeholder="500"
+                    className="input-field"
+                    min="0"
+                    style={{ paddingRight: '110px' }}
+                  />
+                  <span style={{
+                    position: 'absolute',
+                    right: '12px',
+                    fontSize: '0.8rem',
+                    fontWeight: 700,
+                    color: '#047857',
+                    background: '#ECFDF5',
+                    padding: '3px 8px',
+                    borderRadius: '6px'
+                  }}>
+                    Qtl / day
+                  </span>
+                </div>
+                <span style={{ fontSize: '0.72rem', color: '#64748B', marginTop: '0.25rem', display: 'block' }}>
+                  {isHindi ? 'उदा. 500 क्विंटल प्रति दिन' : 'e.g. 500 Quintal/day'}
+                </span>
+              </div>
+
+              <div>
+                <label className="input-label" style={{ fontWeight: 700, color: '#1E293B', marginBottom: '0.4rem', minHeight: '26px', display: 'flex', alignItems: 'flex-end' }}>
+                  <span>{isHindi ? 'अधिकतम भंडारण क्षमता' : 'Maximum Storage Capacity'}</span>
+                </label>
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                  <input
+                    type="number"
+                    value={form.maxStorageCapacity}
+                    onChange={e => update('maxStorageCapacity', e.target.value)}
+                    placeholder="2000"
+                    className="input-field"
+                    min="0"
+                    style={{ paddingRight: '90px' }}
+                  />
+                  <span style={{
+                    position: 'absolute',
+                    right: '12px',
+                    fontSize: '0.8rem',
+                    fontWeight: 700,
+                    color: '#0284C7',
+                    background: '#F0F9FF',
+                    padding: '3px 8px',
+                    borderRadius: '6px'
+                  }}>
+                    Quintals
+                  </span>
+                </div>
+                <span style={{ fontSize: '0.72rem', color: '#64748B', marginTop: '0.25rem', display: 'block' }}>
+                  {isHindi ? 'उदा. 2,000 क्विंटल' : 'e.g. 2,000 Quintal'}
+                </span>
+              </div>
+            </div>
+
+            {/* 3 Facility Switches (Yes/No) */}
+            <div style={{
+              background: '#F8FAFC',
+              borderRadius: '16px',
+              padding: '1.25rem',
+              border: '1px solid #E2E8F0'
+            }}>
+              <div style={{ fontSize: '0.88rem', fontWeight: 800, color: '#0F172A', marginBottom: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <Shield size={16} color="#047857" />
+                {isHindi ? 'केंद्र पर उपलब्ध सुविधाएं (Facility Checklist)' : 'Available On-site Facilities'}
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                {/* Weighing Facility */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', background: '#FFFFFF', padding: '0.75rem 1rem', borderRadius: '12px', border: '1px solid #E2E8F0' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                    <div style={{ width: 34, height: 34, borderRadius: '8px', background: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Scale size={18} color="#2563EB" />
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#1E293B' }}>
+                        {isHindi ? 'तौल (वेइंग) सुविधा' : 'Weighing Facility'}
+                      </div>
+                      <div style={{ fontSize: '0.72rem', color: '#64748B' }}>Electronic weighbridge or digital scales</div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '0.4rem' }}>
+                    {['Yes', 'No'].map(val => (
+                      <button
+                        key={val}
+                        type="button"
+                        onClick={() => update('weighingFacility', val)}
+                        style={{
+                          padding: '0.35rem 0.9rem',
+                          borderRadius: '8px',
+                          fontWeight: 800,
+                          fontSize: '0.82rem',
+                          border: form.weighingFacility === val ? '1.5px solid #059669' : '1px solid #CBD5E1',
+                          background: form.weighingFacility === val ? '#ECFDF5' : '#FFFFFF',
+                          color: form.weighingFacility === val ? '#065F46' : '#64748B',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s'
+                        }}
+                      >
+                        {val === 'Yes' ? (isHindi ? '✓ हाँ' : '✓ Yes') : (isHindi ? '✕ नहीं' : '✕ No')}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Quality Testing Facility */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', background: '#FFFFFF', padding: '0.75rem 1rem', borderRadius: '12px', border: '1px solid #E2E8F0' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                    <div style={{ width: 34, height: 34, borderRadius: '8px', background: '#FDF2F8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <FlaskConical size={18} color="#DB2777" />
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#1E293B' }}>
+                        {isHindi ? 'गुणवत्ता परीक्षण सुविधा' : 'Quality Testing Facility'}
+                      </div>
+                      <div style={{ fontSize: '0.72rem', color: '#64748B' }}>Moisture meter, grain analyzer & assay kit</div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '0.4rem' }}>
+                    {['Yes', 'No'].map(val => (
+                      <button
+                        key={val}
+                        type="button"
+                        onClick={() => update('qualityTestingFacility', val)}
+                        style={{
+                          padding: '0.35rem 0.9rem',
+                          borderRadius: '8px',
+                          fontWeight: 800,
+                          fontSize: '0.82rem',
+                          border: form.qualityTestingFacility === val ? '1.5px solid #059669' : '1px solid #CBD5E1',
+                          background: form.qualityTestingFacility === val ? '#ECFDF5' : '#FFFFFF',
+                          color: form.qualityTestingFacility === val ? '#065F46' : '#64748B',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s'
+                        }}
+                      >
+                        {val === 'Yes' ? (isHindi ? '✓ हाँ' : '✓ Yes') : (isHindi ? '✕ नहीं' : '✕ No')}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Godown/Storage Available */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', background: '#FFFFFF', padding: '0.75rem 1rem', borderRadius: '12px', border: '1px solid #E2E8F0' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                    <div style={{ width: 34, height: 34, borderRadius: '8px', background: '#FEF3C7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Warehouse size={18} color="#D97706" />
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#1E293B' }}>
+                        {isHindi ? 'गोदाम / भंडारण उपलब्ध' : 'Godown / Storage Available'}
+                      </div>
+                      <div style={{ fontSize: '0.72rem', color: '#64748B' }}>Covered shed / warehouse on-site</div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '0.4rem' }}>
+                    {['Yes', 'No'].map(val => (
+                      <button
+                        key={val}
+                        type="button"
+                        onClick={() => update('godownStorage', val)}
+                        style={{
+                          padding: '0.35rem 0.9rem',
+                          borderRadius: '8px',
+                          fontWeight: 800,
+                          fontSize: '0.82rem',
+                          border: form.godownStorage === val ? '1.5px solid #059669' : '1px solid #CBD5E1',
+                          background: form.godownStorage === val ? '#ECFDF5' : '#FFFFFF',
+                          color: form.godownStorage === val ? '#065F46' : '#64748B',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s'
+                        }}
+                      >
+                        {val === 'Yes' ? (isHindi ? '✓ हाँ' : '✓ Yes') : (isHindi ? '✕ नहीं' : '✕ No')}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Number of Staff/Purchase Officers * */}
+            <div>
+              <label className="input-label" style={{ fontWeight: 700, color: '#1E293B', marginBottom: '0.35rem' }}>
+                {isHindi ? 'कर्मचारियों / खरीद अधिकारियों की संख्या' : 'Number of Staff / Purchase Officers'} <span style={{ color: '#DC2626' }}>*</span>
+              </label>
+              <input
+                type="number"
+                value={form.staffCount}
+                onChange={e => update('staffCount', e.target.value)}
+                placeholder="e.g. 5"
+                className="input-field"
+                min="1"
+                style={{
+                  maxWidth: '240px',
+                  borderColor: errors.staffCount ? '#EF4444' : undefined,
+                  boxShadow: errors.staffCount ? '0 0 0 2px rgba(239, 68, 68, 0.15)' : undefined
+                }}
+              />
+              {errors.staffCount && (
+                <div style={{ color: '#DC2626', fontSize: '0.78rem', marginTop: '0.25rem', fontWeight: 600 }}>
+                  {errors.staffCount}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Submit Action Button */}
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '1rem',
+            paddingTop: '1.25rem',
+            borderTop: '1px solid #F1F5F9'
+          }}>
+            <button
+              type="submit"
+              className="btn-primary"
+              style={{
+                width: '100%',
+                justifyContent: 'center',
+                background: 'linear-gradient(135deg, #065F46 0%, #047857 50%, #059669 100%)',
+                padding: '1rem 1.5rem',
+                borderRadius: '14px',
+                fontWeight: 900,
+                fontSize: '1.05rem',
+                boxShadow: '0 6px 20px rgba(4, 120, 87, 0.35)',
+                letterSpacing: '0.01em'
+              }}
+            >
+              <CheckCircle size={20} />
+              {t('submitRegisterCentre')}
+            </button>
+
+            <div style={{ textAlign: 'center', fontSize: '0.88rem', color: '#64748B' }}>
+              {t('alreadyAccount')}{' '}
+              <Link to="/login" style={{ color: '#047857', fontWeight: 800, textDecoration: 'none' }}>
+                {t('loginHere')}
+              </Link>
+            </div>
+          </div>
+
+        </form>
       </div>
     </div>
   );
 };
 
 export default CentreRegister;
+
+

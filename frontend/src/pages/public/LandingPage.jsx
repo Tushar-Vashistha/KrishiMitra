@@ -4,12 +4,10 @@ import { useTranslation } from 'react-i18next';
 import {
   ShieldCheck, TrendingUp, Bot, MapPin, ChevronDown, ChevronUp,
   Phone, Mail, Wheat, Clock, ArrowRight, CheckCircle,
-  Navigation, Sparkles, Award
+  Navigation, Sparkles, Award, User, UserPlus, Smartphone
 } from 'lucide-react';
 import { mockCentres } from '../../data/mockData';
-
-const HERO_IMAGE =
-  'https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=1600&q=80&auto=format&fit=crop';
+import heroTractorImg from '../../assets/hero_tractor_field.jpg';
 
 const LandingPage = () => {
   const { t, i18n } = useTranslation();
@@ -26,168 +24,344 @@ const LandingPage = () => {
     { q: t('faq6Q'), a: t('faq6A') },
   ];
 
-  const stats = [
-    { value: '2.4L+', label: isHindi ? 'किसान पंजीकृत' : 'Farmers Registered', icon: '👨‍🌾' },
-    { value: '1,200+', label: isHindi ? 'खरीद केंद्र' : 'Procurement Centres', icon: '🏢' },
-    { value: '₹450Cr+', label: isHindi ? 'भुगतान किया गया' : 'Payments Processed', icon: '💰' },
-    { value: '18', label: isHindi ? 'राज्य' : 'States Covered', icon: '🗺️' },
+  const scrollToServices = () => {
+    document.getElementById('services')?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const features = [
+    {
+      icon: <ShieldCheck size={28} color="#15803D" strokeWidth={2.2} />,
+      title: isHindi ? 'सरकारी मान्यता प्राप्त' : 'Government Certified',
+      sub: isHindi ? 'विश्वसनीय और सुरक्षित' : 'Trusted & Secure',
+    },
+    {
+      icon: (
+        <span style={{ fontSize: '1.45rem', fontWeight: 900, color: '#15803D', lineHeight: 1 }}>
+          ₹
+        </span>
+      ),
+      title: isHindi ? 'सीधा भुगतान' : 'Direct Payment',
+      sub: isHindi ? 'सीधे आपके बैंक खाते में' : 'Direct to your bank account',
+    },
+    {
+      icon: <Clock size={28} color="#15803D" strokeWidth={2.2} />,
+      title: isHindi ? 'लाइव कतार ट्रैकिंग' : 'Live Queue Tracking',
+      sub: isHindi ? 'समय बचाएं, आसानी पाएं' : 'Save time, stay stress-free',
+    },
+    {
+      icon: <Smartphone size={28} color="#15803D" strokeWidth={2.2} />,
+      title: isHindi ? 'मोबाइल से आसान' : 'Easy on Mobile',
+      sub: isHindi ? 'कहीं से भी, कभी भी' : 'Anywhere, anytime',
+    },
   ];
 
   return (
     <div style={{ background: '#FFFFFF' }}>
 
-      {/* ── Hero Section (Light, Bright & Fresh) ── */}
+      {/* ── Hero Section (Scenic Farm Landscape) ── */}
       <section style={{
         position: 'relative',
-        minHeight: '560px',
+        minHeight: '620px',
         display: 'flex',
         alignItems: 'center',
-        background: 'linear-gradient(135deg, #FFFFFF 0%, #ECFDF5 40%, #FEF3C7 100%)',
         overflow: 'hidden',
-        borderBottom: '1px solid #ECFDF5',
+        background: '#0F172A',
       }}>
-        {/* Soft Background Unsplash Image */}
+        {/* Full-color Crisp Background Image */}
         <div style={{
-          position: 'absolute', inset: 0,
-          backgroundImage: `url("${HERO_IMAGE}")`,
+          position: 'absolute',
+          inset: 0,
+          backgroundImage: `url("${heroTractorImg}")`,
           backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          opacity: 0.12,
-          mixBlendMode: 'multiply',
-          pointerEvents: 'none'
+          backgroundPosition: 'center 40%',
+          opacity: 1,
         }} />
 
-        {/* Decorative Glow Circles */}
+        {/* Soft, Natural Directional Light Overlay (Preserves Rich Sky & Fields) */}
         <div style={{
-          position: 'absolute', top: '-100px', right: '-100px',
-          width: '500px', height: '500px', borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(16,185,129,0.18) 0%, transparent 70%)',
-          pointerEvents: 'none'
-        }} />
-        <div style={{
-          position: 'absolute', bottom: '-80px', left: '-80px',
-          width: '450px', height: '450px', borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(245,158,11,0.18) 0%, transparent 70%)',
-          pointerEvents: 'none'
+          position: 'absolute',
+          inset: 0,
+          background: 'linear-gradient(90deg, rgba(255, 255, 255, 0.72) 0%, rgba(255, 255, 255, 0.52) 36%, rgba(255, 255, 255, 0.15) 58%, rgba(255, 255, 255, 0) 80%)',
+          pointerEvents: 'none',
         }} />
 
-        {/* Content */}
+        {/* Content Container */}
         <div className="container" style={{
-          position: 'relative', zIndex: 1,
-          textAlign: 'center',
-          padding: '4.5rem 1.5rem',
-          maxWidth: '880px',
+          position: 'relative',
+          zIndex: 2,
+          padding: '4.5rem 1.5rem 5.5rem',
+          maxWidth: '1240px',
           margin: '0 auto',
+          display: 'flex',
+          justifyContent: 'flex-start',
         }}>
-          {/* Sunny Yellow Badge */}
-          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.2rem' }}>
-            <span className="hero-badge-light">
-              ✨ {isHindi ? 'भारत सरकार की अधिकृत पहल' : 'Government of India Authorized Initiative'}
-            </span>
-          </div>
-
-          <h1 style={{
-            fontSize: 'clamp(2.2rem, 5.5vw, 3.5rem)',
-            fontWeight: 900,
-            lineHeight: 1.15,
-            marginBottom: '1.2rem',
-            color: '#0F172A',
-            letterSpacing: '-0.03em',
-          }}>
-            {isHindi ? (
-              <>
-                अपनी फसल <span style={{
-                  background: 'linear-gradient(135deg, #059669 0%, #10B981 50%, #D97706 100%)',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                }}>पूर्ण विश्वास के साथ बेचें</span>
-              </>
-            ) : (
-              <>
-                Sell Your Crops with <span style={{
-                  background: 'linear-gradient(135deg, #059669 0%, #10B981 50%, #D97706 100%)',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                }}>Complete Confidence</span>
-              </>
-            )}
-          </h1>
-
-          <p style={{
-            fontSize: 'clamp(1.05rem, 2.5vw, 1.25rem)',
-            color: '#475569',
-            maxWidth: '650px',
-            margin: '0 auto 2.2rem',
-            lineHeight: 1.7,
-            fontWeight: 500,
-          }}>
-            {t('heroSubtitle')}
-          </p>
-
-          {/* Action Buttons */}
-          <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-            <Link to="/login" className="btn-yellow" style={{
-              padding: '0.9rem 2.2rem', fontSize: '1.08rem',
-              borderRadius: '14px', textDecoration: 'none',
-              display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
-            }}>
-              {t('loginBtn')} <ArrowRight size={20} />
-            </Link>
-            <Link to="/register" className="btn-outline-green" style={{
-              padding: '0.9rem 2.2rem', fontSize: '1.08rem',
-              borderRadius: '14px', textDecoration: 'none'
-            }}>
-              {t('registerBtn')}
-            </Link>
-          </div>
-
-          {/* Trust Badges */}
+          {/* Left Hero Card Block */}
           <div style={{
-            display: 'flex', gap: '0.85rem', justifyContent: 'center',
-            marginTop: '2.5rem', flexWrap: 'wrap',
+            maxWidth: '620px',
+            textAlign: 'left',
           }}>
-            {[
-              isHindi ? '🏛️ भारत सरकार द्वारा सत्यापित' : '🏛️ Govt. of India Verified',
-              isHindi ? '🔒 सीधा डीबीटी बैंक भुगतान' : '🔒 Direct DBT Bank Settlement',
-              isHindi ? '📱 सभी मोबाइल फोन पर काम करता है' : '📱 Works on All Mobile Phones',
-            ].map((b, i) => (
-              <span key={i} className="trust-badge-light">{b}</span>
-            ))}
+            {/* Sunny Yellow Initiative Badge */}
+            <div style={{ display: 'inline-flex', marginBottom: '1.25rem' }}>
+              <span style={{
+                background: 'rgba(254, 243, 199, 0.92)',
+                backdropFilter: 'blur(10px)',
+                border: '1.5px solid #FDE68A',
+                color: '#B45309',
+                padding: '0.45rem 1.25rem',
+                borderRadius: '9999px',
+                fontWeight: 800,
+                fontSize: '0.85rem',
+                letterSpacing: '0.02em',
+                boxShadow: '0 4px 14px rgba(245, 158, 11, 0.18)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+              }}>
+                ✨ {isHindi ? 'भारत सरकार की अधिकृत पहल' : 'Government of India Authorized Initiative'}
+              </span>
+            </div>
+
+            {/* Hero Punchline */}
+            <h1 style={{
+              fontSize: 'clamp(2.5rem, 5.8vw, 3.85rem)',
+              fontWeight: 900,
+              lineHeight: 1.12,
+              marginBottom: '1.1rem',
+              color: '#0F172A',
+              letterSpacing: '-0.03em',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'flex-start',
+            }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', flexWrap: 'wrap' }}>
+                {isHindi ? 'आपकी फसल,' : 'Your Crops,'}
+                {/* 3 Green Leaves Sprout Icon */}
+                <svg width="42" height="42" viewBox="0 0 48 48" fill="none" style={{ marginLeft: '10px', display: 'inline-block', filter: 'drop-shadow(0 2px 5px rgba(22,163,74,0.35))' }}>
+                  <path d="M14 36C14 36 15 22 28 16C28 16 33 29 19 36C16 37 14 36 14 36Z" fill="#16A34A" />
+                  <path d="M22 28C22 28 32 20 42 22C42 22 40 33 29 32C25 31 22 28 22 28Z" fill="#22C55E" />
+                  <path d="M25 18C25 18 35 9 43 11C43 11 41 21 31 21C27 21 25 18 25 18Z" fill="#4ADE80" />
+                  <path d="M12 40C18 34 27 24 35 17" stroke="#15803D" strokeWidth="2.5" strokeLinecap="round" />
+                </svg>
+              </span>
+              <span style={{
+                color: '#15803D',
+                fontWeight: 900,
+                marginTop: '0.15rem',
+                textShadow: '0 2px 10px rgba(21, 128, 61, 0.15)',
+              }}>
+                {isHindi ? 'हमारी ज़िम्मेदारी।' : 'Our Responsibility.'}
+              </span>
+            </h1>
+
+            {/* Subtitle */}
+            <p style={{
+              fontSize: 'clamp(1.05rem, 2.2vw, 1.2rem)',
+              color: '#1E293B',
+              maxWidth: '540px',
+              margin: '0 0 2.2rem',
+              lineHeight: 1.65,
+              fontWeight: 600,
+            }}>
+              {isHindi ? (
+                <>
+                  सरकारी प्रमाणित केंद्रों से जुड़ें, और पाएं उचित मूल्य,<br />
+                  पारदर्शी प्रक्रिया और समय पर भुगतान।
+                </>
+              ) : (
+                <>
+                  Connect with government certified centres, get fair MSP prices,<br />
+                  transparent process, and timely payments.
+                </>
+              )}
+            </p>
+
+            {/* Action Buttons */}
+            <div style={{
+              display: 'flex',
+              gap: '1.1rem',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+            }}>
+              {/* Green Login Button */}
+              <Link to="/login" style={{
+                background: 'linear-gradient(135deg, #15803D 0%, #166534 100%)',
+                color: '#FFFFFF',
+                padding: '0.9rem 2.4rem',
+                borderRadius: '9999px',
+                fontSize: '1.08rem',
+                fontWeight: 800,
+                textDecoration: 'none',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.65rem',
+                boxShadow: '0 6px 20px rgba(21, 128, 61, 0.4)',
+                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                border: 'none',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)';
+                e.currentTarget.style.boxShadow = '0 10px 25px rgba(21, 128, 61, 0.5)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0) scale(1)';
+                e.currentTarget.style.boxShadow = '0 6px 20px rgba(21, 128, 61, 0.4)';
+              }}
+              >
+                <User size={20} color="#FFFFFF" strokeWidth={2.4} />
+                <span>{isHindi ? 'लॉगिन करें' : 'Login'}</span>
+                <ArrowRight size={19} color="#FFFFFF" strokeWidth={2.4} />
+              </Link>
+
+              {/* White Register Button */}
+              <Link to="/register" style={{
+                background: '#FFFFFF',
+                color: '#1E293B',
+                border: '1.5px solid #CBD5E1',
+                padding: '0.85rem 2.3rem',
+                borderRadius: '9999px',
+                fontSize: '1.08rem',
+                fontWeight: 800,
+                textDecoration: 'none',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.65rem',
+                boxShadow: '0 4px 16px rgba(0, 0, 0, 0.06)',
+                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)';
+                e.currentTarget.style.borderColor = '#10B981';
+                e.currentTarget.style.color = '#15803D';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0) scale(1)';
+                e.currentTarget.style.borderColor = '#CBD5E1';
+                e.currentTarget.style.color = '#1E293B';
+              }}
+              >
+                <UserPlus size={20} color="currentColor" strokeWidth={2.4} />
+                <span>{isHindi ? 'रजिस्टर करें' : 'Register'}</span>
+                <ArrowRight size={19} color="currentColor" strokeWidth={2.4} />
+              </Link>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* ── Stats Bar (Sunny Light Yellow & Mint) ── */}
+      {/* ── Seamless Floating Feature Highlights Bar ── */}
       <section style={{
-        background: 'linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 50%, #ECFDF5 100%)',
-        padding: '2.2rem 1.5rem',
-        borderBottom: '1px solid #FEF3C7',
+        position: 'relative',
+        zIndex: 10,
+        marginTop: '-48px',
+        padding: '0 1.5rem 3.5rem',
+        background: 'linear-gradient(180deg, transparent 0%, #F8FAFC 48px, #F8FAFC 100%)',
       }}>
         <div className="container" style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-          gap: '1.5rem',
-          textAlign: 'center',
+          maxWidth: '1200px',
+          margin: '0 auto',
         }}>
-          {stats.map((s, i) => (
-            <div key={i} className="card" style={{
-              background: '#FFFFFF',
-              borderRadius: '16px',
-              padding: '1.2rem 0.75rem',
-              border: '1.5px solid #FDE68A',
-              boxShadow: '0 4px 15px rgba(245,158,11,0.08)',
-              transition: 'all 0.3s ease',
-            }}>
-              <div style={{ fontSize: '2rem', marginBottom: '0.3rem' }}>{s.icon}</div>
-              <div style={{ fontSize: '1.6rem', fontWeight: 900, color: '#047857', lineHeight: 1 }}>{s.value}</div>
-              <div style={{ fontSize: '0.8rem', color: '#64748B', fontWeight: 700, marginTop: '0.25rem' }}>{s.label}</div>
-            </div>
-          ))}
+          {/* Glassmorphic Feature Highlights Card */}
+          <div style={{
+            background: 'rgba(255, 255, 255, 0.96)',
+            backdropFilter: 'blur(20px)',
+            WebkitBackdropFilter: 'blur(20px)',
+            borderRadius: '24px',
+            padding: '1.4rem 1.8rem',
+            border: '1px solid rgba(226, 232, 240, 0.9)',
+            boxShadow: '0 20px 45px -10px rgba(15, 23, 42, 0.09), 0 4px 16px -2px rgba(16, 185, 129, 0.05)',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(235px, 1fr))',
+            gap: '1.25rem',
+            alignItems: 'center',
+          }}>
+            {features.map((f, idx) => (
+              <div key={idx} style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '1.15rem',
+                padding: '0.4rem 0.6rem',
+                borderRight: idx !== features.length - 1 ? '1px solid #F1F5F9' : 'none',
+              }}>
+                <div style={{
+                  width: '52px',
+                  height: '52px',
+                  borderRadius: '16px',
+                  background: 'linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%)',
+                  border: '1px solid #A7F3D0',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                  boxShadow: '0 4px 12px rgba(16, 185, 129, 0.12)',
+                }}>
+                  {f.icon}
+                </div>
+                <div>
+                  <div style={{
+                    fontWeight: 800,
+                    fontSize: '1rem',
+                    color: '#0F172A',
+                    lineHeight: 1.25,
+                  }}>
+                    {f.title}
+                  </div>
+                  <div style={{
+                    fontSize: '0.85rem',
+                    color: '#64748B',
+                    fontWeight: 600,
+                    marginTop: '0.2rem',
+                  }}>
+                    {f.sub}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Scroll to Next Section Button */}
+          <div style={{
+            display: 'flex',
+            justifyContent: 'center',
+            marginTop: '2rem',
+          }}>
+            <button
+              onClick={scrollToServices}
+              aria-label="Scroll to services"
+              style={{
+                background: '#FFFFFF',
+                border: '1.5px solid #E2E8F0',
+                borderRadius: '9999px',
+                padding: '0.65rem 1.6rem',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.6rem',
+                color: '#047857',
+                fontSize: '0.92rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                boxShadow: '0 4px 16px rgba(0, 0, 0, 0.05)',
+                transition: 'all 0.3s ease',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(3px)';
+                e.currentTarget.style.borderColor = '#10B981';
+                e.currentTarget.style.boxShadow = '0 6px 20px rgba(16, 185, 129, 0.18)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.borderColor = '#E2E8F0';
+                e.currentTarget.style.boxShadow = '0 4px 16px rgba(0, 0, 0, 0.05)';
+              }}
+            >
+              <span>{isHindi ? 'हमारी सेवाएं देखें' : 'Explore Our Services'}</span>
+              <ChevronDown size={18} color="#059669" style={{ animation: 'bounce 1.5s infinite' }} />
+            </button>
+          </div>
         </div>
       </section>
 
       {/* ── Services Section ── */}
-      <section className="section" style={{ background: '#FFFFFF' }}>
+      <section id="services" className="section" style={{ background: '#FFFFFF' }}>
         <div className="container">
           <h2 className="section-title">{t('ourServices')}</h2>
           <p className="section-subtitle">{t('servicesSubtitle')}</p>
@@ -374,7 +548,7 @@ const LandingPage = () => {
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
+                <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginBottom: 0 }}>
                   {centre.crops.map(c => (
                     <span key={c} style={{
                       background: '#ECFDF5', color: '#047857',
@@ -382,19 +556,6 @@ const LandingPage = () => {
                       borderRadius: '6px', padding: '2px 8px', fontSize: '0.75rem', fontWeight: 700,
                     }}>{c}</span>
                   ))}
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div style={{ fontSize: '0.82rem', fontWeight: 800, color: centre.slotsAvailable > 0 ? '#047857' : '#DC2626' }}>
-                    {centre.slotsAvailable > 0
-                      ? `✅ ${centre.slotsAvailable} ${t('slotsAvailable')}`
-                      : `❌ No slots available`}
-                  </div>
-                  <Link to="/login" className="btn-primary" style={{
-                    fontSize: '0.82rem', padding: '6px 16px', borderRadius: '20px', textDecoration: 'none'
-                  }}>
-                    Book <ArrowRight size={13} />
-                  </Link>
                 </div>
               </div>
             ))}
@@ -527,9 +688,40 @@ const LandingPage = () => {
                 {t('contact')}
               </h4>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-                <span style={{ fontSize: '0.88rem', color: '#475569', display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600 }}>
+                <a
+                  href="tel:18001234567"
+                  style={{
+                    fontSize: '0.88rem',
+                    color: '#475569',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    fontWeight: 600,
+                    textDecoration: 'none',
+                    transition: 'color 0.2s ease',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.color = '#059669'}
+                  onMouseLeave={e => e.currentTarget.style.color = '#475569'}
+                >
+                  <Phone size={16} color="#059669" /> {t('tollFree')}
+                </a>
+                <a
+                  href="mailto:support@krishimitra.in"
+                  style={{
+                    fontSize: '0.88rem',
+                    color: '#475569',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    fontWeight: 600,
+                    textDecoration: 'none',
+                    transition: 'color 0.2s ease',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.color = '#059669'}
+                  onMouseLeave={e => e.currentTarget.style.color = '#475569'}
+                >
                   <Mail size={16} color="#059669" /> {t('email')}
-                </span>
+                </a>
                 <div style={{
                   marginTop: '0.75rem',
                   background: '#FFFFFF',

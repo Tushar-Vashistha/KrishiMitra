@@ -21,13 +21,21 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem('krishimitra_user', JSON.stringify(newUser));
   };
 
+  const updateUser = (updatedData) => {
+    setUser(prev => {
+      const updated = { ...(prev || {}), ...updatedData };
+      localStorage.setItem('krishimitra_user', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
   const logout = () => {
     setUser(null);
     localStorage.removeItem('krishimitra_user');
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout }}>
+    <AuthContext.Provider value={{ user, login, logout, updateUser }}>
       {children}
     </AuthContext.Provider>
   );

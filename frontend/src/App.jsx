@@ -22,9 +22,15 @@ import TatkaalBooking from './pages/farmer/TatkaalBooking';
 import MandiRates from './pages/farmer/MandiRates';
 import PaymentHistory from './pages/farmer/PaymentHistory';
 import TrustScore from './pages/farmer/TrustScore';
+import FarmerProfile from './pages/farmer/FarmerProfile';
 
 // Centre pages
 import CentreDashboard from './pages/centre/CentreDashboard';
+import CentreCapacity from './pages/centre/CentreCapacity';
+import CentreLiveQueue from './pages/centre/CentreLiveQueue';
+import CentrePayments from './pages/centre/CentrePayments';
+import CentreTatkaal from './pages/centre/CentreTatkaal';
+import CentreProfile from './pages/centre/CentreProfile';
 
 // Protected route components
 const FarmerRoute = ({ children }) => {
@@ -65,11 +71,15 @@ const App = () => {
           <Route path="/farmer/mandi-rates" element={<FarmerRoute><MandiRates /></FarmerRoute>} />
           <Route path="/farmer/payment-history" element={<FarmerRoute><PaymentHistory /></FarmerRoute>} />
           <Route path="/farmer/trust-score" element={<FarmerRoute><TrustScore /></FarmerRoute>} />
-          <Route path="/farmer/profile" element={<FarmerRoute><FarmerDashboard /></FarmerRoute>} />
+          <Route path="/farmer/profile" element={<FarmerRoute><FarmerProfile /></FarmerRoute>} />
 
           {/* Centre (protected) */}
           <Route path="/centre/dashboard" element={<CentreRoute><CentreDashboard /></CentreRoute>} />
-          <Route path="/centre/profile" element={<CentreRoute><CentreDashboard /></CentreRoute>} />
+          <Route path="/centre/capacity" element={<CentreRoute><CentreCapacity /></CentreRoute>} />
+          <Route path="/centre/live-queue" element={<CentreRoute><CentreLiveQueue /></CentreRoute>} />
+          <Route path="/centre/payments" element={<CentreRoute><CentrePayments /></CentreRoute>} />
+          <Route path="/centre/tatkaal" element={<CentreRoute><CentreTatkaal /></CentreRoute>} />
+          <Route path="/centre/profile" element={<CentreRoute><CentreProfile /></CentreRoute>} />
 
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />

@@ -1,12 +1,19 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../hooks/useAuth';
 import { mockUser } from '../../data/mockData';
 import {
   CalendarPlus, Navigation, Shield, TrendingUp, CreditCard,
-  Zap, Star, Clock, CheckCircle, AlertCircle, Wheat, MapPin, ChevronRight
+  Zap, Star, Clock, CheckCircle, AlertCircle, Wheat, MapPin, ChevronRight,
+  Bell, CheckCheck, Trash2, X, Sparkles, FileText, UserCheck, XCircle, Activity
 } from 'lucide-react';
+import {
+  getFarmerNotifications,
+  markNotificationAsRead,
+  markAllNotificationsAsRead,
+  clearAllNotifications
+} from '../../data/notifications';
 
 const FarmerDashboard = () => {
   const { t, i18n } = useTranslation();
@@ -14,6 +21,23 @@ const FarmerDashboard = () => {
   const isHindi = i18n.language === 'hi';
 
   const [selectedBooking, setSelectedBooking] = useState(null);
+  const [showNotifModal, setShowNotifModal] = useState(false);
+  const [notifications, setNotifications] = useState(getFarmerNotifications);
+
+  useEffect(() => {
+    const updateNotifs = () => {
+      setNotifications(getFarmerNotifications());
+    };
+    window.addEventListener('storage', updateNotifs);
+    window.addEventListener('krishimitra_notification_update', updateNotifs);
+    return () => {
+      window.removeEventListener('storage', updateNotifs);
+      window.removeEventListener('krishimitra_notification_update', updateNotifs);
+    };
+  }, []);
+
+  const unreadCount = notifications.filter(n => !n.read).length;
+  const latestNotif = notifications[0];
 
   const historicalBookings = [
     {
@@ -178,18 +202,52 @@ const FarmerDashboard = () => {
             <div>
               <div style={{ opacity: 0.85, fontSize: '0.9rem', fontWeight: 600 }}>{greeting}!</div>
               <h1 style={{ fontWeight: 800, fontSize: '1.5rem', lineHeight: 1.2 }}>
-                {user?.name || mockUser.farmer.name}
+                {isHindi ? (user?.nameHi || (user?.name === 'Ramesh Kumar' || !user?.name ? 'रमेश कुमार' : user.name)) : (user?.name || mockUser.farmer.name)}
               </h1>
               <div style={{ opacity: 0.8, fontSize: '0.82rem', marginTop: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                 <MapPin size={14} color="#86EFAC" />
-                {user?.village || 'Bhagwanpur'} • {user?.district || 'Lucknow'}, UP
+                {isHindi ? (user?.villageHi || 'भगवानपुर') : (user?.village || 'Bhagwanpur')} • {isHindi ? (user?.districtHi || 'लखनऊ') : (user?.district || 'Lucknow')}, {isHindi ? 'उ.प्र.' : 'UP'}
               </div>
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '0.6rem' }}>
+          <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', flexWrap: 'wrap' }}>
+            {/* Notification Button on Farmer Top-Right Bar */}
+            <button
+              onClick={() => setShowNotifModal(true)}
+              style={{
+                background: unreadCount > 0 ? '#FEF3C7' : 'rgba(255, 255, 255, 0.18)',
+                color: unreadCount > 0 ? '#92400E' : '#FFFFFF',
+                border: unreadCount > 0 ? '1.5px solid #F59E0B' : '1px solid rgba(255, 255, 255, 0.3)',
+                borderRadius: '12px',
+                padding: '0.45rem 0.95rem',
+                fontWeight: 800,
+                fontSize: '0.82rem',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                boxShadow: unreadCount > 0 ? '0 4px 14px rgba(245, 158, 11, 0.3)' : 'none',
+                transition: 'all 0.15s'
+              }}
+            >
+              <Bell size={16} color={unreadCount > 0 ? '#D97706' : '#A7F3D0'} />
+              <span>
+                {isHindi ? `केंद्र अपडेट ${unreadCount > 0 ? `(${unreadCount})` : ''}` : `Centre Updates ${unreadCount > 0 ? `(${unreadCount})` : ''}`}
+              </span>
+              {unreadCount > 0 && (
+                <span style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  background: '#EF4444',
+                  boxShadow: '0 0 6px #EF4444'
+                }} />
+              )}
+            </button>
+
             <span className="hero-badge" style={{ background: 'rgba(255,255,255,0.15)', fontSize: '0.8rem' }}>
-              ✓ Khasra Verified
+              {isHindi ? '✓ खसरा सत्यापित' : '✓ Khasra Verified'}
             </span>
           </div>
         </div>
@@ -210,23 +268,94 @@ const FarmerDashboard = () => {
           <div>
             <div style={{ fontSize: '1.5rem', marginBottom: '0.2rem' }}>📋</div>
             <div style={{ fontWeight: 900, fontSize: '1.3rem', color: '#15803D' }}>{mockUser.farmer.totalBookings}</div>
-            <div style={{ fontSize: '0.75rem', color: '#64748B', fontWeight: 600 }}>Total Bookings</div>
+            <div style={{ fontSize: '0.75rem', color: '#64748B', fontWeight: 600 }}>{isHindi ? 'कुल बुकिंग' : 'Total Bookings'}</div>
           </div>
           <div style={{ borderLeft: '1px solid #E2E8F0', borderRight: '1px solid #E2E8F0' }}>
             <div style={{ fontSize: '1.5rem', marginBottom: '0.2rem' }}>✅</div>
             <div style={{ fontWeight: 900, fontSize: '1.3rem', color: '#15803D' }}>{mockUser.farmer.completedBookings}</div>
-            <div style={{ fontSize: '0.75rem', color: '#64748B', fontWeight: 600 }}>Completed</div>
+            <div style={{ fontSize: '0.75rem', color: '#64748B', fontWeight: 600 }}>{isHindi ? 'पूर्ण' : 'Completed'}</div>
           </div>
           <div>
             <div style={{ fontSize: '1.5rem', marginBottom: '0.2rem' }}>⭐</div>
             <div style={{ fontWeight: 900, fontSize: '1.3rem', color: '#D97706' }}>{mockUser.farmer.trustScore}%</div>
-            <div style={{ fontSize: '0.75rem', color: '#64748B', fontWeight: 600 }}>Trust Score</div>
+            <div style={{ fontSize: '0.75rem', color: '#64748B', fontWeight: 600 }}>{isHindi ? 'विश्वास स्कोर' : 'Trust Score'}</div>
           </div>
         </div>
       </div>
 
+      {/* Live Procurement Centre Real-Time Notification Banner */}
+      {latestNotif && (
+        <div className="container" style={{ marginTop: '1.25rem' }}>
+          <div
+            onClick={() => setShowNotifModal(true)}
+            style={{
+              background: latestNotif.type === 'bill' ? 'linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%)' : latestNotif.type === 'cancelled' ? 'linear-gradient(135deg, #FEF2F2 0%, #FEE2E2 100%)' : 'linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%)',
+              border: latestNotif.type === 'bill' ? '1.5px solid #6EE7B7' : latestNotif.type === 'cancelled' ? '1.5px solid #FCA5A5' : '1.5px solid #93C5FD',
+              borderRadius: '16px',
+              padding: '0.9rem 1.25rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              cursor: 'pointer',
+              gap: '0.85rem',
+              boxShadow: '0 4px 15px rgba(0, 0, 0, 0.04)',
+              transition: 'transform 0.15s ease'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+              <div style={{
+                width: 38,
+                height: 38,
+                borderRadius: '12px',
+                background: latestNotif.type === 'bill' ? '#10B981' : latestNotif.type === 'cancelled' ? '#EF4444' : '#0284C7',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#FFFFFF',
+                flexShrink: 0
+              }}>
+                <Bell size={20} />
+              </div>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <span style={{
+                    fontWeight: 900,
+                    fontSize: '0.92rem',
+                    color: latestNotif.type === 'bill' ? '#065F46' : latestNotif.type === 'cancelled' ? '#991B1B' : '#1E40AF'
+                  }}>
+                    {isHindi ? (latestNotif.title || latestNotif.titleEn) : (latestNotif.titleEn || latestNotif.title)}
+                  </span>
+                  <span style={{
+                    background: 'rgba(255,255,255,0.7)',
+                    fontSize: '0.68rem',
+                    fontWeight: 800,
+                    padding: '1px 6px',
+                    borderRadius: '6px',
+                    color: '#475569'
+                  }}>
+                    ⏱️ {latestNotif.time || "Live"}
+                  </span>
+                </div>
+                <div style={{
+                  fontSize: '0.8rem',
+                  color: latestNotif.type === 'bill' ? '#047857' : latestNotif.type === 'cancelled' ? '#B91C1C' : '#1E3A8A',
+                  marginTop: '0.15rem'
+                }}>
+                  {isHindi ? (latestNotif.message || latestNotif.messageEn) : (latestNotif.messageEn || latestNotif.message)}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: '#047857', fontWeight: 800, fontSize: '0.8rem', flexShrink: 0 }}>
+              <span className="hide-mobile">{isHindi ? 'विवरण देखें' : 'View Updates'}</span>
+              <ChevronRight size={16} />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Active Token Notification */}
-      <div className="container" style={{ marginTop: '1.25rem' }}>
+      <div className="container" style={{ marginTop: '1rem' }}>
         <div style={{
           background: 'linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%)',
           border: '1.5px solid #6EE7B7',
@@ -245,14 +374,14 @@ const FarmerDashboard = () => {
           </div>
           <div style={{ flex: 1 }}>
             <div style={{ fontWeight: 800, fontSize: '0.95rem', color: '#065F46' }}>
-              Active Booking Token #42 (Wheat)
+              {isHindi ? 'सक्रिय बुकिंग टोकन #42 (गेहूं)' : 'Active Booking Token #42 (Wheat)'}
             </div>
             <div style={{ fontSize: '0.8rem', color: '#047857', marginTop: '0.1rem' }}>
-              Bhagwanpur Procurement Centre • Today 10:00 AM • 25 Qtl
+              {isHindi ? 'भगवानपुर खरीद केंद्र • आज सुबह 10:00 बजे • 25 क्विंटल' : 'Bhagwanpur Procurement Centre • Today 10:00 AM • 25 Qtl'}
             </div>
           </div>
           <Link to="/farmer/track-slot" className="btn-primary" style={{ padding: '0.5rem 1.1rem', fontSize: '0.82rem', borderRadius: '10px' }}>
-            Track Live <ChevronRight size={14} />
+            {isHindi ? 'लाइव ट्रैक करें' : 'Track Live'} <ChevronRight size={14} />
           </Link>
         </div>
       </div>
@@ -263,7 +392,7 @@ const FarmerDashboard = () => {
           <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#14532D' }}>
             🌾 {isHindi ? 'किसान सेवाएं' : 'Farmer Services'}
           </h2>
-          <span style={{ fontSize: '0.8rem', color: '#15803D', fontWeight: 700 }}>Quick Portal Access</span>
+          <span style={{ fontSize: '0.8rem', color: '#15803D', fontWeight: 700 }}>{isHindi ? 'त्वरित पोर्टल' : 'Quick Portal Access'}</span>
         </div>
 
         <div style={{
@@ -312,6 +441,29 @@ const FarmerDashboard = () => {
               </div>
             </Link>
           ))}
+        </div>
+
+        {/* Red Warning Line Notice */}
+        <div style={{
+          marginTop: '1rem',
+          background: '#FEF2F2',
+          border: '1.5px solid #F87171',
+          borderRadius: '12px',
+          padding: '0.75rem 1rem',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.75rem',
+          boxShadow: '0 2px 8px rgba(220, 38, 38, 0.08)'
+        }}>
+          <AlertCircle size={20} color="#DC2626" style={{ flexShrink: 0 }} />
+          <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#DC2626', lineHeight: 1.4 }}>
+            <span>{isHindi ? '⚠️ आवश्यक सूचना: ' : '⚠️ Important Rule: '}</span>
+            <span style={{ color: '#991B1B' }}>
+              {isHindi
+                ? 'स्लॉट बुकिंग कम से कम 1 दिन पहले होगी (Same day booking not allowed)। यदि आज ही फसल बेचनी है तो "तत्काल बुकिंग" का प्रयोग करें।'
+                : 'Slot booking must be done at least 1 day in advance (Same day booking is not allowed). For emergency selling today, please use "Tatkaal Booking".'}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -546,6 +698,301 @@ const FarmerDashboard = () => {
                 }}
               >
                 {isHindi ? 'ठीक है' : 'Close'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: FARMER NOTIFICATIONS CENTER */}
+      {showNotifModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(15, 23, 42, 0.7)',
+          backdropFilter: 'blur(5px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 999,
+          padding: '1rem'
+        }}>
+          <div style={{
+            background: '#FFFFFF',
+            borderRadius: '24px',
+            maxWidth: '560px',
+            width: '100%',
+            maxHeight: '90vh',
+            overflowY: 'auto',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
+            animation: 'fadeIn 0.2s ease-out'
+          }}>
+            {/* Modal Header */}
+            <div style={{
+              background: 'linear-gradient(135deg, #064E3B 0%, #047857 60%, #0284C7 100%)',
+              color: '#FFFFFF',
+              padding: '1.4rem 1.5rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              position: 'relative'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div style={{
+                  width: 42,
+                  height: 42,
+                  borderRadius: '12px',
+                  background: 'rgba(255, 255, 255, 0.2)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '1.3rem'
+                }}>
+                  🔔
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 900 }}>
+                    {isHindi ? 'सरकारी खरीद केंद्र सूचनाएं' : 'Procurement Centre Updates'}
+                  </h3>
+                  <p style={{ margin: '2px 0 0', fontSize: '0.75rem', color: '#A7F3D0' }}>
+                    {unreadCount > 0 ? (isHindi ? `${unreadCount} अपठित सूचनाएं (Unread Updates)` : `${unreadCount} new unread updates`) : (isHindi ? 'सभी सूचनाएं अपडेट हैं' : 'All notifications up to date')}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setShowNotifModal(false)}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.2)',
+                  border: 'none',
+                  color: '#FFFFFF',
+                  borderRadius: '50%',
+                  width: 32,
+                  height: 32,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Quick Actions Header Bar */}
+            <div style={{
+              background: '#F8FAFC',
+              borderBottom: '1px solid #E2E8F0',
+              padding: '0.65rem 1.25rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              fontSize: '0.78rem'
+            }}>
+              <span style={{ fontWeight: 800, color: '#475569' }}>
+                {notifications.length} {isHindi ? 'कुल केंद्र अलर्ट' : 'Total Alerts Received'}
+              </span>
+
+              <div style={{ display: 'flex', gap: '0.6rem' }}>
+                {unreadCount > 0 && (
+                  <button
+                    onClick={markAllNotificationsAsRead}
+                    style={{
+                      background: '#ECFDF5',
+                      border: '1px solid #86EFAC',
+                      color: '#047857',
+                      padding: '3px 10px',
+                      borderRadius: '8px',
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.3rem'
+                    }}
+                  >
+                    <CheckCheck size={13} />
+                    {isHindi ? 'सभी पढ़ा हुआ मार्क करें' : 'Mark all read'}
+                  </button>
+                )}
+                {notifications.length > 0 && (
+                  <button
+                    onClick={clearAllNotifications}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#94A3B8',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.2rem'
+                    }}
+                  >
+                    <Trash2 size={13} />
+                    {isHindi ? 'साफ़ करें' : 'Clear'}
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Notifications Content */}
+            <div style={{ padding: '0.75rem 1.25rem', maxHeight: '52vh', overflowY: 'auto' }}>
+              {notifications.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '3rem 1rem', color: '#64748B' }}>
+                  <CheckCircle2 size={40} color="#10B981" style={{ margin: '0 auto 0.75rem' }} />
+                  <h4 style={{ margin: 0, fontWeight: 900, color: '#0F172A' }}>
+                    {isHindi ? 'कोई नई सूचना नहीं है' : 'No Notifications'}
+                  </h4>
+                  <p style={{ fontSize: '0.82rem', margin: '0.35rem 0 0', opacity: 0.8 }}>
+                    {isHindi ? 'जब खरीद केंद्र आपकी फसल या स्लॉट की स्थिति बदलेगा, तो सूचना तुरंत यहाँ दिखाई देगी।' : 'When a procurement centre updates your slot, moisture test, or bill, it will appear here in real-time.'}
+                  </p>
+                </div>
+              ) : (
+                notifications.map((notif) => {
+                  const isUnread = !notif.read;
+                  return (
+                    <div
+                      key={notif.id}
+                      onClick={() => {
+                        markNotificationAsRead(notif.id);
+                        if (notif.link) {
+                          setShowNotifModal(false);
+                        }
+                      }}
+                      style={{
+                        background: isUnread ? '#F0FDF4' : '#FFFFFF',
+                        border: isUnread ? '1.5px solid #86EFAC' : '1px solid #E2E8F0',
+                        borderRadius: '16px',
+                        padding: '1rem',
+                        marginBottom: '0.75rem',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s',
+                        boxShadow: isUnread ? '0 4px 12px rgba(16, 185, 129, 0.1)' : '0 2px 5px rgba(0,0,0,0.02)'
+                      }}
+                    >
+                      <div style={{ display: 'flex', gap: '0.85rem', alignItems: 'flex-start' }}>
+                        {/* Icon */}
+                        <div style={{
+                          width: 38,
+                          height: 38,
+                          borderRadius: '12px',
+                          background: notif.type === 'bill' ? '#DCFCE7' : notif.type === 'arrived' ? '#E0F2FE' : notif.type === 'processing' ? '#FEF3C7' : notif.type === 'cancelled' ? '#FEE2E2' : '#F1F5F9',
+                          color: notif.type === 'bill' ? '#15803D' : notif.type === 'arrived' ? '#0369A1' : notif.type === 'processing' ? '#B45309' : notif.type === 'cancelled' ? '#DC2626' : '#475569',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0
+                        }}>
+                          {notif.type === 'bill' ? <FileText size={18} /> : notif.type === 'arrived' ? <UserCheck size={18} /> : notif.type === 'processing' ? <Activity size={18} /> : notif.type === 'cancelled' ? <XCircle size={18} /> : <Bell size={18} />}
+                        </div>
+
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                            <span style={{ fontWeight: 900, fontSize: '0.92rem', color: '#0F172A' }}>
+                              {isHindi ? (notif.title || notif.titleEn) : (notif.titleEn || notif.title)}
+                            </span>
+                            {isUnread && (
+                              <span style={{
+                                background: '#10B981',
+                                color: '#FFFFFF',
+                                fontSize: '0.65rem',
+                                fontWeight: 900,
+                                padding: '1px 6px',
+                                borderRadius: '6px'
+                              }}>
+                                NEW
+                              </span>
+                            )}
+                          </div>
+
+                          <p style={{ margin: '0.25rem 0 0', fontSize: '0.82rem', color: '#334155', lineHeight: 1.4 }}>
+                            {isHindi ? (notif.message || notif.messageEn) : (notif.messageEn || notif.message)}
+                          </p>
+
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            marginTop: '0.6rem',
+                            paddingTop: '0.5rem',
+                            borderTop: '1px dashed #E2E8F0',
+                            fontSize: '0.74rem',
+                            color: '#64748B'
+                          }}>
+                            <span>🏛️ {notif.centreName || "Govt. Centre"}</span>
+                            <span>⏱️ {notif.time || "Recently"}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {notif.link && (
+                        <div style={{ marginTop: '0.65rem', display: 'flex', justifyContent: 'flex-end' }}>
+                          <Link
+                            to={notif.link}
+                            onClick={() => {
+                              markNotificationAsRead(notif.id);
+                              setShowNotifModal(false);
+                            }}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.25rem',
+                              background: '#ECFDF5',
+                              color: '#047857',
+                              padding: '0.35rem 0.85rem',
+                              borderRadius: '8px',
+                              fontWeight: 800,
+                              fontSize: '0.76rem',
+                              textDecoration: 'none',
+                              border: '1px solid #A7F3D0'
+                            }}
+                          >
+                            <span>{notif.type === 'bill' ? (isHindi ? 'रसीद व भुगतान देखें' : 'View Receipt & DBT') : (isHindi ? 'लाइव स्थिति ट्रैक करें' : 'Track Status')}</span>
+                            <ChevronRight size={13} />
+                          </Link>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{
+              padding: '1rem 1.25rem',
+              background: '#F8FAFC',
+              borderTop: '1px solid #E2E8F0',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
+              <Link
+                to="/farmer/track-slot"
+                onClick={() => setShowNotifModal(false)}
+                style={{
+                  color: '#047857',
+                  fontWeight: 800,
+                  fontSize: '0.85rem',
+                  textDecoration: 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.3rem'
+                }}
+              >
+                <span>📍 {isHindi ? 'लाइव स्लॉट ट्रैकर' : 'Go to Live Track Slot'}</span>
+                <ChevronRight size={14} />
+              </Link>
+
+              <button
+                onClick={() => setShowNotifModal(false)}
+                className="btn-outline"
+                style={{ padding: '0.5rem 1.25rem', borderRadius: '10px', fontWeight: 800 }}
+              >
+                {isHindi ? 'बंद करें' : 'Close'}
               </button>
             </div>
           </div>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { mockCentres } from '../../data/mockData';
 import { Calendar, Clock, MapPin, Wheat, CheckCircle2, ChevronRight, AlertCircle, Info } from 'lucide-react';
@@ -35,10 +35,16 @@ const BookSlot = () => {
   const isHindi = i18n.language === 'hi';
   const navigate = useNavigate();
 
+  const getTomorrowDate = () => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return d.toISOString().split('T')[0];
+  };
+
   const [selectedCrop, setSelectedCrop] = useState(CROPS[0].name);
   const [quantity, setQuantity] = useState('25');
   const [selectedCentre, setSelectedCentre] = useState(mockCentres[0].id);
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(getTomorrowDate());
   const [selectedSlot, setSelectedSlot] = useState(TIME_SLOTS[0].id);
   const [booked, setBooked] = useState(false);
 
@@ -112,6 +118,40 @@ const BookSlot = () => {
               ? 'अपनी फसल, निकटतम केंद्र, तिथि और पसंदीदा समय स्लॉट चुनें' 
               : 'Select your crop, nearest centre, date & preferred time slot'}
           </p>
+        </div>
+
+        {/* Red Alert Rule Banner */}
+        <div style={{
+          background: '#FEF2F2',
+          border: '1.5px solid #F87171',
+          borderRadius: '14px',
+          padding: '1rem 1.25rem',
+          marginBottom: '1.5rem',
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: '0.85rem',
+          color: '#DC2626',
+          boxShadow: '0 4px 12px rgba(220, 38, 38, 0.08)'
+        }}>
+          <AlertCircle size={24} color="#DC2626" style={{ flexShrink: 0, marginTop: '2px' }} />
+          <div>
+            <div style={{ fontWeight: 800, fontSize: '0.95rem', color: '#991B1B' }}>
+              {isHindi ? '⚠️ बुकिंग नियम / Booking Policy:' : '⚠️ Booking Policy:'}
+            </div>
+            <div style={{ fontSize: '0.88rem', fontWeight: 700, color: '#DC2626', marginTop: '0.2rem', lineHeight: 1.4 }}>
+              {isHindi 
+                ? 'बुकिंग कम से कम 1 दिन पहले होगी (Booking ek din pehle hogi) — Same day booking not allowed (उसी दिन की बुकिंग मान्य नहीं है)।' 
+                : 'Booking must be made at least 1 day in advance — Same day booking is not allowed.'}
+            </div>
+            <div style={{ fontSize: '0.8rem', color: '#7F1D1D', marginTop: '0.35rem', fontWeight: 500 }}>
+              {isHindi 
+                ? '💡 यदि आपको आज ही तत्काल अपनी उपज बेचनी है, तो कृपया ' 
+                : '💡 For urgent same-day slot allocation, please use '}
+              <Link to="/farmer/tatkaal" style={{ color: '#DC2626', fontWeight: 800, textDecoration: 'underline' }}>
+                {isHindi ? 'तत्काल बुकिंग (Tatkaal Booking)' : 'Tatkaal Booking'}
+              </Link>
+            </div>
+          </div>
         </div>
 
         <form onSubmit={handleBooking} style={{ display: 'grid', gap: '1.5rem' }}>
@@ -189,10 +229,23 @@ const BookSlot = () => {
                 <input
                   type="date"
                   value={selectedDate}
+                  min={getTomorrowDate()}
                   onChange={(e) => setSelectedDate(e.target.value)}
                   className="input-field"
                   required
                 />
+                <div style={{
+                  fontSize: '0.76rem',
+                  color: '#DC2626',
+                  fontWeight: 700,
+                  marginTop: '0.4rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.35rem'
+                }}>
+                  <span>⚠️</span>
+                  <span>{isHindi ? 'बुकिंग 1 दिन पहले होगी (Same day booking not allowed)' : 'Booking must be at least 1 day in advance (Same day not allowed)'}</span>
+                </div>
               </div>
             </div>
           </div>
