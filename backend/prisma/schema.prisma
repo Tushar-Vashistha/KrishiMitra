@@ -1,6 +1,6 @@
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
 }
 
@@ -31,6 +31,7 @@ enum BookingStatus {
   REJECTED
   COMPLETED
   CANCELLED
+  ABSENT
 }
 
 enum TokenStatus {
@@ -109,6 +110,7 @@ model FarmerProfile {
   verificationHistory FarmerVerificationHistory[]
   cropRegistrations   FarmerCropRegistration[]
   bookings            ProcurementBooking[]
+  trustScoreHistory   TrustScoreHistory[]
 }
 
 model FarmerVerificationHistory {
@@ -139,7 +141,7 @@ model ProcurementCentre {
   centreId         String               @unique
   name             String
   nameHi           String
-  type             String
+  type             String // Government / Corporate-Private
   address          String
   lat              Float
   lng              Float
@@ -149,6 +151,23 @@ model ProcurementCentre {
   phone            String
   createdAt        DateTime             @default(now())
   updatedAt        DateTime             @updatedAt
+  agencyName       String?
+  licenseNumber    String?
+  panGstin         String?
+  managerName      String?
+  designation      String?
+  mobile           String?
+  email            String?
+  state            String?
+  district         String?
+  tehsil           String?
+  village          String?
+  capacity         Float? // Daily procurement capacity (Qtl/day)
+  maxStorage       Float? // Maximum storage capacity (Qtl)
+  weighingFacility Boolean              @default(true)
+  qualityTesting   Boolean              @default(true)
+  godownStorage    Boolean              @default(true)
+  staffCount       Int                  @default(5)
   counters         Counter[]
   staffAssignments StaffAssignment[]
   bookings         ProcurementBooking[]
@@ -232,6 +251,16 @@ model SystemSetting {
   value String
 }
 
+model TrustScoreHistory {
+  id              Int           @id @default(autoincrement())
+  farmerProfileId Int
+  farmerProfile   FarmerProfile @relation(fields: [farmerProfileId], references: [id], onDelete: Cascade)
+  event           String
+  points          Float
+  date            DateTime      @default(now())
+  createdAt       DateTime      @default(now())
+}
+
 model ProcurementBooking {
   id              String                  @id
   farmerProfileId Int
@@ -248,6 +277,8 @@ model ProcurementBooking {
   status          BookingStatus           @default(BOOKED)
   isTatkaal       Boolean                 @default(false)
   tatkaalFeePaid  Float?
+  vehicleNumber   String?
+  vehicleType     String?
   createdAt       DateTime                @default(now())
   updatedAt       DateTime                @updatedAt
   queueToken      QueueToken?
@@ -255,22 +286,22 @@ model ProcurementBooking {
 }
 
 model QueueToken {
-  id                  Int                  @id @default(autoincrement())
-  bookingId           String               @unique
-  booking             ProcurementBooking   @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  id                  Int                 @id @default(autoincrement())
+  bookingId           String              @unique
+  booking             ProcurementBooking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   tokenNumber         Int
   centreId            Int
-  centre              ProcurementCentre    @relation(fields: [centreId], references: [id], onDelete: Cascade)
+  centre              ProcurementCentre   @relation(fields: [centreId], references: [id], onDelete: Cascade)
   counterId           Int?
-  counter             Counter?             @relation(fields: [counterId], references: [id])
-  status              TokenStatus          @default(WAITING)
+  counter             Counter?            @relation(fields: [counterId], references: [id])
+  status              TokenStatus         @default(WAITING)
   queuePosition       Int
   calledAt            DateTime?
   arrivedAt           DateTime?
   processingStartedAt DateTime?
-  completedAt         DateTime?
-  createdAt           DateTime             @default(now())
-  updatedAt           DateTime             @updatedAt
+  completedAt        DateTime?
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
   statusHistory       TokenStatusHistory[]
 }
 
@@ -331,17 +362,17 @@ model CropPrice {
 }
 
 model QualityInspection {
-  id              Int                    @id @default(autoincrement())
-  transactionId   Int                    @unique
-  transaction     ProcurementTransaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
-  moisture        Float
-  foreignMatter   Float
-  grade           String
-  result          QualityResult
+  id            Int                    @id @default(autoincrement())
+  transactionId Int                    @unique
+  transaction   ProcurementTransaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  moisture      Float
+  foreignMatter Float
+  grade         String
+  result        QualityResult
   rejectionReason String?
-  inspectorId     Int
-  inspector       User                   @relation(fields: [inspectorId], references: [id])
-  timestamp       DateTime               @default(now())
+  inspectorId   Int
+  inspector     User                   @relation(fields: [inspectorId], references: [id])
+  timestamp     DateTime               @default(now())
 }
 
 model Payment {

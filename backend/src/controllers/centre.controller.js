@@ -42,7 +42,12 @@ const getCentreById = async (req, res, next) => {
 
 const createCentre = async (req, res, next) => {
   try {
-    const { centreId, name, nameHi, type, address, lat, lng, openingTime, closingTime, phone, slots } = req.body;
+    const {
+      centreId, name, nameHi, type, address, lat, lng, openingTime, closingTime, phone, slots,
+      agencyName, licenseNumber, panGstin, managerName, designation, mobile, email,
+      state, district, tehsil, village, capacity, maxStorage,
+      weighingFacility, qualityTesting, godownStorage, staffCount
+    } = req.body;
 
     const existing = await prisma.procurementCentre.findUnique({
       where: { centreId },
@@ -55,6 +60,14 @@ const createCentre = async (req, res, next) => {
       const created = await tx.procurementCentre.create({
         data: {
           centreId, name, nameHi, type, address, lat, lng, openingTime, closingTime, phone,
+          agencyName, licenseNumber, panGstin, managerName, designation, mobile, email,
+          state, district, tehsil, village,
+          capacity: capacity ? parseFloat(capacity) : null,
+          maxStorage: maxStorage ? parseFloat(maxStorage) : null,
+          weighingFacility: weighingFacility !== undefined ? weighingFacility : true,
+          qualityTesting: qualityTesting !== undefined ? qualityTesting : true,
+          godownStorage: godownStorage !== undefined ? godownStorage : true,
+          staffCount: staffCount ? parseInt(staffCount) : 5,
         },
       });
 
@@ -67,11 +80,12 @@ const createCentre = async (req, res, next) => {
         }));
         await tx.slotConfig.createMany({ data: slotData });
       } else {
-        // Fallback default slots
+        // Fallback default slots (matching the 3-hour blocks in UI)
         const defaultSlots = [
-          '08:00 - 09:00', '09:00 - 10:00', '10:00 - 11:00', '11:00 - 12:00',
-          '12:00 - 13:00', '13:00 - 14:00', '14:00 - 15:00', '15:00 - 16:00',
-          '16:00 - 17:00', '17:00 - 18:00'
+          '07:00 AM - 10:00 AM',
+          '10:00 AM - 01:00 PM',
+          '02:00 PM - 05:00 PM',
+          '05:00 PM - 08:00 PM'
         ];
         const slotData = defaultSlots.map((time) => ({
           centreId: created.id,
@@ -105,7 +119,12 @@ const createCentre = async (req, res, next) => {
 const updateCentre = async (req, res, next) => {
   try {
     const centreId = parseInt(req.params.id);
-    const { name, nameHi, type, address, lat, lng, openingTime, closingTime, phone, open } = req.body;
+    const {
+      name, nameHi, type, address, lat, lng, openingTime, closingTime, phone, open,
+      agencyName, licenseNumber, panGstin, managerName, designation, mobile, email,
+      state, district, tehsil, village, capacity, maxStorage,
+      weighingFacility, qualityTesting, godownStorage, staffCount
+    } = req.body;
 
     const centre = await prisma.procurementCentre.findUnique({
       where: { id: centreId },
@@ -116,7 +135,15 @@ const updateCentre = async (req, res, next) => {
 
     const updated = await prisma.procurementCentre.update({
       where: { id: centreId },
-      data: { name, nameHi, type, address, lat, lng, openingTime, closingTime, phone, open },
+      data: {
+        name, nameHi, type, address, lat, lng, openingTime, closingTime, phone, open,
+        agencyName, licenseNumber, panGstin, managerName, designation, mobile, email,
+        state, district, tehsil, village,
+        capacity: capacity ? parseFloat(capacity) : undefined,
+        maxStorage: maxStorage ? parseFloat(maxStorage) : undefined,
+        weighingFacility, qualityTesting, godownStorage,
+        staffCount: staffCount ? parseInt(staffCount) : undefined,
+      },
     });
 
     await logAction({

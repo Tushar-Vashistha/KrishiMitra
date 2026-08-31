@@ -5,12 +5,17 @@ const { NotFoundError, BadRequestError } = require('../utils/errors');
 
 const createBooking = async (req, res, next) => {
   try {
-    const { cropId, weight, centreId, date, slotTime } = req.body;
+    const { cropId, weight, centreId, date, slotTime, vehicleNumber, vehicleType } = req.body;
     const farmerId = req.user.farmerProfile.id;
 
     // 1. Verify farmer status is VERIFIED
     if (req.user.farmerProfile.status !== 'VERIFIED') {
       throw new BadRequestError('Farmer profile must be VERIFIED to book a slot');
+    }
+
+    // Blacklist check: if trust score is below 25, prevent booking
+    if (req.user.farmerProfile.trustScore < 25) {
+      throw new BadRequestError('Booking blocked: Your Trust Score is below 25. You are currently blacklisted.');
     }
 
     const queryDate = new Date(date);
@@ -109,6 +114,8 @@ const createBooking = async (req, res, next) => {
           weight,
           date: queryDate,
           slotTime,
+          vehicleNumber,
+          vehicleType,
           status: 'BOOKED',
         },
       });
@@ -170,11 +177,16 @@ const createBooking = async (req, res, next) => {
 
 const createTatkaalBooking = async (req, res, next) => {
   try {
-    const { cropId, weight, centreId, date, slotTime } = req.body;
+    const { cropId, weight, centreId, date, slotTime, vehicleNumber, vehicleType } = req.body;
     const farmerId = req.user.farmerProfile.id;
 
     if (req.user.farmerProfile.status !== 'VERIFIED') {
       throw new BadRequestError('Farmer profile must be VERIFIED to book Tatkaal slots');
+    }
+
+    // Blacklist check
+    if (req.user.farmerProfile.trustScore < 25) {
+      throw new BadRequestError('Booking blocked: Your Trust Score is below 25. You are currently blacklisted.');
     }
 
     const queryDate = new Date(date);
@@ -240,6 +252,8 @@ const createTatkaalBooking = async (req, res, next) => {
           weight,
           date: queryDate,
           slotTime,
+          vehicleNumber,
+          vehicleType,
           status: 'BOOKED',
           isTatkaal: true,
           tatkaalFeePaid: tatkaalFee,

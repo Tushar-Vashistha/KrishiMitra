@@ -1,6 +1,7 @@
 const prisma = require('../config/db');
 const { getQueueTrackingDetails } = require('../services/queue.service');
 const { logAction } = require('../services/audit.service');
+const { addTrustEvent } = require('../services/trust.service');
 const { NotFoundError, BadRequestError, ForbiddenError } = require('../utils/errors');
 
 const getTokenById = async (req, res, next) => {
@@ -123,7 +124,9 @@ const updateTokenStatus = (statusAction) => async (req, res, next) => {
     const token = await prisma.queueToken.findUnique({
       where: { id: tokenId },
       include: {
-        booking: true,
+        booking: {
+          include: { crop: true },
+        },
       },
     });
 
@@ -189,6 +192,7 @@ const updateTokenStatus = (statusAction) => async (req, res, next) => {
       else if (status === 'PROCESSING') bookingStatus = 'WEIGHING';
       else if (status === 'COMPLETED') bookingStatus = 'COMPLETED';
       else if (status === 'CANCELLED') bookingStatus = 'CANCELLED';
+      else if (status === 'NO_SHOW') bookingStatus = 'ABSENT';
 
       await tx.procurementBooking.update({
         where: { id: token.bookingId },
@@ -197,6 +201,13 @@ const updateTokenStatus = (statusAction) => async (req, res, next) => {
 
       return updatedToken;
     });
+
+    // Award / deduct trust score points
+    if (statusAction === 'arrive') {
+      await addTrustEvent(token.booking.farmerProfileId, `Arrived on time (${token.booking.crop.name} slot)`, 10.0);
+    } else if (statusAction === 'no-show') {
+      await addTrustEvent(token.booking.farmerProfileId, `Absent on booked slot (${token.booking.crop.name} slot)`, -25.0);
+    }
 
     await logAction({
       userId: req.user.id,

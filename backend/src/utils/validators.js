@@ -40,6 +40,8 @@ const bookingSchema = z.object({
   centreId: z.number().int(),
   date: z.string().transform((val) => new Date(val)),
   slotTime: z.string().min(1, 'Slot time is required'),
+  vehicleNumber: z.string().optional(),
+  vehicleType: z.string().optional(),
 });
 
 const tatkaalBookingSchema = z.object({
@@ -48,6 +50,8 @@ const tatkaalBookingSchema = z.object({
   centreId: z.number().int(),
   date: z.string().transform((val) => new Date(val)),
   slotTime: z.string().min(1),
+  vehicleNumber: z.string().optional(),
+  vehicleType: z.string().optional(),
 });
 
 const weighingSchema = z.object({
