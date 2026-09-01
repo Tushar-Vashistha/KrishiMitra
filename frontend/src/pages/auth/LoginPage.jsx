@@ -98,14 +98,8 @@ const LoginPage = () => {
     setError('');
     setLoading(true);
     try {
-      // 1. Verify OTP (Bypass backend rejection if demo code 123456 is entered)
-      try {
-        await authService.verifyOTP(cleanMobile, code);
-      } catch (otpErr) {
-        if (code !== '123456' && code !== receivedOtp) {
-          throw otpErr;
-        }
-      }
+      // 1. Verify OTP with Backend
+      await authService.verifyOTP(cleanMobile, code);
 
       // 2. Perform Backend Login
       try {

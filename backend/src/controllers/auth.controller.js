@@ -329,11 +329,12 @@ const getMe = async (req, res, next) => {
 const handleRequestOTP = async (req, res, next) => {
   try {
     const { mobile } = req.body;
-    if (!mobile || !/^[0-9]{10}$/.test(mobile)) {
+    const cleanMobile = mobile ? mobile.toString().replace(/\D/g, '').slice(-10) : '';
+    if (!cleanMobile || cleanMobile.length !== 10) {
       throw new BadRequestError('Valid 10-digit mobile number is required');
     }
 
-    const result = await requestOTP(mobile);
+    const result = await requestOTP(cleanMobile);
     res.status(200).json(result);
   } catch (error) {
     next(error);
@@ -343,13 +344,17 @@ const handleRequestOTP = async (req, res, next) => {
 const handleVerifyOTP = async (req, res, next) => {
   try {
     const { mobile, otp } = req.body;
-    if (!mobile || !otp) {
+    const cleanMobile = mobile ? mobile.toString().replace(/\D/g, '').slice(-10) : '';
+    if (!cleanMobile || !otp) {
       throw new BadRequestError('Mobile number and OTP are required');
     }
 
-    const isVerified = await verifyOTP(mobile, otp);
-    if (!isVerified) {
-      throw new BadRequestError('Invalid or expired OTP');
+    const verification = await verifyOTP(cleanMobile, otp);
+    if (!verification.valid) {
+      if (verification.reason === 'EXPIRED_OTP') {
+        throw new BadRequestError('OTP expired');
+      }
+      throw new BadRequestError('Invalid OTP');
     }
 
     res.status(200).json({

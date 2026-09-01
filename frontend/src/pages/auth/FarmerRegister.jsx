@@ -78,14 +78,12 @@ const FarmerRegister = () => {
     setErrorMsg('');
     setLoading(true);
     try {
-      // 1. Verify OTP (Bypass backend rejection if demo code 123456 is entered)
+      // 1. Verify OTP with Backend
       try {
         await authService.verifyOTP(cleanMobile, cleanOtp);
       } catch (otpErr) {
-        if (cleanOtp !== '123456' && cleanOtp !== receivedOtp && cleanOtp !== '123456') {
-          setErrorMsg(otpErr.message || 'Invalid or expired OTP. Please enter 123456.');
-          return;
-        }
+        setErrorMsg(otpErr.message || 'Invalid or expired OTP');
+        return;
       }
 
       // 2. Register Farmer on backend
