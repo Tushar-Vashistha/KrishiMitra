@@ -65,6 +65,15 @@ app.use('/api/v1', generalLimiter);
 // API Documentation (Swagger)
 app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
+// Health Check / Root route
+app.get('/', (req, res) => {
+  res.json({
+    success: true,
+    message: 'KrishiMitra API Server is running',
+    docs: '/api/docs',
+  });
+});
+
 // Mount REST Routes
 app.use('/api/v1', routes);
 
