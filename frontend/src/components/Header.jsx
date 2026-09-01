@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../hooks/useAuth';
 import {
@@ -20,11 +20,14 @@ const Header = () => {
   const { t, i18n } = useTranslation();
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [notifications, setNotifications] = useState(getFarmerNotifications);
 
   const isHindi = i18n.language === 'hi';
+  const isAuthPage = ['/login', '/register/farmer', '/register/centre'].includes(location.pathname);
+  const showNavItems = user && !isAuthPage;
 
   // Sync notifications on custom and storage events
   useEffect(() => {
@@ -124,7 +127,7 @@ const Header = () => {
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', position: 'relative' }}>
 
           {/* Notification Bell Button (ONLY shown when farmer is logged in) */}
-          {user && user.role === 'farmer' && (
+          {showNavItems && user.role === 'farmer' && (
             <div style={{ position: 'relative' }}>
               <button
               onClick={() => {
@@ -363,7 +366,7 @@ const Header = () => {
           )}
 
           {/* Dashboard button */}
-          {user && (
+          {showNavItems && (
             <Link to={dashboardPath} style={{
               display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
               background: '#ECFDF5', color: '#047857',
@@ -436,7 +439,7 @@ const Header = () => {
           overflow: 'hidden',
           animation: 'fadeIn 0.2s ease',
         }}>
-          {user && (
+          {showNavItems && (
             <div style={{
               padding: '1.1rem 1.25rem',
               background: 'linear-gradient(135deg, #ECFDF5, #FEF3C7)',
@@ -465,7 +468,7 @@ const Header = () => {
           )}
 
           <div style={{ padding: '0.4rem 0' }}>
-            {user && (
+            {showNavItems && (
               <>
                 <Link
                   to={dashboardPath}
@@ -638,7 +641,7 @@ const Header = () => {
               {isHindi ? 'Switch to English' : 'हिंदी में बदलें'}
             </button>
 
-            {user && (
+            {showNavItems && (
               <>
                 <div style={{ height: '1px', background: '#F1F5F9', margin: '0.3rem 0' }} />
                 <button

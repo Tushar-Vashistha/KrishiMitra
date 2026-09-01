@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../hooks/useAuth';
+import { authService } from '../../services/api';
 import { mockUser } from '../../data/mockData';
 import { Phone, Shield, ArrowLeft, Wheat, Building2, ChevronRight, CheckCircle2, Lock } from 'lucide-react';
 
@@ -19,6 +20,7 @@ const LoginPage = () => {
   const [timer, setTimer] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [receivedOtp, setReceivedOtp] = useState('');
 
   useEffect(() => {
     if (timer > 0) {
@@ -27,18 +29,28 @@ const LoginPage = () => {
     }
   }, [timer]);
 
-  const handleSendOTP = () => {
-    if (mobile.length !== 10 || !/^\d+$/.test(mobile)) {
+  const handleSendOTP = async () => {
+    const cleanMobile = mobile.replace(/\D/g, '').slice(-10);
+    if (cleanMobile.length !== 10) {
       setError('Please enter a valid 10-digit mobile number.');
       return;
     }
     setError('');
     setLoading(true);
-    setTimeout(() => {
-      setStep(2);
-      setTimer(60);
+    try {
+      const res = await authService.requestOTP(cleanMobile);
+      if (res.success) {
+        setStep(2);
+        setTimer(60);
+        setReceivedOtp(res.otp || '123456');
+      } else {
+        setError(res.message || 'Failed to send OTP.');
+      }
+    } catch (err) {
+      setError(err.message || 'Failed to send OTP.');
+    } finally {
       setLoading(false);
-    }, 1000);
+    }
   };
 
   const handleOtpChange = (i, val) => {
@@ -57,18 +69,32 @@ const LoginPage = () => {
     }
   };
 
-  const handleVerify = () => {
+  const handleVerify = async () => {
     const code = otp.join('');
+    const cleanMobile = mobile.replace(/\D/g, '').slice(-10);
     if (code.length !== 6) {
       setError('Please enter the complete 6-digit OTP.');
       return;
     }
+    setError('');
     setLoading(true);
-    setTimeout(() => {
-      const userData = role === 'farmer' ? mockUser.farmer : mockUser.centre;
-      login(role, { ...userData, mobile });
-      navigate(role === 'farmer' ? '/farmer/dashboard' : '/centre/dashboard');
-    }, 900);
+    try {
+      // 1. Verify OTP
+      await authService.verifyOTP(cleanMobile, code);
+
+      // 2. Perform Backend Login
+      const loginRes = await authService.login(cleanMobile, 'password123');
+      if (loginRes.success) {
+        login(role, loginRes.data);
+        navigate(loginRes.data.user.role === 'FARMER' ? '/farmer/dashboard' : '/centre/dashboard');
+      } else {
+        setError(loginRes.message || 'Login failed.');
+      }
+    } catch (err) {
+      setError(err.message || 'Login failed. If you have not registered yet, please create an account.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -258,7 +284,7 @@ const LoginPage = () => {
             }}>
               <Shield size={16} style={{ display: 'inline', marginRight: '0.4rem' }} />
               OTP sent to <strong>+91 {mobile}</strong><br />
-              Demo Verification Code: <strong style={{ color: '#15803D' }}>123456</strong>
+              Demo Verification Code: <strong style={{ color: '#15803D' }}>{receivedOtp}</strong>
             </div>
 
             <div style={{ marginBottom: '1.5rem' }}>

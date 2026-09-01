@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { queueService, bookingService } from '../../services/api';
 import { 
   ArrowLeft, Bell, HelpCircle, MapPin, Ticket, RefreshCw, 
   Clock, Calendar, MessageSquare, Phone, ChevronRight, 
@@ -14,6 +15,8 @@ const TrackSlot = () => {
   const isHindi = i18n.language === 'hi';
 
   // State for interactive queue status simulation
+  const [activeToken, setActiveToken] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [currentTokenNum, setCurrentTokenNum] = useState(119);
   const [tokensAhead, setTokensAhead] = useState(8);
   const [estimatedWait, setEstimatedWait] = useState(40);
@@ -32,30 +35,77 @@ const TrackSlot = () => {
     }, 4000);
   };
 
-  const handleCancelSlot = () => {
-    // Slot date: 30 Aug 2026, 4:30 PM
-    const slotDate = new Date('2026-08-30T16:30:00');
+  const fetchQueueData = async () => {
+    setIsRefreshing(true);
+    try {
+      const res = await queueService.getMy();
+      if (res.success && res.data) {
+        setActiveToken(res.data);
+        setCurrentTokenNum(res.data.currentServingToken || 0);
+        setTokensAhead(res.data.tokensAhead || 0);
+        setEstimatedWait(res.data.estimatedWaitMins || 0);
+        setCompletedCount(res.data.completedCount || 0);
+        setWaitingCount(res.data.waitingCount || 0);
+        setIsCancelled(res.data.status === 'CANCELLED');
+        
+        const now = new Date();
+        const formattedTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        setLastUpdated(formattedTime);
+      } else {
+        setActiveToken(null);
+      }
+    } catch (err) {
+      console.error('Failed to load active queue token details:', err);
+    } finally {
+      setIsRefreshing(false);
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchQueueData();
+  }, []);
+
+  const handleCancelSlot = async () => {
+    if (!activeToken || !activeToken.bookingId) {
+      showToastMessage(isHindi ? 'कोई सक्रिय बुकिंग नहीं मिली।' : 'No active booking found.');
+      return;
+    }
+    
+    // Check if cancellation is allowed
+    const slotDateStr = activeToken.booking?.date;
+    const slotTimeStr = activeToken.booking?.slotTime;
+    if (!slotDateStr || !slotTimeStr) return;
+    
+    const datePart = slotDateStr.split('T')[0];
+    const startTimePart = slotTimeStr.split('-')[0].trim();
+    const slotStart = new Date(`${datePart}T${startTimePart}`);
     const now = new Date();
-    const diffMs = slotDate - now;
+    const diffMs = slotStart - now;
     const diffHours = diffMs / (1000 * 60 * 60);
 
     if (diffMs < 0) {
-      showToastMessage(t('cancellationPassed'));
+      showToastMessage(isHindi ? 'रद्दीकरण की समय सीमा समाप्त हो गई है।' : 'Cancellation window has passed.');
       return;
     }
 
-    if (diffHours >= 24) {
-      const confirm = window.confirm(t('freeCancelConfirm'));
-      if (confirm) {
-        setIsCancelled(true);
-        showToastMessage(t('freeCancelSuccess'));
-      }
-    } else {
-      const confirm = window.confirm(t('lateCancelConfirm'));
-      if (confirm) {
-        setIsCancelled(true);
-        showToastMessage(t('lateCancelSuccess'));
-      }
+    const isFree = diffHours >= 24;
+    const confirmMsg = isFree
+      ? (isHindi ? 'क्या आप वाकई इस बुकिंग को रद्द करना चाहते हैं? (कोई जुर्माना नहीं)' : 'Are you sure you want to cancel this booking? (No penalty)')
+      : (isHindi ? '24 घंटे से कम समय बचा है। रद्द करने पर विश्वास स्कोर में -25 की कमी होगी। क्या आप वाकई रद्द करना चाहते हैं?' : 'Less than 24h remaining. Cancelling now will penalize your trust score by -25 points. Proceed?');
+
+    const confirmed = window.confirm(confirmMsg);
+    if (!confirmed) return;
+
+    try {
+      await bookingService.cancel(activeToken.bookingId);
+      setIsCancelled(true);
+      showToastMessage(isHindi ? 'बुकिंग सफलतापूर्वक रद्द कर दी गई!' : 'Booking cancelled successfully!');
+      setTimeout(() => {
+        navigate('/farmer/dashboard');
+      }, 2000);
+    } catch (err) {
+      showToastMessage(err.message || 'Failed to cancel slot.');
     }
   };
 
@@ -96,9 +146,47 @@ const TrackSlot = () => {
   };
 
   // Percent representing current token progression from T-100 to T-127
-  // Total span: 100 to 127 = 27 units
-  const totalSpan = 27;
-  const progressPercent = Math.min(((currentTokenNum - 100) / totalSpan) * 100, 100);
+  const span = 25;
+  const startNum = activeToken ? Math.max(1, activeToken.tokenNumber - span) : 100;
+  const progressPercent = activeToken ? Math.min(((currentTokenNum - startNum) / span) * 100, 100) : 50;
+
+  if (loading) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F8FAFC' }}>
+        <div style={{ textAlign: 'center' }}>
+          <RefreshCw className="animate-spin" size={44} color="#059669" style={{ margin: '0 auto 1rem' }} />
+          <div style={{ fontWeight: 700, color: '#475569' }}>{isHindi ? 'लोड हो रहा है...' : 'Loading Token Tracker...'}</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!activeToken) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F8FAFC', padding: '1rem' }}>
+        <div className="card" style={{ textAlign: 'center', padding: '3rem 2rem', maxWidth: '480px', width: '100%', background: '#FFFFFF' }}>
+          <div style={{
+            width: 80, height: 80, background: 'linear-gradient(135deg, #ECFDF5, #D1FAE5)',
+            borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            margin: '0 auto 1.5rem', boxShadow: '0 10px 25px rgba(16,185,129,0.1)'
+          }}>
+            <Ticket size={42} color="#059669" />
+          </div>
+          <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0F172A', marginBottom: '0.5rem' }}>
+            {isHindi ? 'कोई सक्रिय टोकन नहीं मिला' : 'No Active Token Found'}
+          </h2>
+          <p style={{ color: '#64748B', fontSize: '0.92rem', marginBottom: '1.5rem', lineHeight: 1.5 }}>
+            {isHindi 
+              ? 'वर्तमान में कोई सक्रिय स्लॉट बुकिंग या लाइव ट्रैकिंग टोकन उपलब्ध नहीं है। कृपया नया स्लॉट बुक करें।' 
+              : 'You do not have any active slot bookings or live queue tokens at the moment. Please book a new slot.'}
+          </p>
+          <button onClick={() => navigate('/farmer/book-slot')} className="btn-primary" style={{ padding: '0.75rem 1.5rem', borderRadius: '12px', margin: '0 auto' }}>
+            {isHindi ? 'स्लॉट बुक करें' : 'Book a Slot'} <ChevronRight size={16} />
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#F8FAFC', paddingBottom: '4rem', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
@@ -201,13 +289,13 @@ const TrackSlot = () => {
               <div style={{ position: 'absolute', right: '-10px', top: '42%', width: '20px', height: '20px', borderRadius: '50%', background: '#FFFFFF' }} />
               
               <div style={{ fontSize: '3rem', fontWeight: 900, letterSpacing: '0.02em', margin: '0.5rem 0 0.75rem' }}>
-                T-127
+                T-{activeToken.tokenNumber}
               </div>
               
               <div style={{ marginBottom: '1rem' }}>
                 <span style={{
                   backgroundColor: '#FFFFFF',
-                  color: currentTokenNum === 127 ? '#059669' : '#15803D',
+                  color: currentTokenNum === activeToken.tokenNumber ? '#059669' : '#15803D',
                   padding: '0.35rem 1.2rem',
                   borderRadius: '30px',
                   fontSize: '0.8rem',
@@ -217,8 +305,8 @@ const TrackSlot = () => {
                   gap: '0.4rem',
                   boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
                 }}>
-                  <span className="animate-pulse" style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: currentTokenNum === 127 ? '#10B981' : '#059669' }}></span>
-                  {currentTokenNum === 127 ? t('yourTurn') : t('inQueue')}
+                  <span className="animate-pulse" style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: currentTokenNum === activeToken.tokenNumber ? '#10B981' : '#059669' }}></span>
+                  {currentTokenNum === activeToken.tokenNumber ? t('yourTurn') : t('inQueue')}
                 </span>
               </div>
 
@@ -394,9 +482,9 @@ const TrackSlot = () => {
                   width: '16px',
                   height: '16px',
                   borderRadius: '50%',
-                  background: currentTokenNum === 127 ? '#22C55E' : '#FFFFFF',
-                  border: `3px solid ${currentTokenNum === 127 ? '#FFFFFF' : '#059669'}`,
-                  boxShadow: currentTokenNum === 127 ? '0 2px 8px rgba(34,197,94,0.4)' : 'none',
+                  background: currentTokenNum === activeToken.tokenNumber ? '#22C55E' : '#FFFFFF',
+                  border: `3px solid ${currentTokenNum === activeToken.tokenNumber ? '#FFFFFF' : '#059669'}`,
+                  boxShadow: currentTokenNum === activeToken.tokenNumber ? '0 2px 8px rgba(34,197,94,0.4)' : 'none',
                   zIndex: 2
                 }} />
 
@@ -405,7 +493,7 @@ const TrackSlot = () => {
               {/* Slider Labels */}
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem' }}>
                 <div style={{ textAlign: 'left' }}>
-                  <span style={{ fontWeight: 800, color: '#475569', display: 'block' }}>T-100</span>
+                  <span style={{ fontWeight: 800, color: '#475569', display: 'block' }}>T-{startNum}</span>
                   <span style={{ color: '#94A3B8', fontSize: '0.7rem' }}>{t('completed')}</span>
                 </div>
                 <div style={{ textAlign: 'center' }}>
@@ -413,7 +501,7 @@ const TrackSlot = () => {
                   <span style={{ color: '#94A3B8', fontSize: '0.7rem' }}>{t('currentToken')}</span>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <span style={{ fontWeight: 800, color: '#059669', display: 'block' }}>T-127</span>
+                  <span style={{ fontWeight: 800, color: '#059669', display: 'block' }}>T-{activeToken.tokenNumber}</span>
                   <span style={{ color: '#94A3B8', fontSize: '0.7rem' }}>{t('yourToken')}</span>
                 </div>
               </div>
@@ -539,8 +627,12 @@ const TrackSlot = () => {
                 </div>
                 <div style={{ textAlign: 'left' }}>
                   <div style={{ fontSize: '0.7rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase' }}>{t('date')}</div>
-                  <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#1E293B', marginTop: '2px' }}>30 Aug 2026</div>
-                  <div style={{ fontSize: '0.72rem', color: '#94A3B8' }}>{isHindi ? 'शनिवार' : 'Saturday'}</div>
+                  <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#1E293B', marginTop: '2px' }}>
+                    {activeToken.booking?.date ? new Date(activeToken.booking.date).toLocaleDateString(isHindi ? 'hi-IN' : 'en-US', { day: 'numeric', month: 'short', year: 'numeric' }) : ''}
+                  </div>
+                  <div style={{ fontSize: '0.72rem', color: '#94A3B8' }}>
+                    {activeToken.booking?.date ? new Date(activeToken.booking.date).toLocaleDateString(isHindi ? 'hi-IN' : 'en-US', { weekday: 'long' }) : ''}
+                  </div>
                 </div>
               </div>
 
@@ -551,7 +643,7 @@ const TrackSlot = () => {
                 </div>
                 <div style={{ textAlign: 'left' }}>
                   <div style={{ fontSize: '0.7rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase' }}>{t('timeSlot')}</div>
-                  <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#1E293B', marginTop: '2px' }}>4:30 PM - 5:00 PM</div>
+                  <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#1E293B', marginTop: '2px' }}>{activeToken.booking?.slotTime}</div>
                   <div style={{ fontSize: '0.72rem', color: '#94A3B8' }}>{t('duration')}: 30 {isHindi ? 'मिनट' : 'min'}</div>
                 </div>
               </div>
@@ -563,8 +655,12 @@ const TrackSlot = () => {
                 </div>
                 <div style={{ textAlign: 'left' }}>
                   <div style={{ fontSize: '0.7rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase' }}>{t('centreLabel')}</div>
-                  <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#1E293B', marginTop: '2px' }}>Centre #12</div>
-                  <div style={{ fontSize: '0.72rem', color: '#94A3B8' }}>{isHindi ? 'गांव: रामपुर, ब्लॉक: सदर' : 'Village: Rampur, Block: Sadar'}</div>
+                  <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#1E293B', marginTop: '2px' }}>
+                    {isHindi ? (activeToken.booking?.centre?.nameHi || activeToken.booking?.centre?.name) : activeToken.booking?.centre?.name}
+                  </div>
+                  <div style={{ fontSize: '0.72rem', color: '#94A3B8' }}>
+                    {isHindi ? (activeToken.booking?.centre?.addressHi || activeToken.booking?.centre?.address) : activeToken.booking?.centre?.address}
+                  </div>
                 </div>
               </div>
 
@@ -575,8 +671,10 @@ const TrackSlot = () => {
                 </div>
                 <div style={{ textAlign: 'left' }}>
                   <div style={{ fontSize: '0.7rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase' }}>{t('commodity')}</div>
-                  <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#1E293B', marginTop: '2px' }}>{isHindi ? 'गेहूं' : 'Wheat'}</div>
-                  <div style={{ fontSize: '0.72rem', color: '#94A3B8' }}>{t('quantity')}: 22 {isHindi ? 'क्विंटल' : 'Quintal'}</div>
+                  <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#1E293B', marginTop: '2px' }}>
+                    {isHindi ? (activeToken.booking?.crop?.nameHi || activeToken.booking?.crop?.name) : activeToken.booking?.crop?.name}
+                  </div>
+                  <div style={{ fontSize: '0.72rem', color: '#94A3B8' }}>{t('quantity')}: {activeToken.booking?.weight} {isHindi ? 'क्विंटल' : 'Quintal'}</div>
                 </div>
               </div>
 

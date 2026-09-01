@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../hooks/useAuth';
+import { farmerService, notificationService, bookingService } from '../../services/api';
 import { mockUser } from '../../data/mockData';
 import {
   CalendarPlus, Navigation, Shield, TrendingUp, CreditCard,
@@ -22,11 +23,83 @@ const FarmerDashboard = () => {
 
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [showNotifModal, setShowNotifModal] = useState(false);
-  const [notifications, setNotifications] = useState(getFarmerNotifications);
+  const [notifications, setNotifications] = useState([]);
+  
+  const [stats, setStats] = useState({ totalBookings: 0, completedBookings: 0, trustScore: 100 });
+  const [activeBooking, setActiveBooking] = useState(null);
+  const [bookingsHistory, setBookingsHistory] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const loadDashboardData = async () => {
+    try {
+      const statsRes = await farmerService.getStatistics();
+      if (statsRes.success && statsRes.data) {
+        setStats({
+          totalBookings: statsRes.data.totalBookings,
+          completedBookings: statsRes.data.completedBookings,
+          trustScore: statsRes.data.trustScore
+        });
+      }
+
+      const bookingsRes = await farmerService.getBookings();
+      if (bookingsRes.success && bookingsRes.data) {
+        const list = bookingsRes.data;
+        const active = list.find(b => ['BOOKED', 'ARRIVED', 'CALLED', 'PROCESSING'].includes(b.status));
+        setActiveBooking(active);
+        
+        const mappedHistory = list.map(b => {
+          const isDone = b.status === 'COMPURED' || b.status === 'COMPLETED' || b.transaction?.payment?.status === 'SUCCESS';
+          return {
+            id: b.id,
+            date: new Date(b.date).toISOString().split('T')[0],
+            crop: b.crop?.name || 'Wheat',
+            cropHi: b.crop?.nameHi || 'गेहूं',
+            weight: `${b.weight} Qtl`,
+            weightHi: `${b.weight} क्विंटल`,
+            centre: b.centre?.name || 'Procurement Centre',
+            centreHi: b.centre?.nameHi || 'खरीद केंद्र',
+            slot: b.slotTime,
+            slotHi: b.slotTime,
+            status: b.status,
+            paymentStatus: isDone ? 'Done' : ['CANCELLED', 'NO_SHOW'].includes(b.status) ? 'Cancelled' : 'Processing',
+            paymentStatusHi: isDone ? 'पूर्ण' : ['CANCELLED', 'NO_SHOW'].includes(b.status) ? 'रद्द' : 'प्रक्रिया में है',
+            amount: b.transaction?.amount || 0,
+            queueToken: b.queueToken
+          };
+        });
+        setBookingsHistory(mappedHistory);
+      }
+
+      const notifRes = await notificationService.getMy();
+      if (notifRes.success && notifRes.data) {
+        const mappedNotifs = notifRes.data.map(n => ({
+          id: n.id.toString(),
+          title: n.title,
+          titleEn: n.title,
+          message: n.message,
+          messageEn: n.message,
+          type: n.type.toLowerCase(),
+          read: n.isRead,
+          time: new Date(n.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          date: 'Today',
+          timestamp: new Date(n.createdAt).getTime(),
+        }));
+        setNotifications(mappedNotifs);
+      }
+    } catch (err) {
+      console.error('Failed to load farmer dashboard data:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadDashboardData();
+  }, []);
 
   useEffect(() => {
     const updateNotifs = () => {
-      setNotifications(getFarmerNotifications());
+      loadDashboardData();
     };
     window.addEventListener('storage', updateNotifs);
     window.addEventListener('krishimitra_notification_update', updateNotifs);
@@ -212,40 +285,6 @@ const FarmerDashboard = () => {
           </div>
 
           <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', flexWrap: 'wrap' }}>
-            {/* Notification Button on Farmer Top-Right Bar */}
-            <button
-              onClick={() => setShowNotifModal(true)}
-              style={{
-                background: unreadCount > 0 ? '#FEF3C7' : 'rgba(255, 255, 255, 0.18)',
-                color: unreadCount > 0 ? '#92400E' : '#FFFFFF',
-                border: unreadCount > 0 ? '1.5px solid #F59E0B' : '1px solid rgba(255, 255, 255, 0.3)',
-                borderRadius: '12px',
-                padding: '0.45rem 0.95rem',
-                fontWeight: 800,
-                fontSize: '0.82rem',
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.4rem',
-                boxShadow: unreadCount > 0 ? '0 4px 14px rgba(245, 158, 11, 0.3)' : 'none',
-                transition: 'all 0.15s'
-              }}
-            >
-              <Bell size={16} color={unreadCount > 0 ? '#D97706' : '#A7F3D0'} />
-              <span>
-                {isHindi ? `केंद्र अपडेट ${unreadCount > 0 ? `(${unreadCount})` : ''}` : `Centre Updates ${unreadCount > 0 ? `(${unreadCount})` : ''}`}
-              </span>
-              {unreadCount > 0 && (
-                <span style={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: '50%',
-                  background: '#EF4444',
-                  boxShadow: '0 0 6px #EF4444'
-                }} />
-              )}
-            </button>
-
             <span className="hero-badge" style={{ background: 'rgba(255,255,255,0.15)', fontSize: '0.8rem' }}>
               {isHindi ? '✓ खसरा सत्यापित' : '✓ Khasra Verified'}
             </span>
@@ -267,17 +306,17 @@ const FarmerDashboard = () => {
         }}>
           <div>
             <div style={{ fontSize: '1.5rem', marginBottom: '0.2rem' }}>📋</div>
-            <div style={{ fontWeight: 900, fontSize: '1.3rem', color: '#15803D' }}>{mockUser.farmer.totalBookings}</div>
+            <div style={{ fontWeight: 900, fontSize: '1.3rem', color: '#15803D' }}>{stats.totalBookings}</div>
             <div style={{ fontSize: '0.75rem', color: '#64748B', fontWeight: 600 }}>{isHindi ? 'कुल बुकिंग' : 'Total Bookings'}</div>
           </div>
           <div style={{ borderLeft: '1px solid #E2E8F0', borderRight: '1px solid #E2E8F0' }}>
             <div style={{ fontSize: '1.5rem', marginBottom: '0.2rem' }}>✅</div>
-            <div style={{ fontWeight: 900, fontSize: '1.3rem', color: '#15803D' }}>{mockUser.farmer.completedBookings}</div>
+            <div style={{ fontWeight: 900, fontSize: '1.3rem', color: '#15803D' }}>{stats.completedBookings}</div>
             <div style={{ fontSize: '0.75rem', color: '#64748B', fontWeight: 600 }}>{isHindi ? 'पूर्ण' : 'Completed'}</div>
           </div>
           <div>
             <div style={{ fontSize: '1.5rem', marginBottom: '0.2rem' }}>⭐</div>
-            <div style={{ fontWeight: 900, fontSize: '1.3rem', color: '#D97706' }}>{mockUser.farmer.trustScore}%</div>
+            <div style={{ fontWeight: 900, fontSize: '1.3rem', color: '#D97706' }}>{stats.trustScore}%</div>
             <div style={{ fontSize: '0.75rem', color: '#64748B', fontWeight: 600 }}>{isHindi ? 'विश्वास स्कोर' : 'Trust Score'}</div>
           </div>
         </div>
@@ -355,36 +394,38 @@ const FarmerDashboard = () => {
       )}
 
       {/* Active Token Notification */}
-      <div className="container" style={{ marginTop: '1rem' }}>
-        <div style={{
-          background: 'linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%)',
-          border: '1.5px solid #6EE7B7',
-          borderRadius: '16px',
-          padding: '1rem 1.25rem',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '1rem',
-          boxShadow: '0 4px 15px rgba(16, 185, 129, 0.1)',
-        }}>
+      {activeBooking && (
+        <div className="container" style={{ marginTop: '1rem' }}>
           <div style={{
-            width: 44, height: 44, background: '#10B981', borderRadius: '12px',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', flexShrink: 0
+            background: 'linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%)',
+            border: '1.5px solid #6EE7B7',
+            borderRadius: '16px',
+            padding: '1rem 1.25rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '1rem',
+            boxShadow: '0 4px 15px rgba(16, 185, 129, 0.1)',
           }}>
-            <CheckCircle size={24} />
-          </div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 800, fontSize: '0.95rem', color: '#065F46' }}>
-              {isHindi ? 'सक्रिय बुकिंग टोकन #42 (गेहूं)' : 'Active Booking Token #42 (Wheat)'}
+            <div style={{
+              width: 44, height: 44, background: '#10B981', borderRadius: '12px',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', flexShrink: 0
+            }}>
+              <CheckCircle size={24} />
             </div>
-            <div style={{ fontSize: '0.8rem', color: '#047857', marginTop: '0.1rem' }}>
-              {isHindi ? 'भगवानपुर खरीद केंद्र • आज सुबह 10:00 बजे • 25 क्विंटल' : 'Bhagwanpur Procurement Centre • Today 10:00 AM • 25 Qtl'}
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 800, fontSize: '0.95rem', color: '#065F46' }}>
+                {isHindi ? `सक्रिय बुकिंग टोकन #${activeBooking.queueToken?.tokenNumber || ''} (${activeBooking.crop?.nameHi || activeBooking.crop?.name})` : `Active Booking Token #${activeBooking.queueToken?.tokenNumber || ''} (${activeBooking.crop?.name})`}
+              </div>
+              <div style={{ fontSize: '0.8rem', color: '#047857', marginTop: '0.1rem' }}>
+                {isHindi ? `${activeBooking.centre?.nameHi || activeBooking.centre?.name} • आज ${activeBooking.slotTime} • ${activeBooking.weight} क्विंटल` : `${activeBooking.centre?.name} • Today ${activeBooking.slotTime} • ${activeBooking.weight} Qtl`}
+              </div>
             </div>
+            <Link to="/farmer/track-slot" className="btn-primary" style={{ padding: '0.5rem 1.1rem', fontSize: '0.82rem', borderRadius: '10px' }}>
+              {isHindi ? 'लाइव ट्रैक करें' : 'Track Live'} <ChevronRight size={14} />
+            </Link>
           </div>
-          <Link to="/farmer/track-slot" className="btn-primary" style={{ padding: '0.5rem 1.1rem', fontSize: '0.82rem', borderRadius: '10px' }}>
-            {isHindi ? 'लाइव ट्रैक करें' : 'Track Live'} <ChevronRight size={14} />
-          </Link>
         </div>
-      </div>
+      )}
 
       {/* Services Grid */}
       <div className="container" style={{ marginTop: '1.75rem' }}>
@@ -485,10 +526,15 @@ const FarmerDashboard = () => {
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            {historicalBookings.map((booking) => (
-              <div
-                key={booking.id}
-                onClick={() => setSelectedBooking(booking)}
+            {bookingsHistory.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '2rem 1rem', color: '#64748B', fontSize: '0.88rem' }}>
+                {isHindi ? 'कोई बुकिंग इतिहास नहीं मिला।' : 'No booking history found.'}
+              </div>
+            ) : (
+              bookingsHistory.map((booking) => (
+                <div
+                  key={booking.id}
+                  onClick={() => setSelectedBooking(booking)}
                 style={{
                   display: 'flex',
                   justifyContent: 'space-between',
@@ -537,7 +583,8 @@ const FarmerDashboard = () => {
                   <ChevronRight size={18} color="#94A3B8" />
                 </div>
               </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
       </div>

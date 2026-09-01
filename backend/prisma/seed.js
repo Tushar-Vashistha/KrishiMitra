@@ -123,22 +123,21 @@ async function main() {
     });
     centres.push(centre);
 
-    // Seed slots for each centre if empty
-    const slotCount = await prisma.slotConfig.count({ where: { centreId: centre.id } });
-    if (slotCount === 0) {
-      const defaultSlots = [
-        '08:00 - 09:00', '09:00 - 10:00', '10:00 - 11:00', '11:00 - 12:00',
-        '12:00 - 13:00', '13:00 - 14:00', '14:00 - 15:00', '15:00 - 16:00',
-        '16:00 - 17:00', '17:00 - 18:00'
-      ];
-      await prisma.slotConfig.createMany({
-        data: defaultSlots.map((time) => ({
-          centreId: centre.id,
-          slotTime: time,
-          capacity: 10,
-        })),
-      });
-    }
+    // Seed slots for each centre
+    await prisma.slotConfig.deleteMany({ where: { centreId: centre.id } });
+    const defaultSlots = [
+      { time: '07:00 AM - 10:00 AM', capacity: 10 },
+      { time: '10:00 AM - 01:00 PM', capacity: 10 },
+      { time: '02:00 PM - 05:00 PM', capacity: 10 },
+      { time: '05:00 PM - 08:00 PM', capacity: 10 },
+    ];
+    await prisma.slotConfig.createMany({
+      data: defaultSlots.map((s) => ({
+        centreId: centre.id,
+        slotTime: s.time,
+        capacity: s.capacity,
+      })),
+    });
 
     // Seed Counters for each centre
     const counterCount = await prisma.counter.count({ where: { centreId: centre.id } });
@@ -164,6 +163,9 @@ async function main() {
     Mustard: { msp: 5650, market: 5700 },
     Sugarcane: { msp: 315, market: 340 },
     Maize: { msp: 2090, market: 2120 },
+    Chana: { msp: 5440, market: 5500 },
+    Soybean: { msp: 4600, market: 4520 },
+    Groundnut: { msp: 6377, market: 6500 },
   };
 
   const effectiveDate = new Date('2026-01-01');

@@ -47,13 +47,13 @@ const generalLimiter = rateLimit({
 });
 
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
+  windowMs: 30 * 1000, // 30 seconds
   max: 15, // limit each IP to 15 authentication/OTP attempts per windowMs
   message: {
     success: false,
     error: {
       code: 'TOO_MANY_AUTH_ATTEMPTS',
-      message: 'Too many login or OTP attempts. Please try again after 15 minutes.',
+      message: 'Too many login or OTP attempts. Please try again after 30 seconds.',
     },
   },
 });

@@ -1,38 +1,61 @@
 import React, { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { CreditCard, CheckCircle2, Download, ArrowUpRight, Building, Clock, FileText, Printer } from "lucide-react";
-import { mockPayments } from "../../data/mockData";
+import { CreditCard, CheckCircle2, Download, ArrowUpRight, Building, Clock, FileText, Printer, RefreshCw } from "lucide-react";
+import { paymentService } from "../../services/api";
 
 const PaymentHistory = () => {
   const { t, i18n } = useTranslation();
   const isHindi = i18n.language === "hi";
 
-  const [farmerBills, setFarmerBills] = useState([]);
+  const [payments, setPayments] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    try {
-      const savedBills = JSON.parse(localStorage.getItem("krishimitra_farmer_bills") || "[]");
-      setFarmerBills(savedBills);
-    } catch (e) {
-      console.error(e);
-    }
+    const loadPayments = async () => {
+      try {
+        const res = await paymentService.getMy();
+        if (res.success && res.data) {
+          setPayments(res.data);
+        }
+      } catch (err) {
+        console.error("Failed to load payments:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadPayments();
   }, []);
 
   const getCropName = (crop) => {
+    if (!crop) return "";
     if (!isHindi) return crop;
     if (crop.toLowerCase().includes("wheat")) return "गेहूं";
-    if (crop.toLowerCase().includes("paddy")) return "धान";
+    if (crop.toLowerCase().includes("paddy") || crop.toLowerCase().includes("rice")) return "धान/चावल";
     if (crop.toLowerCase().includes("mustard")) return "सरसों";
+    if (crop.toLowerCase().includes("maize")) return "मक्का";
     return crop;
   };
 
   const getQtyText = (qty) => {
+    if (!qty) return "";
     if (!isHindi) return qty;
-    return String(qty).replace("Qtl", "क्विंटल");
+    return String(qty).replace("Qtl", "क्विंटल").replace("Quintal", "क्विंटल");
   };
 
-  const totalSettled = mockPayments.reduce((acc, p) => acc + p.amount, 0) +
-    farmerBills.filter(b => b.paymentStatus === "Paid").reduce((acc, b) => acc + (b.totalAmount || 0), 0);
+  const totalSettled = payments
+    .filter(p => p.status === "SUCCESS")
+    .reduce((acc, p) => acc + p.amount, 0);
+
+  if (loading) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F8FAFC' }}>
+        <div style={{ textAlign: 'center' }}>
+          <RefreshCw className="animate-spin" size={44} color="#059669" style={{ margin: '0 auto 1rem' }} />
+          <div style={{ fontWeight: 700, color: '#475569' }}>{isHindi ? 'लोड हो रहा है...' : 'Loading Payment Statements...'}</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ minHeight: "100vh", background: "linear-gradient(180deg, #F0FDF4 0%, #F8FAFC 100%)", paddingBottom: "4rem" }}>
@@ -90,131 +113,81 @@ const PaymentHistory = () => {
           </div>
         </div>
 
-        {/* Centre-Generated Official Bills (If available) */}
-        {farmerBills.length > 0 && (
-          <div style={{ marginBottom: "2rem" }}>
-            <h3 style={{ fontSize: "1.15rem", fontWeight: 800, color: "#065F46", marginBottom: "0.85rem", display: "flex", alignItems: "center", gap: "0.4rem" }}>
-              <FileText size={18} color="#059669" />
-              {isHindi ? "नवीनतम खरीद केंद्र बिल एवं जे-फॉर्म" : "Latest Centre Procurement Bills & J-Forms"}
-            </h3>
+        {/* DBT Payment Statements */}
+        <h3 style={{ fontSize: "1.15rem", fontWeight: 800, color: "#14532D", marginBottom: "1rem" }}>
+          {isHindi ? "📜 लेनदेन विवरण एवं जे-फॉर्म" : "📜 Transaction Statements & J-Forms"}
+        </h3>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-              {farmerBills.map((bill) => (
-                <div
-                  key={bill.id}
-                  className="card"
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    flexWrap: "wrap",
-                    gap: "1rem",
-                    background: "#F0FDF4",
-                    border: "1.5px solid #86EFAC",
-                    borderRadius: "16px",
-                    padding: "1.25rem"
-                  }}
-                >
+        <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+          {payments.length === 0 ? (
+            <div className="card" style={{ textAlign: "center", padding: "3.5rem 2rem", color: "#64748B" }}>
+              {isHindi ? "कोई भुगतान लेनदेन रिकॉर्ड नहीं मिला।" : "No payment transaction records found."}
+            </div>
+          ) : (
+            payments.map((p) => {
+              const isPaid = p.status === "SUCCESS";
+              const isProcessing = p.status === "PENDING";
+              return (
+                <div key={p.id} className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1rem" }}>
                   <div>
                     <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
-                      <span style={{
-                        padding: "3px 10px",
-                        borderRadius: "20px",
-                        fontSize: "0.75rem",
-                        fontWeight: 800,
-                        backgroundColor: bill.paymentStatus === "Paid" ? "#DCFCE7" : bill.paymentStatus === "Processing" ? "#EFF6FF" : "#FEF3C7",
-                        color: bill.paymentStatus === "Paid" ? "#15803D" : bill.paymentStatus === "Processing" ? "#1D4ED8" : "#B45309"
-                      }}>
-                        {bill.paymentStatus === "Paid" ? (isHindi ? "● डीबीटी अंतरित (Paid)" : "● Paid via DBT") : bill.paymentStatus === "Processing" ? (isHindi ? "🔄 प्रक्रियाधीन (PFMS)" : "🔄 Processing") : (isHindi ? "⏳ भुगतान देय" : "⏳ Payment Due")}
+                      <span className={isPaid ? "badge-green" : isProcessing ? "badge-blue" : "badge-red"}>
+                        {isPaid 
+                          ? (isHindi ? "● डीबीटी अंतरित (Paid)" : "● Paid via DBT") 
+                          : isProcessing 
+                            ? (isHindi ? "🔄 प्रक्रियाधीन (PFMS)" : "🔄 Processing") 
+                            : (isHindi ? "❌ असफल (Failed)" : "❌ Failed")}
                       </span>
-                      <span style={{ fontSize: "0.78rem", color: "#64748B" }}>{bill.billDate}</span>
-                      <span style={{ background: "#FFFFFF", border: "1px solid #CBD5E1", padding: "1px 6px", borderRadius: "4px", fontSize: "0.72rem", fontWeight: 700 }}>
-                        {bill.id}
+                      <span style={{ fontSize: "0.78rem", color: "#64748B" }}>{p.date}</span>
+                      <span style={{ background: "#F1F5F9", border: "1px solid #E2E8F0", padding: "1px 6px", borderRadius: "4px", fontSize: "0.72rem", fontWeight: 700 }}>
+                        {p.transactionId || `PAY-${p.id}`}
                       </span>
                     </div>
-
-                    <div style={{ fontWeight: 800, fontSize: "1.15rem", color: "#0F172A", marginTop: "0.45rem" }}>
-                      {getCropName(bill.crop)} ({bill.verifiedWeight} {isHindi ? "क्विंटल" : "Qtl"}) • {bill.qualityGrade || "FAQ Grade-I"}
+                    <div style={{ fontWeight: 800, fontSize: "1.15rem", color: "#1E293B", marginTop: "0.45rem" }}>
+                      {getCropName(p.crop)} ({getQtyText(p.quantity)})
                     </div>
                     <div style={{ fontSize: "0.8rem", color: "#64748B", marginTop: "0.2rem" }}>
-                      {isHindi ? "केंद्र:" : "Centre:"} <strong>{bill.centreName}</strong> • {isHindi ? "खाता:" : "Bank:"} {bill.bankName} ({bill.accountNo})
-                      {bill.dbtTxnId && <span> • DBT Txn: <strong>{bill.dbtTxnId}</strong></span>}
+                      {isHindi ? "केंद्र:" : "Centre:"} <strong>{p.centre}</strong>
+                      {p.referenceId && <span> • DBT Txn: <strong>{p.referenceId}</strong></span>}
                     </div>
                   </div>
 
                   <div style={{ textAlign: "right" }}>
-                    <div style={{ fontSize: "1.4rem", fontWeight: 900, color: "#047857" }}>
-                      ₹{bill.totalAmount?.toLocaleString("en-IN")}
+                    <div style={{ fontSize: "1.45rem", fontWeight: 900, color: isPaid ? "#15803D" : "#1E293B" }}>
+                      ₹{p.amount.toLocaleString()}
                     </div>
                     <button
                       type="button"
-                      onClick={() => window.print()}
+                      onClick={() => {
+                        if (isPaid) {
+                          window.print();
+                        } else {
+                          alert(isHindi ? "भुगतान पूर्ण होने के बाद ही जे-फॉर्म उपलब्ध होगा।" : "J-Form will be available after payment completion.");
+                        }
+                      }}
                       style={{
-                        background: "#047857",
-                        color: "#FFFFFF",
-                        border: "none",
+                        background: isPaid ? "#F0FDF4" : "#F8FAFC",
+                        color: isPaid ? "#15803D" : "#94A3B8",
+                        border: `1px solid ${isPaid ? "#86EFAC" : "#E2E8F0"}`,
                         borderRadius: "8px",
                         padding: "0.4rem 0.9rem",
                         fontSize: "0.78rem",
                         fontWeight: 800,
-                        cursor: "pointer",
+                        cursor: isPaid ? "pointer" : "not-allowed",
                         marginTop: "0.4rem",
                         display: "inline-flex",
                         alignItems: "center",
                         gap: "0.35rem",
-                        boxShadow: "0 2px 6px rgba(4, 120, 87, 0.2)"
                       }}
+                      disabled={!isPaid}
                     >
-                      <Printer size={13} /> {isHindi ? "जे-फार्म डाउनलोड" : "Download J-Form"}
+                      <Printer size={13} /> {isHindi ? "जे-फॉर्म डाउनलोड" : "Download J-Form"}
                     </button>
                   </div>
                 </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Payment Records List */}
-        <h3 style={{ fontSize: "1.15rem", fontWeight: 800, color: "#14532D", marginBottom: "1rem" }}>
-          {isHindi ? "📜 पूर्ववर्ती लेनदेन विवरण" : "📜 Past Transaction Statements"}
-        </h3>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-          {mockPayments.map((p) => (
-            <div key={p.id} className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1rem" }}>
-              <div>
-                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                  <span className="badge-green">
-                    {isHindi ? "● डीबीटी के माध्यम से भुगतान किया गया" : "● Paid via DBT"}
-                  </span>
-                  <span style={{ fontSize: "0.78rem", color: "#64748B" }}>{p.date}</span>
-                </div>
-                <div style={{ fontWeight: 800, fontSize: "1.1rem", color: "#1E293B", marginTop: "0.4rem" }}>
-                  {getCropName(p.crop)} ({getQtyText(p.quantity)})
-                </div>
-                <div style={{ fontSize: "0.8rem", color: "#64748B", marginTop: "0.1rem" }}>
-                  {isHindi ? "केंद्र:" : "Centre:"} {p.centre} • {isHindi ? "संदर्भ आईडी:" : "Ref ID:"} <strong>{p.txnId}</strong>
-                </div>
-              </div>
-
-              <div style={{ textAlign: "right" }}>
-                <div style={{ fontSize: "1.3rem", fontWeight: 900, color: "#15803D" }}>
-                  ₹{p.amount.toLocaleString()}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => alert(`Downloading payment receipt for Txn: ${p.txnId}`)}
-                  style={{
-                    background: "#F0FDF4", color: "#15803D", border: "1px solid #86EFAC",
-                    borderRadius: "8px", padding: "0.35rem 0.8rem", fontSize: "0.78rem",
-                    fontWeight: 700, cursor: "pointer", marginTop: "0.4rem", display: "inline-flex", alignItems: "center", gap: "0.3rem"
-                  }}
-                >
-                  <Download size={13} /> {isHindi ? "रसीद पीडीएफ" : "Receipt PDF"}
-                </button>
-              </div>
-            </div>
-          ))}
+              );
+            })
+          )}
         </div>
       </div>
     </div>

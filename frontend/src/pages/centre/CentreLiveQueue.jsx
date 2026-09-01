@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../hooks/useAuth';
+import { queueService, centreService } from '../../services/api';
 import { mockBookings, mockCounters, mockCancelledSlots } from '../../data/mockData';
 import {
   ArrowLeft, Users, CheckCircle2, Clock, Phone, MapPin, Search,
@@ -22,9 +23,15 @@ const CentreLiveQueue = () => {
   const isHindi = i18n.language === 'hi';
 
   const [activeTab, setActiveTab] = useState('booked'); // 'booked' | 'cancelled' | 'counters'
-  const [bookings, setBookings] = useState(mockBookings.centre);
-  const [cancelledList, setCancelledList] = useState(mockCancelledSlots);
-  const [counters, setCounters] = useState(mockCounters);
+  const [bookings, setBookings] = useState([]);
+  const [cancelledList, setCancelledList] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [counters, setCounters] = useState([
+    { id: 1, token: null, farmer: null, status: 'Available' },
+    { id: 2, token: null, farmer: null, status: 'Available' },
+    { id: 3, token: null, farmer: null, status: 'Available' },
+    { id: 4, token: null, farmer: null, status: 'Available' },
+  ]);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCrop, setFilterCrop] = useState('all');
   const [toastMessage, setToastMessage] = useState(null);
@@ -34,16 +41,111 @@ const CentreLiveQueue = () => {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // Move booking status to next stage
-  const advanceBookingStatus = (id) => {
-    setBookings(prev => prev.map(b => {
-      if (b.id === id) {
-        const nextStatus = b.status === 'Processing' ? 'Verification' : b.status === 'Verification' ? 'Confirmed' : 'Processing';
-        return { ...b, status: nextStatus };
+  const fetchQueueData = async () => {
+    if (!user || !user.centreId) return;
+    try {
+      const qRes = await queueService.getCentreQueue(user.centreId);
+      let mappedQueue = [];
+      if (qRes.success && qRes.data) {
+        mappedQueue = qRes.data.map(q => {
+          let statusText = "Booked";
+          if (q.status === "ARRIVED") statusText = "Arrived";
+          else if (q.status === "PROCESSING") statusText = "Processing";
+          else if (q.status === "CALLED") statusText = "Arrived";
+          else if (q.status === "COMPLETED") statusText = "Procured";
+          else if (q.status === "CANCELLED" || q.status === "NO_SHOW") statusText = "Cancelled";
+
+          return {
+            id: q.booking.id,
+            queueTokenId: q.id,
+            token: q.tokenNumber,
+            farmer: q.booking.farmerProfile?.user?.name || "Kisan",
+            mobile: q.booking.farmerProfile?.user?.mobile || "—",
+            crop: q.booking.crop.name,
+            weight: q.booking.weight,
+            status: statusText,
+            slotTime: q.booking.slotTime,
+            counterId: q.counterId,
+            isTatkaal: q.booking.isTatkaal,
+          };
+        });
+        setBookings(mappedQueue);
       }
-      return b;
-    }));
-    showToast(isHindi ? `टोकन ${id} की स्थिति सफलतापूर्वक अपडेट की गई!` : `Token ${id} status advanced!`);
+
+      const dRes = await centreService.getDashboard(user.centreId);
+      if (dRes.success && dRes.data) {
+        const cancelled = dRes.data.todayBookings
+          .filter(b => b.status === "CANCELLED" || b.status === "NO_SHOW")
+          .map(b => ({
+            id: b.id,
+            farmer: b.farmerName,
+            mobile: b.farmerMobile,
+            crop: b.cropName,
+            weight: b.weight,
+            reason: b.cancelReason || "Farmer absent / No-show",
+            slotTime: b.slotTime,
+            releasedToTatkaal: false,
+          }));
+        setCancelledList(cancelled);
+      }
+
+      // Update counters status dynamically
+      const defaultCounters = [
+        { id: 1, token: null, farmer: null, status: 'Available' },
+        { id: 2, token: null, farmer: null, status: 'Available' },
+        { id: 3, token: null, farmer: null, status: 'Available' },
+        { id: 4, token: null, farmer: null, status: 'Available' },
+      ];
+      mappedQueue.forEach(q => {
+        if ((q.status === 'Processing' || q.status === 'Arrived') && q.counterId) {
+          const idx = defaultCounters.findIndex(c => c.id === q.counterId);
+          if (idx !== -1) {
+            defaultCounters[idx].token = q.token;
+            defaultCounters[idx].farmer = q.farmer;
+            defaultCounters[idx].status = q.status === 'Processing' ? 'Processing' : 'Verification';
+          }
+        }
+      });
+      setCounters(defaultCounters);
+    } catch (err) {
+      console.error("Failed to fetch queue data:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (user && user.centreId) {
+      fetchQueueData();
+    } else {
+      setLoading(false);
+    }
+  }, [user]);
+
+  // Move booking status to next stage
+  const advanceBookingStatus = async (id, queueTokenId) => {
+    const booking = bookings.find(b => b.id === id);
+    if (!booking) return;
+    try {
+      if (booking.status === 'Booked') {
+        const res = await queueService.arrive(queueTokenId);
+        if (res.success) {
+          showToast(isHindi ? `टोकन #${booking.token} का आगमन दर्ज!` : `Token #${booking.token} marked as Arrived!`);
+          fetchQueueData();
+        }
+      } else if (booking.status === 'Arrived') {
+        const res = await queueService.start(queueTokenId, 1);
+        if (res.success) {
+          showToast(isHindi ? `टोकन #${booking.token} तौल व गुणवत्ता जांच में!` : `Token #${booking.token} processing started!`);
+          fetchQueueData();
+        }
+      } else if (booking.status === 'Processing') {
+        showToast(isHindi ? `विधेयक और जे-फॉर्म उत्पन्न करने के लिए मुख्य डैशबोर्ड पर जाएं!` : `Go to main dashboard to generate J-Form & complete procurement!`);
+        setTimeout(() => navigate('/centre/dashboard'), 1500);
+      }
+    } catch (err) {
+      alert(err.message || 'Failed to advance token stage.');
+    }
   };
 
   // Release a cancelled slot directly to Tatkaal
@@ -58,15 +160,21 @@ const CentreLiveQueue = () => {
   };
 
   // Call next farmer to counter
-  const callNextToCounter = (counterId) => {
-    const nextTokenNum = Math.floor(Math.random() * 20) + 50;
-    setCounters(prev => prev.map(c => {
-      if (c.id === counterId) {
-        return { ...c, token: nextTokenNum, farmer: 'Kisan (Called Next)', status: 'Processing' };
+  const callNextToCounter = async (counterId) => {
+    const nextToken = bookings.find(b => b.status === "Booked" || b.status === "Arrived");
+    if (!nextToken) {
+      alert(isHindi ? "कतार में कोई प्रतीक्षा करने वाला किसान नहीं है।" : "No waiting farmers in the queue.");
+      return;
+    }
+    try {
+      const res = await queueService.call(nextToken.queueTokenId, counterId);
+      if (res.success) {
+        showToast(isHindi ? `टोकन #${nextToken.token} को काउंटर #${counterId} पर बुलाया गया!` : `Token #${nextToken.token} called to Counter #${counterId}`);
+        fetchQueueData();
       }
-      return c;
-    }));
-    showToast(isHindi ? `काउंटर #${counterId} पर नया टोकन #${nextTokenNum} बुलाया गया!` : `Token #${nextTokenNum} called to Counter #${counterId}`);
+    } catch (err) {
+      alert(err.message || "Failed to call next token.");
+    }
   };
 
   const filteredBookings = bookings.filter(b => {
@@ -84,6 +192,17 @@ const CentreLiveQueue = () => {
            c.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
            c.reason.toLowerCase().includes(searchQuery.toLowerCase());
   });
+
+  if (loading) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F8FAFC' }}>
+        <div style={{ textAlign: 'center' }}>
+          <RefreshCw className="animate-spin" size={44} color="#059669" style={{ margin: '0 auto 1rem' }} />
+          <div style={{ fontWeight: 700, color: '#475569' }}>{isHindi ? 'लोड हो रहा है...' : 'Loading Live Queue...'}</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ minHeight: '100vh', background: 'linear-gradient(180deg, #F0FDF4 0%, #F8FAFC 100%)', paddingBottom: '4rem' }}>
@@ -431,7 +550,7 @@ const CentreLiveQueue = () => {
                       </span>
 
                       <button
-                        onClick={() => advanceBookingStatus(b.id)}
+                        onClick={() => advanceBookingStatus(b.id, b.queueTokenId)}
                         className="btn-primary"
                         style={{ padding: '0.45rem 1rem', fontSize: '0.82rem', borderRadius: '10px' }}
                       >

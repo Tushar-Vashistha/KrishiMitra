@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../hooks/useAuth";
+import { centreService, queueService, procurementService } from "../../services/api";
 import { mockBookings, mockSlots, mockMandiRates } from "../../data/mockData";
 import { pushFarmerNotification } from "../../data/notifications";
 import {
@@ -70,11 +71,8 @@ const CentreDashboard = () => {
   const navigate = useNavigate();
   const isHindi = i18n.language === "hi";
 
-  // Load bookings from localStorage if present, otherwise use mockBookings.centre
-  const [bookings, setBookings] = useState(() => {
-    const saved = localStorage.getItem("krishimitra_centre_queue");
-    return saved ? JSON.parse(saved) : mockBookings.centre;
-  });
+  const [bookings, setBookings] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   // Tomorrow Centre Operation Schedule state
   const [tomorrowSchedule, setTomorrowSchedule] = useState(() => {
@@ -129,15 +127,55 @@ const CentreDashboard = () => {
   // Temporary form state for tomorrow schedule edit
   const [tempSchedule, setTempSchedule] = useState(tomorrowSchedule);
 
-  // Sync bookings to localStorage
-  useEffect(() => {
-    localStorage.setItem("krishimitra_centre_queue", JSON.stringify(bookings));
-  }, [bookings]);
-
   const showToast = (msg) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3800);
   };
+
+  const fetchDashboardData = async () => {
+    if (!user || !user.centreId) return;
+    try {
+      const res = await centreService.getDashboard(user.centreId);
+      if (res.success && res.data) {
+        const backendBookings = res.data.todayBookings.map(b => {
+          let statusText = "Booked";
+          if (b.status === "ARRIVED") statusText = "Arrived";
+          else if (b.status === "PROCESSING") statusText = "Processing";
+          else if (b.status === "COMPLETED") statusText = "Procured";
+          else if (b.status === "CANCELLED" || b.status === "NO_SHOW") statusText = "Cancelled";
+          
+          return {
+            id: b.id,
+            token: b.queueToken?.tokenNumber || b.token || '00',
+            queueTokenId: b.queueToken?.id,
+            farmer: b.farmerName,
+            mobile: b.farmerMobile,
+            crop: b.cropName,
+            cropHi: b.cropNameHi || b.cropName,
+            weight: b.weight,
+            status: statusText,
+            slotTime: b.slotTime,
+            isTatkaal: b.isTatkaal || false,
+            aadhaar: b.farmerAadhaar || "XXXX-XXXX-XXXX",
+            slotCode: b.slotTime.includes("07:") ? "7-10" : b.slotTime.includes("10:") ? "10-1" : b.slotTime.includes("14:") || b.slotTime.includes("02:") ? "2-5" : "5-8"
+          };
+        });
+        setBookings(backendBookings);
+      }
+    } catch (err) {
+      console.error("Failed to fetch dashboard data:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (user && user.centreId) {
+      fetchDashboardData();
+    } else {
+      setLoading(false);
+    }
+  }, [user]);
 
   // EXACTLY 4 SLOTS: Slot 4 (5:00 PM - 8:00 PM) IS the Tatkaal Slot
   const SLOTS_CONFIG = [
@@ -205,146 +243,68 @@ const CentreDashboard = () => {
   };
 
   // Action: Mark Farmer Absent / Cancel
-  const handleMarkAbsent = (bookingId, reason = "Farmer absent / No-show") => {
-    let targetBooking = null;
-    setBookings(prev => prev.map(b => {
-      if (b.id === bookingId) {
-        targetBooking = b;
-        const updated = {
-          ...b,
-          status: "Cancelled",
-          cancelReason: reason
-        };
-        if (activeBooking && activeBooking.id === bookingId) {
-          setActiveBooking(updated);
-        }
-        return updated;
+  const handleMarkAbsent = async (bookingId, reason = "Farmer absent / No-show") => {
+    const booking = bookings.find(b => b.id === bookingId);
+    if (!booking || !booking.queueTokenId) {
+      alert("No active queue token associated with this booking.");
+      return;
+    }
+    try {
+      const res = await queueService.noShow(booking.queueTokenId);
+      if (res.success) {
+        showToast(isHindi ? `टोकन #${booking.token} को अनुपस्थित (Absent) चिह्नित किया गया!` : `Farmer token #${booking.token} marked as Absent!`);
+        fetchDashboardData();
       }
-      return b;
-    }));
-    pushFarmerNotification({
-      title: isHindi ? `⚠️ स्लॉट #${targetBooking?.token || bookingId} अनुपस्थित / रद्द दर्ज` : `⚠️ Slot #${targetBooking?.token || bookingId} Marked Absent`,
-      titleEn: `⚠️ Slot #${targetBooking?.token || bookingId} Marked Absent`,
-      message: isHindi ? `केंद्र अधिकारी द्वारा कारण दर्ज: "${reason}"। आप 5-8 बजे के तत्काल कोटा में पुनः प्रयास कर सकते हैं।` : `Status updated to Absent / Cancelled: "${reason}". You may apply in the 5:00 - 8:00 PM Tatkaal pool.`,
-      messageEn: `Status updated to Absent / Cancelled: "${reason}". You may apply in the 5:00 - 8:00 PM Tatkaal pool.`,
-      centreName: user?.name || "Govt. Procurement Centre",
-      tokenId: targetBooking?.token || bookingId,
-      type: "cancelled",
-      status: "Cancelled",
-      link: "/farmer/tatkaal"
-    });
-    showToast(isHindi ? `टोकन #${bookingId} को अनुपस्थित (Absent) चिह्नित किया गया!` : `Farmer #${bookingId} marked as Absent / No-Show!`);
+    } catch (err) {
+      console.error(err);
+      alert(err.message || 'Failed to update token status.');
+    }
   };
 
   // Action: Mark Farmer Arrived
-  const handleMarkArrived = (bookingId) => {
-    const now = new Date();
-    const timeStr = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    let targetBooking = null;
-    setBookings(prev => prev.map(b => {
-      if (b.id === bookingId) {
-        targetBooking = b;
-        const updated = {
-          ...b,
-          status: "Arrived",
-          arrivedAt: timeStr
-        };
-        if (activeBooking && activeBooking.id === bookingId) {
-          setActiveBooking(updated);
-        }
-        return updated;
+  const handleMarkArrived = async (bookingId) => {
+    const booking = bookings.find(b => b.id === bookingId);
+    if (!booking || !booking.queueTokenId) {
+      alert("No active queue token associated with this booking.");
+      return;
+    }
+    try {
+      const res = await queueService.arrive(booking.queueTokenId);
+      if (res.success) {
+        showToast(isHindi ? `टोकन #${booking.token} की उपस्थिति (Arrived) दर्ज कर ली गई है!` : `Farmer token #${booking.token} marked as Arrived!`);
+        fetchDashboardData();
       }
-      return b;
-    }));
-    pushFarmerNotification({
-      title: isHindi ? `🔵 टोकन #${targetBooking?.token || bookingId} का आगमन (Gate-In) दर्ज` : `🔵 Gate Entry Verified for Token #${targetBooking?.token || bookingId}`,
-      titleEn: `🔵 Gate Entry Verified for Token #${targetBooking?.token || bookingId}`,
-      message: isHindi ? `${user?.name || "सरकारी खरीद केंद्र"} पर उपस्थिति (${timeStr}) दर्ज हो गई है। कृपया कांटा व लैब परीक्षण डेस्क पर जाएं।` : `Gate-in recorded at ${timeStr}. Proceed to Weighbridge & Quality Testing desk.`,
-      messageEn: `Gate-in recorded at ${timeStr}. Proceed to Weighbridge & Quality Testing desk.`,
-      centreName: user?.name || "Govt. Procurement Centre",
-      tokenId: targetBooking?.token || bookingId,
-      type: "arrived",
-      status: "Arrived",
-      link: "/farmer/track-slot"
-    });
-    showToast(isHindi ? `टोकन #${bookingId} की उपस्थिति (Arrived) दर्ज कर ली गई है!` : `Farmer #${bookingId} marked as Arrived (Gate-In)!`);
+    } catch (err) {
+      console.error(err);
+      alert(err.message || 'Failed to update token status.');
+    }
   };
 
   // Action: Mark Farmer Processing (Weighbridge / Quality Lab)
-  const handleMarkProcessing = (bookingId) => {
-    const now = new Date();
-    const timeStr = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    let targetBooking = null;
-    setBookings(prev => prev.map(b => {
-      if (b.id === bookingId) {
-        targetBooking = b;
-        const updated = {
-          ...b,
-          status: "Processing",
-          arrivedAt: b.arrivedAt || timeStr
-        };
-        if (activeBooking && activeBooking.id === bookingId) {
-          setActiveBooking(updated);
-        }
-        return updated;
+  const handleMarkProcessing = async (bookingId) => {
+    const booking = bookings.find(b => b.id === bookingId);
+    if (!booking || !booking.queueTokenId) {
+      alert("No active queue token associated with this booking.");
+      return;
+    }
+    try {
+      const res = await queueService.start(booking.queueTokenId, 1);
+      if (res.success) {
+        showToast(isHindi ? `टोकन #${booking.token} तौल व गुणवत्ता जांच (Processing) में भेजा गया!` : `Farmer token #${booking.token} marked as Processing!`);
+        fetchDashboardData();
       }
-      return b;
-    }));
-    pushFarmerNotification({
-      title: isHindi ? `⚙️ टोकन #${targetBooking?.token || bookingId} तौल व गुणवत्ता परीक्षण में` : `⚙️ Testing & Weighing for Token #${targetBooking?.token || bookingId}`,
-      titleEn: `⚙️ Testing & Weighing for Token #${targetBooking?.token || bookingId}`,
-      message: isHindi ? `आपकी फसल (${targetBooking?.crop || "फसल"}, ${targetBooking?.weight || 25} क्विंटल) का तौल और नमी परीक्षण प्रक्रियाधीन है।` : `Your crop (${targetBooking?.crop || "Crop"}, ${targetBooking?.weight || 25} Qtl) is undergoing tare weighing and moisture analysis.`,
-      messageEn: `Your crop (${targetBooking?.crop || "Crop"}, ${targetBooking?.weight || 25} Qtl) is undergoing tare weighing and moisture analysis.`,
-      centreName: user?.name || "Govt. Procurement Centre",
-      tokenId: targetBooking?.token || bookingId,
-      type: "processing",
-      status: "Processing",
-      link: "/farmer/track-slot"
-    });
-    showToast(isHindi ? `टोकन #${bookingId} तौल व गुणवत्ता जांच (Processing) में भेजा गया!` : `Farmer #${bookingId} marked as Processing (Testing/Weighing)!`);
+    } catch (err) {
+      console.error(err);
+      alert(err.message || 'Failed to update token status.');
+    }
   };
 
   // Action: Mark Procurement Completed
   const handleMarkProcured = (bookingId) => {
-    const now = new Date();
-    const completedTime = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    let targetBooking = null;
-    setBookings(prev => prev.map(b => {
-      if (b.id === bookingId) {
-        targetBooking = b;
-        const cropRate = CROP_MSP[b.crop] || 2275;
-        const netW = Number(b.weight) || 25.0;
-        const total = netW * cropRate;
-        const billId = b.billId || `BILL-2026-${b.token || Math.floor(100 + Math.random() * 900)}`;
-        const updated = {
-          ...b,
-          status: "Procured",
-          completedAt: completedTime,
-          billGenerated: true,
-          billId: billId,
-          totalAmount: b.totalAmount || total,
-          mspRate: b.mspRate || cropRate,
-          paymentStatus: b.paymentStatus || "Processing"
-        };
-        if (activeBooking && activeBooking.id === bookingId) {
-          setActiveBooking(updated);
-        }
-        return updated;
-      }
-      return b;
-    }));
-    pushFarmerNotification({
-      title: isHindi ? `✅ टोकन #${targetBooking?.token || bookingId} की खरीद पूर्ण!` : `✅ Procurement Completed for Token #${targetBooking?.token || bookingId}`,
-      titleEn: `✅ Procurement Completed for Token #${targetBooking?.token || bookingId}`,
-      message: isHindi ? `${user?.name || "खरीद केंद्र"} द्वारा ${targetBooking?.crop || "फसल"} खरीद को सफलतापूर्वक पूरा कर लिया गया है।` : `Procurement of ${targetBooking?.weight || 25} Qtl ${targetBooking?.crop || "Crop"} finalized.`,
-      messageEn: `Procurement of ${targetBooking?.weight || 25} Qtl ${targetBooking?.crop || "Crop"} finalized.`,
-      centreName: user?.name || "Govt. Procurement Centre",
-      tokenId: targetBooking?.token || bookingId,
-      type: "procured",
-      status: "Procured",
-      link: "/farmer/payment-history"
-    });
-    showToast(isHindi ? `टोकन #${bookingId} की खरीद पूर्ण (Procured) दर्ज की गई!` : `Procurement completed for Farmer #${bookingId}!`);
+    const booking = bookings.find(b => b.id === bookingId);
+    if (booking) {
+      handleOpenBillModal(booking);
+    }
   };
 
   // Action: Open Bill Generator Modal
@@ -376,84 +336,44 @@ const CentreDashboard = () => {
   };
 
   // Action: Submit Generated Bill
-  const handleSubmitBill = (e) => {
+  const handleSubmitBill = async (e) => {
     if (e) e.preventDefault();
     if (!activeBooking) return;
-
-    const completedTime = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    const billId = `BILL-2026-${activeBooking.token || Math.floor(100 + Math.random() * 900)}`;
-    const dbtTxn = billForm.paymentStatus === "Paid" ? `DBT-2026-${Math.floor(100000 + Math.random() * 900000)}` : null;
-
-    const generatedBillRecord = {
-      id: billId,
-      farmerId: activeBooking.farmerId,
-      farmerName: activeBooking.farmer,
-      mobile: activeBooking.mobile,
-      aadhaar: activeBooking.aadhaar,
-      crop: billForm.crop,
-      mspRate: billForm.mspRate,
-      verifiedWeight: billForm.netWeight,
-      totalAmount: billForm.totalAmount,
-      billUploaded: true,
-      billFileName: `Weighment_JForm_${billId}.pdf`,
-      billDate: new Date().toISOString().split("T")[0],
-      paymentStatus: billForm.paymentStatus,
-      bankName: billForm.bankName,
-      accountNo: billForm.accountNo,
-      ifsc: billForm.ifsc,
-      dbtTxnId: dbtTxn,
-      centreName: user?.name || "Bhagwanpur Govt. Procurement Centre",
-      weighmentSlipNo: billForm.weighmentSlipNo,
-      moisture: billForm.moisture,
-      qualityGrade: billForm.qualityGrade
-    };
-
-    // 1. Update Booking Status
-    setBookings(prev => prev.map(b => {
-      if (b.id === activeBooking.id) {
-        const updated = {
-          ...b,
-          status: "Procured",
-          paymentStatus: billForm.paymentStatus,
-          billGenerated: true,
-          billId: billId,
-          completedAt: completedTime,
-          weight: billForm.netWeight,
-          totalAmount: billForm.totalAmount,
-          mspRate: billForm.mspRate,
-          moisture: billForm.moisture,
-          qualityGrade: billForm.qualityGrade,
-          dbtTxnId: dbtTxn
-        };
-        if (activeBooking && activeBooking.id === b.id) {
-          setActiveBooking(updated);
-        }
-        return updated;
+    try {
+      // Step 1: Create/Get procurement transaction
+      const pRes = await procurementService.create({ bookingId: activeBooking.id });
+      if (!pRes.success || !pRes.data) {
+        throw new Error('Failed to initialize procurement transaction');
       }
-      return b;
-    }));
+      const txId = pRes.data.id;
 
-    // 2. Save into farmer bills in localStorage so farmer TrackSlot and PaymentHistory instantly get it
-    const existingBills = JSON.parse(localStorage.getItem("krishimitra_farmer_bills") || "[]");
-    const updatedBills = [generatedBillRecord, ...existingBills.filter(b => b.id !== billId)];
-    localStorage.setItem("krishimitra_farmer_bills", JSON.stringify(updatedBills));
+      // Step 2: Register weighing
+      const weighRes = await procurementService.registerWeighing(txId, {
+        grossWeight: parseFloat(billForm.grossWeight),
+        tareWeight: parseFloat(billForm.tareWeight),
+      });
+      if (!weighRes.success) {
+        throw new Error('Failed to register weighing record');
+      }
 
-    // 3. Emit Farmer Notification
-    pushFarmerNotification({
-      title: isHindi ? `🎉 खरीद बिल (J-Form #${billId}) जारी हुआ!` : `🎉 Weighment Bill (J-Form #${billId}) Generated!`,
-      titleEn: `🎉 Weighment Bill (J-Form #${billId}) Generated!`,
-      message: isHindi ? `कुल राशि ₹${billForm.totalAmount.toLocaleString("en-IN")} का खरीद बिल जारी किया गया। DBT द्वारा ${billForm.bankName} (खाता ...${billForm.accountNo.slice(-4)}) में अंतरित हो रहा है।` : `Total payable ₹${billForm.totalAmount.toLocaleString("en-IN")} issued. DBT bank transfer sent to ${billForm.bankName}.`,
-      messageEn: `Total payable ₹${billForm.totalAmount.toLocaleString("en-IN")} issued. DBT bank transfer sent to ${billForm.bankName}.`,
-      centreName: user?.name || "Bhagwanpur Govt. Procurement Centre",
-      tokenId: activeBooking.token,
-      billId: billId,
-      type: "bill",
-      status: "Procured & Billed",
-      link: "/farmer/payment-history"
-    });
+      // Step 3: Register quality inspection
+      const qualRes = await procurementService.registerQuality(txId, {
+        moisture: parseFloat(billForm.moisture),
+        foreignMatter: parseFloat(billForm.deductions || 0),
+        grade: billForm.qualityGrade,
+        result: 'PASSED',
+      });
+      if (!qualRes.success) {
+        throw new Error('Failed to register quality check');
+      }
 
-    setShowBillModal(false);
-    showToast(isHindi ? `🎉 खरीद बिल #${billId} जारी कर दिया गया और किसान की रसीद में जोड़ दिया गया!` : `🎉 Bill #${billId} generated & synced to farmer receipt!`);
+      showToast(isHindi ? `विधेयक और जे-फॉर्म सफलतापूर्वक उत्पन्न!` : `J-Form generated successfully!`);
+      setShowBillModal(false);
+      fetchDashboardData();
+    } catch (err) {
+      console.error(err);
+      alert(err.message || 'Failed to process J-Form and bill.');
+    }
   };
 
   // Action: Open Cancel Slot Modal
@@ -542,6 +462,17 @@ const CentreDashboard = () => {
   const totalProcessingCount = bookings.filter(b => b.status === "Processing").length;
   const totalProcuredCount = bookings.filter(b => b.status === "Procured").length;
   const totalCancelledCount = bookings.filter(b => b.status === "Cancelled").length;
+
+  if (loading) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F8FAFC' }}>
+        <div style={{ textAlign: 'center' }}>
+          <RefreshCw className="animate-spin" size={44} color="#059669" style={{ margin: '0 auto 1rem' }} />
+          <div style={{ fontWeight: 700, color: '#475569' }}>{isHindi ? 'लोड हो रहा है...' : 'Loading Centre Dashboard...'}</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ minHeight: "100vh", background: "linear-gradient(180deg, #F0FDF4 0%, #F8FAFC 100%)", paddingBottom: "5rem" }}>

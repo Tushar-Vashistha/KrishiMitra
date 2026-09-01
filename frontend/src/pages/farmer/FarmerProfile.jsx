@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../hooks/useAuth';
+import { farmerService } from '../../services/api';
 import { mockUser } from '../../data/mockData';
 import {
   User, Phone, ShieldCheck, Copy, Check,
@@ -23,6 +24,36 @@ const FarmerProfile = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
+  useEffect(() => {
+    const loadProfile = async () => {
+      try {
+        const res = await farmerService.getProfile();
+        if (res.success && res.data) {
+          const profile = res.data;
+          updateUser({
+            name: profile.name,
+            village: profile.village,
+            tehsil: profile.tehsil,
+            district: profile.district,
+            state: profile.state,
+            pincode: profile.pincode,
+            khasraNumber: profile.khasraNumber,
+            landOwnerName: profile.landOwnerName,
+            bankName: profile.bankName,
+            accountNumber: profile.accountNumberMasked,
+            ifscCode: profile.ifscCode,
+            status: profile.status,
+            trustScore: profile.trustScore,
+            farmerId: profile.aadhaarMasked
+          });
+        }
+      } catch (err) {
+        console.error('Failed to fetch profile:', err);
+      }
+    };
+    loadProfile();
+  }, []);
+
   // Edit form state with strictly Name, Mobile, Farmer ID
   const [formData, setFormData] = useState({
     name: farmerData.name || 'Ramesh Kumar',
@@ -36,14 +67,19 @@ const FarmerProfile = () => {
     setTimeout(() => setCopied(false), 2500);
   };
 
-  const handleSaveProfile = (e) => {
+  const handleSaveProfile = async (e) => {
     e.preventDefault();
-    if (updateUser) {
-      updateUser(formData);
+    try {
+      await farmerService.updateProfile({ name: formData.name });
+      if (updateUser) {
+        updateUser(formData);
+      }
+      setShowEditModal(false);
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3500);
+    } catch (err) {
+      console.error('Failed to update profile:', err);
     }
-    setShowEditModal(false);
-    setSaveSuccess(true);
-    setTimeout(() => setSaveSuccess(false), 3500);
   };
 
   return (

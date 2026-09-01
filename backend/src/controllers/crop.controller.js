@@ -3,7 +3,14 @@ const { NotFoundError } = require('../utils/errors');
 
 const getAllCrops = async (req, res, next) => {
   try {
-    const crops = await prisma.crop.findMany();
+    const crops = await prisma.crop.findMany({
+      include: {
+        prices: {
+          orderBy: { effectiveDate: 'desc' },
+          take: 1,
+        },
+      },
+    });
     res.status(200).json({
       success: true,
       data: crops,

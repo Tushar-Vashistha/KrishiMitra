@@ -1,12 +1,13 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../hooks/useAuth';
+import { procurementService, paymentService } from '../../services/api';
 import { mockCentreBills } from '../../data/mockData';
 import {
   ArrowLeft, CreditCard, Upload, CheckCircle2, Clock, AlertCircle,
   FileText, Check, Search, Download, Building2, ChevronRight,
-  Sparkles, ExternalLink, ShieldCheck
+  Sparkles, ExternalLink, ShieldCheck, RefreshCw
 } from 'lucide-react';
 
 const CentrePayments = () => {
@@ -15,7 +16,8 @@ const CentrePayments = () => {
   const { user } = useAuth();
   const isHindi = i18n.language === 'hi';
 
-  const [bills, setBills] = useState(mockCentreBills);
+  const [bills, setBills] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('all'); // 'all' | 'Due' | 'Processing' | 'Approved'
   const [uploadingId, setUploadingId] = useState(null);
@@ -27,16 +29,64 @@ const CentrePayments = () => {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // Change payment status
-  const updatePaymentStatus = (id, newStatus) => {
-    setBills(prev => prev.map(b => {
-      if (b.id === id) {
-        const dbtTxnId = newStatus === 'Approved' ? (b.dbtTxnId || `DBT-2026-${Math.floor(Math.random() * 900000 + 100000)}`) : b.dbtTxnId;
-        return { ...b, paymentStatus: newStatus, dbtTxnId };
+  const fetchPaymentsData = async () => {
+    if (!user || !user.centreId) return;
+    try {
+      const res = await procurementService.getCentreProcurements(user.centreId);
+      if (res.success && res.data) {
+        const mappedBills = res.data.map(p => {
+          let statusText = 'Due';
+          if (p.payment?.status === 'SUCCESS') statusText = 'Approved';
+          else if (p.payment?.status === 'PENDING') statusText = 'Processing';
+
+          return {
+            id: `WS-${p.id}`,
+            realProcurementId: p.id,
+            paymentId: p.payment?.id,
+            farmerId: `FRM-${p.booking.farmerProfileId}`,
+            farmerName: p.booking.farmerProfile?.user?.name || 'Kisan',
+            mobile: p.booking.farmerProfile?.user?.mobile || '—',
+            crop: p.booking.crop.name,
+            totalAmount: p.amount,
+            paymentStatus: statusText,
+            dbtTxnId: p.payment?.referenceId,
+            billUploaded: !!p.weighingRecord,
+            billFileName: p.weighingRecord ? `Weighment_JForm_${p.id}.pdf` : null,
+          };
+        });
+        setBills(mappedBills);
       }
-      return b;
-    }));
-    showToast(isHindi ? `लेनदेन ${id} की स्थिति बदलकर '${newStatus}' की गई!` : `Payment status for ${id} set to '${newStatus}'!`);
+    } catch (err) {
+      console.error('Failed to load payments:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (user && user.centreId) {
+      fetchPaymentsData();
+    } else {
+      setLoading(false);
+    }
+  }, [user]);
+
+  // Change payment status
+  const updatePaymentStatus = async (paymentId, newStatus) => {
+    if (!paymentId) {
+      alert("No active payment record found for this transaction yet.");
+      return;
+    }
+    const backendStatus = newStatus === 'Approved' ? 'SUCCESS' : 'PENDING';
+    try {
+      const res = await paymentService.updateStatus(paymentId, { status: backendStatus });
+      if (res.success) {
+        showToast(isHindi ? `लेनदेन की स्थिति बदलकर '${newStatus}' की गई!` : `Payment status updated to '${newStatus}'!`);
+        fetchPaymentsData();
+      }
+    } catch (err) {
+      alert(err.message || 'Failed to update payment status');
+    }
   };
 
   // Trigger file upload for specific bill
@@ -73,6 +123,17 @@ const CentrePayments = () => {
   const totalApproved = bills.filter(b => b.paymentStatus === 'Approved').reduce((acc, b) => acc + b.totalAmount, 0);
   const totalDue = bills.filter(b => b.paymentStatus === 'Due').reduce((acc, b) => acc + b.totalAmount, 0);
   const totalProcessing = bills.filter(b => b.paymentStatus === 'Processing').reduce((acc, b) => acc + b.totalAmount, 0);
+
+  if (loading) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F8FAFC' }}>
+        <div style={{ textAlign: 'center' }}>
+          <RefreshCw className="animate-spin" size={44} color="#059669" style={{ margin: '0 auto 1rem' }} />
+          <div style={{ fontWeight: 700, color: '#475569' }}>{isHindi ? 'लोड हो रहा है...' : 'Loading Payments Logs...'}</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ minHeight: '100vh', background: 'linear-gradient(180deg, #F0FDF4 0%, #F8FAFC 100%)', paddingBottom: '4rem' }}>

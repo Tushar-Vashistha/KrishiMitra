@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../hooks/useAuth';
+import { centreService } from '../../services/api';
 import { mockCentreCapacityData } from '../../data/mockData';
 import {
   ArrowLeft, Building2, Clock, Calendar, ShieldCheck, CheckCircle2,
@@ -25,6 +26,24 @@ const CentreCapacity = () => {
   const [endTime, setEndTime] = useState(mockCentreCapacityData.operatingHours.end);
   const [slots, setSlots] = useState(mockCentreCapacityData.slotTimings);
   const [showSavedToast, setShowSavedToast] = useState(false);
+
+  useEffect(() => {
+    const fetchStatus = async () => {
+      if (!user || !user.centreId) return;
+      try {
+        const res = await centreService.getById(user.centreId);
+        if (res.success && res.data) {
+          setIsOpenToday(res.data.open);
+          if (res.data.capacity) {
+            setDailyCapacityQtl(res.data.capacity);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load status:', err);
+      }
+    };
+    fetchStatus();
+  }, [user]);
 
   // Toggle slot enabled state
   const toggleSlot = (id) => {
@@ -51,10 +70,16 @@ const CentreCapacity = () => {
   };
 
   // Save changes handler
-  const handleSave = (e) => {
+  const handleSave = async (e) => {
     e.preventDefault();
-    setShowSavedToast(true);
-    setTimeout(() => setShowSavedToast(false), 3500);
+    if (!user || !user.centreId) return;
+    try {
+      await centreService.updateCentreStatus(user.centreId, isOpenToday);
+      setShowSavedToast(true);
+      setTimeout(() => setShowSavedToast(false), 3500);
+    } catch (err) {
+      alert(err.message || 'Failed to update centre status.');
+    }
   };
 
   const totalConfiguredCapacity = slots.filter(s => s.enabled).reduce((acc, s) => acc + s.maxCapacity, 0);

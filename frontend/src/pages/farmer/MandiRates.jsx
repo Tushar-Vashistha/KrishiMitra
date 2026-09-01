@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { marketService } from '../../services/api';
 import { mockMandiRates } from '../../data/mockData';
 import { TrendingUp, TrendingDown, RefreshCw, Wheat, Search } from 'lucide-react';
 
@@ -20,6 +21,7 @@ const CROP_IMAGES = {
   'Soybean': '/soybean_crop.jpg',
   'Groundnut': '/groundnut_crop.jpg',
   'Chana': '/chana_crop.jpg',
+  'Paddy': riceCrop,
 };
 
 const MandiRates = () => {
@@ -27,10 +29,39 @@ const MandiRates = () => {
   const isHindi = i18n.language === 'hi';
   const now = new Date().toLocaleString('en-IN', { hour12: true, hour: '2-digit', minute: '2-digit' });
   const [query, setQuery] = useState('');
+  const [rates, setRates] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const filteredRates = mockMandiRates.filter(r =>
-    r.crop.toLowerCase().includes(query.toLowerCase()) || r.cropHi.includes(query)
+  useEffect(() => {
+    const fetchRates = async () => {
+      try {
+        const res = await marketService.getRates();
+        if (res.success && res.data) {
+          setRates(res.data);
+        }
+      } catch (err) {
+        console.error('Failed to fetch market rates:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchRates();
+  }, []);
+
+  const filteredRates = rates.filter(r =>
+    (r.crop || '').toLowerCase().includes(query.toLowerCase()) || (r.cropHi || '').includes(query)
   );
+
+  if (loading) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F8FAFC' }}>
+        <div style={{ textAlign: 'center' }}>
+          <RefreshCw className="animate-spin" size={44} color="#059669" style={{ margin: '0 auto 1rem' }} />
+          <div style={{ fontWeight: 700, color: '#475569' }}>{isHindi ? 'लोड हो रहा है...' : 'Loading Mandi Rates...'}</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ minHeight: '100vh', background: 'linear-gradient(180deg, #F0FDF4 0%, #F8FAFC 100%)', paddingBottom: '3rem' }}>

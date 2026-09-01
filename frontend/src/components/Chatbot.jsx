@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { MessageCircle, X, Send, Bot, User } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { chatbotResponses } from '../data/mockData';
+import { chatbotService } from '../services/api';
 
 const Chatbot = () => {
   const { t } = useTranslation();
@@ -16,32 +16,27 @@ const Chatbot = () => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const getResponse = (msg) => {
-    const lower = msg.toLowerCase();
-    if (lower.includes('slot') || lower.includes('स्लॉट')) return chatbotResponses.slot;
-    if (lower.includes('book') || lower.includes('बुक')) return chatbotResponses.book;
-    if (lower.includes('payment') || lower.includes('pay') || lower.includes('भुगतान')) return chatbotResponses.payment;
-    if (lower.includes('mandi') || lower.includes('rate') || lower.includes('price') || lower.includes('मंडी')) return chatbotResponses.mandi;
-    if (lower.includes('wait') || lower.includes('time') || lower.includes('प्रतीक्षा')) return chatbotResponses.wait;
-    if (lower.includes('cancel') || lower.includes('रद्द')) return chatbotResponses.cancel;
-    if (lower.includes('tatkaal') || lower.includes('emergency') || lower.includes('तत्काल')) return chatbotResponses.tatkaal;
-    if (lower.includes('trust') || lower.includes('score') || lower.includes('विश्वास')) return chatbotResponses.trust;
-    if (lower.includes('help') || lower.includes('मदद')) return chatbotResponses.help;
-    return chatbotResponses.default;
-  };
-
-  const sendMessage = () => {
-    if (!input.trim()) return;
-    const userMsg = { from: 'user', text: input.trim(), time: new Date() };
-    const botResponse = getResponse(input);
+  const sendMessage = async (textToSend = input) => {
+    const trimmed = typeof textToSend === 'string' ? textToSend.trim() : '';
+    if (!trimmed) return;
+    
+    const userMsg = { from: 'user', text: trimmed, time: new Date() };
     setMessages(prev => [...prev, userMsg]);
-    setInput('');
-    setTimeout(() => {
-      setMessages(prev => [...prev, { from: 'bot', text: botResponse, time: new Date() }]);
-    }, 600);
+    if (textToSend === input) setInput('');
+    
+    try {
+      const res = await chatbotService.ask(trimmed);
+      if (res.success && res.data) {
+        setMessages(prev => [...prev, { from: 'bot', text: res.data.response, time: new Date() }]);
+      }
+    } catch (err) {
+      console.error('Chatbot error:', err);
+      setMessages(prev => [...prev, { from: 'bot', text: 'Sorry, I am having trouble connecting right now.', time: new Date() }]);
+    }
   };
 
   const quickQuestions = [
+    "How does Credit Score work?",
     "How to book a slot?",
     "Today's mandi rates",
     "My payment status",
@@ -158,18 +153,7 @@ const Chatbot = () => {
             {quickQuestions.map((q, i) => (
               <button
                 key={i}
-                onClick={() => {
-                  setInput(q);
-                  setTimeout(() => {
-                    const userMsg = { from: 'user', text: q, time: new Date() };
-                    const botResponse = getResponse(q);
-                    setMessages(prev => [...prev, userMsg]);
-                    setTimeout(() => {
-                      setMessages(prev => [...prev, { from: 'bot', text: botResponse, time: new Date() }]);
-                    }, 500);
-                    setInput('');
-                  }, 10);
-                }}
+                onClick={() => sendMessage(q)}
                 style={{
                   background: '#E8F5E9', color: '#2E7D32',
                   border: '1px solid #C8E6C9', borderRadius: '20px',

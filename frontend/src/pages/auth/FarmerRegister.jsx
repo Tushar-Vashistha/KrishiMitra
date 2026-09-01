@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../hooks/useAuth';
+import { authService } from '../../services/api';
 import { mockUser } from '../../data/mockData';
 import { ChevronRight, ChevronLeft, User, MapPin, Banknote, CheckCircle, Wheat } from 'lucide-react';
 
@@ -19,6 +20,9 @@ const FarmerRegister = () => {
   });
   const [errors, setErrors] = useState({});
   const [submitted, setSubmitted] = useState(false);
+  const [receivedOtp, setReceivedOtp] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const update = (field, val) => setForm(f => ({ ...f, [field]: val }));
 
@@ -27,7 +31,7 @@ const FarmerRegister = () => {
     { label: 'OTP Verify', icon: '📱' },
   ];
 
-  const handleNext = () => {
+  const handleNext = async () => {
     const errs = {};
     if (step === 1) {
       if (!form.farmerId) {
@@ -44,22 +48,90 @@ const FarmerRegister = () => {
     }
     setErrors(errs);
     if (Object.keys(errs).length > 0) return;
-    setStep(s => s + 1);
+
+    setErrorMsg('');
+    try {
+      const res = await authService.requestOTP(form.mobile);
+      if (res.success) {
+        setReceivedOtp(res.otp || '123456');
+        setStep(s => s + 1);
+      } else {
+        setErrorMsg(res.message || 'Failed to request OTP');
+      }
+    } catch (err) {
+      setErrorMsg(err.message || 'Failed to request OTP. Is backend running?');
+    }
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const errs = {};
-    if (!form.otp || form.otp.length !== 6) {
+    const cleanOtp = (form.otp || '').trim();
+    const cleanMobile = (form.mobile || '').trim();
+    const cleanFarmerId = (form.farmerId || '').trim();
+
+    if (!cleanOtp || cleanOtp.length !== 6) {
       errs.otp = 'Enter 6-digit OTP';
-    } else if (form.otp !== '123456') {
-      errs.otp = 'Incorrect OTP. Use demo OTP: 123456';
     }
     setErrors(errs);
     if (Object.keys(errs).length > 0) return;
 
-    login('farmer', { ...mockUser.farmer, name: mockUser.farmer.name, farmerId: form.farmerId, mobile: form.mobile });
-    setSubmitted(true);
-    setTimeout(() => navigate('/farmer/dashboard'), 2000);
+    setErrorMsg('');
+    setLoading(true);
+    try {
+      // 1. Verify OTP
+      try {
+        await authService.verifyOTP(cleanMobile, cleanOtp);
+      } catch (otpErr) {
+        setErrorMsg(otpErr.message || 'Invalid or expired OTP. Please enter the demo code shown.');
+        return;
+      }
+
+      // 2. Register Farmer on backend
+      const payload = {
+        mobile: cleanMobile,
+        password: 'password123',
+        name: mockUser.farmer.name,
+        dob: '1980-01-01',
+        gender: 'Male',
+        aadhaar: cleanFarmerId, // 12-digit field acts as Aadhaar
+        village: mockUser.farmer.village,
+        district: mockUser.farmer.district,
+        state: mockUser.farmer.state,
+        tehsil: mockUser.farmer.tehsil,
+        block: mockUser.farmer.tehsil,
+        pincode: mockUser.farmer.pincode,
+        khasraNumber: mockUser.farmer.khasraNumber,
+        landOwnerName: mockUser.farmer.landOwnerName,
+        bankName: mockUser.farmer.bank,
+        accountNumber: '987' + cleanMobile.slice(-9),
+        ifscCode: mockUser.farmer.ifsc,
+      };
+
+      let regRes;
+      try {
+        regRes = await authService.registerFarmer(payload);
+      } catch (regErr) {
+        // If the user or profile already exists, proceed to login
+        if (!regErr.message?.toLowerCase().includes('already exists')) {
+          setErrorMsg(regErr.message || 'Registration failed.');
+          return;
+        }
+      }
+
+      // 3. Login or use returned tokens directly
+      if (regRes?.data?.accessToken) {
+        login('farmer', regRes.data);
+      } else {
+        const loginRes = await authService.login(cleanMobile, 'password123');
+        login('farmer', loginRes.data);
+      }
+      setSubmitted(true);
+      setTimeout(() => navigate('/farmer/dashboard'), 1000);
+    } catch (err) {
+      setErrorMsg(err.message || 'Registration or login failed.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (submitted) {
@@ -173,6 +245,16 @@ const FarmerRegister = () => {
             {steps[step - 1].icon} {steps[step - 1].label}
           </h3>
 
+          {errorMsg && (
+            <div style={{
+              backgroundColor: '#FEE2E2', border: '1.5px solid #FCA5A5',
+              borderRadius: '10px', padding: '0.75rem 1rem', marginBottom: '1.25rem',
+              color: '#DC2626', fontSize: '0.85rem', fontWeight: 600, textAlign: 'center'
+            }}>
+              ⚠️ {errorMsg}
+            </div>
+          )}
+
           {/* ── Step 1: Farmer Details ── */}
           {step === 1 && (
             <>
@@ -214,7 +296,7 @@ const FarmerRegister = () => {
                   OTP sent to <strong>+91 {form.mobile || '9876543210'}</strong>
                 </p>
                 <p style={{ color: '#6B7280', fontSize: '0.8rem', marginTop: '0.3rem' }}>
-                  Demo OTP: <strong>123456</strong>
+                  Demo OTP: <strong>{receivedOtp}</strong>
                 </p>
               </div>
               <div style={{ marginBottom: '1rem' }}>

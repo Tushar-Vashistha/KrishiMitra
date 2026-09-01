@@ -27,8 +27,13 @@ const errorMiddleware = (err, req, res, next) => {
   }
 
   // Handle Prisma Database Errors (safely map to user-friendly messages without exposing database internals)
-  if (err.code && typeof err.code === 'string' && err.code.startsWith('P')) {
-    statusCode = 400;
+  const isPrismaError = (err.code && typeof err.code === 'string' && err.code.startsWith('P')) ||
+                        err.name?.includes('Prisma') ||
+                        err.message?.includes('prisma') ||
+                        err.message?.includes('Can\'t reach database server');
+
+  if (isPrismaError) {
+    statusCode = 500;
     code = 'DATABASE_ERROR';
     if (err.code === 'P2002') {
       statusCode = 409;
@@ -38,9 +43,18 @@ const errorMiddleware = (err, req, res, next) => {
       statusCode = 404;
       code = 'NOT_FOUND';
       message = 'The requested record was not found';
+    } else if (err.message?.includes('Can\'t reach database server') || err.name?.includes('InitializationError')) {
+      statusCode = 503;
+      code = 'DATABASE_UNAVAILABLE';
+      message = 'Database connection is temporarily unavailable. Please try again in a few seconds.';
     } else {
-      message = 'Database operation failed';
+      message = 'Database operation failed. Please try again.';
     }
+  }
+
+  // Ensure internal code snippets or raw Prisma invocations are never leaked in response message
+  if (message.includes('prisma.') || message.includes('invocation in') || message.includes('aws-0-ap-northeast-2')) {
+    message = 'Database service is temporarily busy. Please try again in a moment.';
   }
 
   // Final Response Formatting

@@ -2,7 +2,9 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../hooks/useAuth';
+import { centreService, authService } from '../../services/api';
 import { mockUser } from '../../data/mockData';
+import { useEffect } from 'react';
 import {
   Building2,
   Landmark,
@@ -46,6 +48,28 @@ const CentreRegister = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
   const isHindi = i18n.language === 'hi';
+
+  const [dbCentres, setDbCentres] = useState([]);
+  const [selectedCentreId, setSelectedCentreId] = useState('UP-LKO-001');
+  const [errorMsg, setErrorMsg] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const fetchCentres = async () => {
+      try {
+        const res = await centreService.getAll();
+        if (res.success && res.data) {
+          setDbCentres(res.data);
+          if (res.data.length > 0) {
+            setSelectedCentreId(res.data[0].centreId);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load centres:', err);
+      }
+    };
+    fetchCentres();
+  }, []);
 
   const [centreId, setCentreId] = useState(generateCentreId('Uttar Pradesh', 'Lucknow'));
 
@@ -154,46 +178,69 @@ const CentreRegister = () => {
     return errs;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     if (e) e.preventDefault();
     const errs = validateAll();
     setErrors(errs);
 
     if (Object.keys(errs).length > 0) {
-      // Smooth scroll to top error
       window.scrollTo({ top: 120, behavior: 'smooth' });
       return;
     }
 
-    // Save centre user in auth context
-    const centreUser = {
-      ...mockUser.centre,
-      name: form.centreName,
-      centreId: centreId,
-      centreType: form.centreType,
-      agencyName: form.agencyName,
-      regLicenseNumber: form.regLicenseNumber,
-      panGstin: form.panGstin,
-      manager: form.managerName,
-      mobile: form.mobile,
-      email: form.email,
-      designation: form.designation,
-      state: form.state,
-      district: form.district,
-      blockTehsil: form.blockTehsil,
-      villageTown: form.villageTown,
-      fullAddress: form.fullAddress,
-      pincode: form.pincode,
-      dailyCapacity: form.dailyCapacity ? `${form.dailyCapacity} Quintal/day` : '500 Quintal/day',
-      storageCapacity: form.maxStorageCapacity ? `${form.maxStorageCapacity} Quintal` : '2,000 Quintal',
-      weighingFacility: form.weighingFacility,
-      qualityTestingFacility: form.qualityTestingFacility,
-      godownStorage: form.godownStorage,
-      staffCount: form.staffCount,
-    };
+    setErrorMsg('');
+    setLoading(true);
 
-    login('centre', centreUser);
-    setSubmitted(true);
+    try {
+      const isManager = form.designation.toLowerCase().includes('manager') || form.designation.toLowerCase().includes('प्रबंधक');
+      const payload = {
+        mobile: form.mobile,
+        password: 'password123',
+        name: form.managerName,
+        designation: form.designation,
+        centreId: selectedCentreId,
+        role: isManager ? 'CENTRE_MANAGER' : 'CENTRE_STAFF',
+      };
+
+      let regRes;
+      try {
+        regRes = await authService.registerCentre(payload);
+      } catch (regErr) {
+        const isDuplicate = regErr.message?.toLowerCase().includes('already exists') ||
+                            regErr.message?.toLowerCase().includes('already registered') ||
+                            regErr.status === 409;
+        if (isDuplicate) {
+          try {
+            const loginRes = await authService.login(form.mobile, 'password123');
+            if (loginRes.success && loginRes.data) {
+              login('centre', loginRes.data);
+              setSubmitted(true);
+              return;
+            }
+          } catch (loginErr) {
+            setErrorMsg(isHindi 
+              ? 'यह मोबाइल नंबर पहले से पंजीकृत है। कृपया लॉगिन करें।'
+              : 'This mobile number is already registered. Please login below.');
+            window.scrollTo({ top: 120, behavior: 'smooth' });
+            return;
+          }
+        }
+        throw regErr;
+      }
+
+      if (regRes?.data?.accessToken) {
+        login('centre', regRes.data);
+      } else {
+        const loginRes = await authService.login(form.mobile, 'password123');
+        login('centre', loginRes.data);
+      }
+      setSubmitted(true);
+    } catch (err) {
+      setErrorMsg(err.message || (isHindi ? 'पंजीकरण या लॉगिन में विफलता।' : 'Registration or login failed.'));
+      window.scrollTo({ top: 120, behavior: 'smooth' });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const copyToClipboard = () => {
@@ -476,6 +523,67 @@ const CentreRegister = () => {
           flexDirection: 'column',
           gap: '2.25rem'
         }}>
+
+          {errorMsg && (
+            <div style={{
+              backgroundColor: '#FEE2E2', border: '1.5px solid #FCA5A5',
+              borderRadius: '12px', padding: '0.9rem 1.1rem',
+              color: '#DC2626', fontSize: '0.88rem', fontWeight: 600, textAlign: 'center',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem'
+            }}>
+              <div>⚠️ {errorMsg}</div>
+              {(errorMsg.toLowerCase().includes('already') || errorMsg.toLowerCase().includes('registered')) && (
+                <Link
+                  to="/login"
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
+                    background: '#DC2626', color: '#FFFFFF', padding: '0.4rem 1rem',
+                    borderRadius: '8px', textDecoration: 'none', fontWeight: 700, fontSize: '0.82rem'
+                  }}
+                >
+                  {isHindi ? 'लॉगिन करें →' : 'Log In Now →'}
+                </Link>
+              )}
+            </div>
+          )}
+
+          {/* Seeded database centres dropdown for association */}
+          {dbCentres.length > 0 && (
+            <div style={{
+              background: '#F0FDF4', border: '1.5px solid #A7F3D0',
+              borderRadius: '16px', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.6rem'
+            }}>
+              <label className="input-label" style={{ fontWeight: 800, color: '#065F46', marginBottom: 0 }}>
+                {isHindi ? 'संबद्ध खरीद केंद्र चुनें' : 'Associate with Procurement Centre'} <span style={{ color: '#DC2626' }}>*</span>
+              </label>
+              <select
+                value={selectedCentreId}
+                onChange={e => {
+                  const cid = e.target.value;
+                  setSelectedCentreId(cid);
+                  const selected = dbCentres.find(c => c.centreId === cid);
+                  if (selected) {
+                    update('centreName', selected.name);
+                    update('state', selected.state);
+                    update('district', selected.district);
+                    update('villageTown', selected.village);
+                    update('fullAddress', selected.address);
+                  }
+                }}
+                className="input-field"
+                style={{ cursor: 'pointer', height: '46px', background: '#FFFFFF', borderColor: '#86EFAC' }}
+              >
+                {dbCentres.map(c => (
+                  <option key={c.id} value={c.centreId}>
+                    {isHindi ? c.nameHi : c.name} ({c.centreId})
+                  </option>
+                ))}
+              </select>
+              <span style={{ fontSize: '0.74rem', color: '#047857', fontWeight: 600 }}>
+                {isHindi ? '✓ चयन करने पर केंद्र विवरण स्वतः भर जाएगा।' : '✓ Selecting will auto-populate the centre details below.'}
+              </span>
+            </div>
+          )}
 
           {/* ════════════════════════════════════════════════════════════════════
               SECTION 1: Centre Basic Details
@@ -1260,21 +1368,32 @@ const CentreRegister = () => {
           }}>
             <button
               type="submit"
+              disabled={loading}
               className="btn-primary"
               style={{
                 width: '100%',
                 justifyContent: 'center',
-                background: 'linear-gradient(135deg, #065F46 0%, #047857 50%, #059669 100%)',
+                background: loading ? '#9CA3AF' : 'linear-gradient(135deg, #065F46 0%, #047857 50%, #059669 100%)',
                 padding: '1rem 1.5rem',
                 borderRadius: '14px',
                 fontWeight: 900,
                 fontSize: '1.05rem',
-                boxShadow: '0 6px 20px rgba(4, 120, 87, 0.35)',
-                letterSpacing: '0.01em'
+                boxShadow: loading ? 'none' : '0 6px 20px rgba(4, 120, 87, 0.35)',
+                letterSpacing: '0.01em',
+                cursor: loading ? 'not-allowed' : 'pointer',
+                opacity: loading ? 0.8 : 1,
               }}
             >
-              <CheckCircle size={20} />
-              {t('submitRegisterCentre')}
+              {loading ? (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
+                  ⏳ {isHindi ? 'पंजीकरण हो रहा है...' : 'Registering...'}
+                </span>
+              ) : (
+                <>
+                  <CheckCircle size={20} />
+                  {t('submitRegisterCentre')}
+                </>
+              )}
             </button>
 
             <div style={{ textAlign: 'center', fontSize: '0.88rem', color: '#64748B' }}>

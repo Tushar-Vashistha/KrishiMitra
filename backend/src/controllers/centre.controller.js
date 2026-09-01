@@ -298,7 +298,18 @@ const getCentreSlotsAvailability = async (req, res, next) => {
       },
     });
 
-    const slots = centre.slotConfigs.map((slot) => {
+    const defaultSlotConfigs = [
+      { id: 1, slotTime: '07:00 AM - 10:00 AM', capacity: 10 },
+      { id: 2, slotTime: '10:00 AM - 01:00 PM', capacity: 10 },
+      { id: 3, slotTime: '02:00 PM - 05:00 PM', capacity: 10 },
+      { id: 4, slotTime: '05:00 PM - 08:00 PM', capacity: 10 },
+    ];
+
+    let slotConfigs = (centre.slotConfigs && centre.slotConfigs.length > 0 && !centre.slotConfigs.some(s => s.slotTime.includes('08:00')))
+      ? centre.slotConfigs
+      : defaultSlotConfigs;
+
+    const slots = slotConfigs.map((slot) => {
       const bookedCount = bookings.filter((b) => b.slotTime === slot.slotTime).length;
       const remainingCount = Math.max(0, slot.capacity - bookedCount);
 

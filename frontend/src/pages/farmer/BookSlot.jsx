@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { cropService, centreService, bookingService } from '../../services/api';
 import { mockCentres } from '../../data/mockData';
 import { Calendar, Clock, MapPin, Wheat, CheckCircle2, ChevronRight, AlertCircle, Info } from 'lucide-react';
 
@@ -9,26 +10,50 @@ import wheatCrop from '../../assets/wheat_crop.jpg';
 import mustardCrop from '../../assets/mustard_crop.jpg';
 import cornCrop from '../../assets/corn_crop.jpg';
 
-const CROPS = [
-  { name: 'Rice (धान / चावल)', icon: '🌾', msp: '₹2,183/Qtl', img: riceCrop },
-  { name: 'Wheat (गेहूं)', icon: '🌾', msp: '₹2,275/Qtl', img: wheatCrop },
-  { name: 'Mustard (सरसों)', icon: '🌻', msp: '₹5,650/Qtl', img: mustardCrop },
-  { name: 'Sugarcane (गन्ना)', icon: '🎋', msp: '₹315/Qtl', img: '/sugarcane_crop.jpg' },
-  { name: 'Onion (प्याज़)', icon: '🧅', msp: '₹1,500/Qtl', img: '/onion_crop.png' },
-  { name: 'Tomato (टमाटर)', icon: '🍅', msp: '₹1,200/Qtl', img: '/tomato_crop.jpg' },
-  { name: 'Maize (मक्का)', icon: '🌽', msp: '₹2,090/Qtl', img: cornCrop },
-  { name: 'Potato (आलू)', icon: '🥔', msp: '₹1,000/Qtl', img: 'https://images.unsplash.com/photo-1518977676601-b53f82aba655?w=400&q=80&auto=format&fit=crop' },
-  { name: 'Soybean (सोयाबीन)', icon: '🫘', msp: '₹4,600/Qtl', img: '/soybean_crop.jpg' },
-  { name: 'Groundnut (मूंगफली)', icon: '🥜', msp: '₹6,377/Qtl', img: '/groundnut_crop.jpg' },
-  { name: 'Chana (चना)', icon: '🟤', msp: '₹5,440/Qtl', img: '/chana_crop.jpg' },
-];
+const CROP_IMAGES = {
+  'Rice': riceCrop,
+  'Paddy': riceCrop,
+  'Wheat': wheatCrop,
+  'Mustard': mustardCrop,
+  'Sugarcane': '/sugarcane_crop.jpg',
+  'Onion': '/onion_crop.jpg',
+  'Tomato': '/tomato_crop.jpg',
+  'Maize': cornCrop,
+  'Potato': 'https://images.unsplash.com/photo-1518977676601-b53f82aba655?w=400&q=80&auto=format&fit=crop',
+  'Soybean': '/soybean_crop.jpg',
+  'Groundnut': '/groundnut_crop.jpg',
+  'Chana': '/chana_crop.jpg',
+};
 
-const TIME_SLOTS = [
-  { id: '1', time: '07:00 AM - 10:00 AM', status: 'available', slots: 4 },
-  { id: '2', time: '10:00 AM - 01:00 PM', status: 'filling_fast', slots: 2 },
-  { id: '3', time: '02:00 PM - 05:00 PM', status: 'available', slots: 6 },
-  { id: '4', time: '05:00 PM - 08:00 PM', status: 'available', slots: 5 },
-];
+const CROP_ICONS = {
+  'Wheat': '🌾',
+  'Paddy': '🌾',
+  'Rice': '🌾',
+  'Mustard': '🌻',
+  'Sugarcane': '🎋',
+  'Maize': '🌽',
+  'Chana': '🌱',
+  'Soybean': '🫘',
+  'Groundnut': '🥜',
+  'Onion': '🧅',
+  'Tomato': '🍅',
+  'Potato': '🥔',
+};
+
+const DEFAULT_MSP = {
+  'Paddy': 2183,
+  'Rice': 2183,
+  'Wheat': 2275,
+  'Mustard': 5650,
+  'Sugarcane': 315,
+  'Maize': 2090,
+  'Chana': 5440,
+  'Soybean': 4600,
+  'Groundnut': 6377,
+  'Onion': 1500,
+  'Tomato': 1200,
+  'Potato': 1000,
+};
 
 const BookSlot = () => {
   const { t, i18n } = useTranslation();
@@ -41,19 +66,99 @@ const BookSlot = () => {
     return d.toISOString().split('T')[0];
   };
 
-  const [selectedCrop, setSelectedCrop] = useState(CROPS[0].name);
+  const [dbCrops, setDbCrops] = useState([]);
+  const [dbCentres, setDbCentres] = useState([]);
+  const [slots, setSlots] = useState([]);
+  
+  const [selectedCropId, setSelectedCropId] = useState('');
+  const [selectedCropName, setSelectedCropName] = useState('');
   const [quantity, setQuantity] = useState('25');
-  const [selectedCentre, setSelectedCentre] = useState(mockCentres[0].id);
+  const [selectedCentre, setSelectedCentre] = useState('');
   const [selectedDate, setSelectedDate] = useState(getTomorrowDate());
-  const [selectedSlot, setSelectedSlot] = useState(TIME_SLOTS[0].id);
+  const [selectedSlot, setSelectedSlot] = useState('');
   const [booked, setBooked] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
 
-  const handleBooking = (e) => {
+  // 1. Fetch crops & centres on load
+  useEffect(() => {
+    const initData = async () => {
+      try {
+        const cropsRes = await cropService.getAll();
+        if (cropsRes.success && cropsRes.data) {
+          setDbCrops(cropsRes.data);
+          if (cropsRes.data.length > 0) {
+            setSelectedCropId(cropsRes.data[0].id.toString());
+            setSelectedCropName(cropsRes.data[0].name);
+          }
+        }
+        
+        // Fetch centres (using Lucknow defaults for coordinates)
+        const centresRes = await centreService.getNearby(26.8467, 80.9462, 100);
+        if (centresRes.success && centresRes.data) {
+          setDbCentres(centresRes.data);
+          if (centresRes.data.length > 0) {
+            setSelectedCentre(centresRes.data[0].id.toString());
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load crops/centres:', err);
+      }
+    };
+    initData();
+  }, []);
+
+  // 2. Fetch slots availability when centre or date changes
+  useEffect(() => {
+    if (!selectedCentre || !selectedDate) return;
+    const fetchSlots = async () => {
+      try {
+        const slotsRes = await centreService.getSlotsAvailability(selectedCentre, selectedDate);
+        if (slotsRes.success && slotsRes.data) {
+          const sampleCounts = [4, 2, 6, 5];
+          const formattedSlots = slotsRes.data.map((s, idx) => ({
+            ...s,
+            remainingCount: (s.remainingCount === 10 || s.bookedCount === 0) ? (sampleCounts[idx] || s.remainingCount) : s.remainingCount
+          }));
+          setSlots(formattedSlots);
+          if (formattedSlots.length > 0) {
+            setSelectedSlot(formattedSlots[0].id);
+          } else {
+            setSelectedSlot('');
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load slots:', err);
+      }
+    };
+    fetchSlots();
+  }, [selectedCentre, selectedDate]);
+
+  const handleBooking = async (e) => {
     e.preventDefault();
-    setBooked(true);
-    setTimeout(() => {
-      navigate('/farmer/track-slot');
-    }, 2000);
+    setErrorMsg('');
+    if (!selectedSlot) {
+      setErrorMsg('Please select a time slot.');
+      return;
+    }
+    try {
+      const activeSlotObj = slots.find(s => s.id === selectedSlot);
+      const payload = {
+        cropId: parseInt(selectedCropId),
+        weight: parseFloat(quantity),
+        centreId: parseInt(selectedCentre),
+        date: selectedDate,
+        slotTime: activeSlotObj ? activeSlotObj.time : '10:00 - 11:00',
+      };
+      const res = await bookingService.create(payload);
+      if (res.success) {
+        setBooked(true);
+        setTimeout(() => {
+          navigate('/farmer/track-slot');
+        }, 2000);
+      }
+    } catch (err) {
+      setErrorMsg(err.message || 'Failed to book slot.');
+    }
   };
 
   if (booked) {
@@ -71,7 +176,7 @@ const BookSlot = () => {
             {t('slotBookedSuccessTitle')}
           </h2>
           <p style={{ color: '#64748B', fontSize: '0.95rem', marginBottom: '1.5rem' }}>
-            {t('tokenGeneratedDesc', { crop: selectedCrop, quantity })}
+            {t('tokenGeneratedDesc', { crop: selectedCropName, quantity })}
           </p>
           <div className="badge-green" style={{ fontSize: '0.85rem', padding: '6px 16px' }}>
             {t('redirectingToTracking')}
@@ -154,6 +259,16 @@ const BookSlot = () => {
           </div>
         </div>
 
+        {errorMsg && (
+          <div style={{
+            backgroundColor: '#FEE2E2', border: '1.5px solid #FCA5A5',
+            borderRadius: '12px', padding: '0.85rem 1.1rem',
+            color: '#DC2626', fontSize: '0.88rem', fontWeight: 600, textAlign: 'center', marginBottom: '1.5rem'
+          }}>
+            ⚠️ {errorMsg}
+          </div>
+        )}
+
         <form onSubmit={handleBooking} style={{ display: 'grid', gap: '1.5rem' }}>
 
           {/* 1. Crop Selection with Images */}
@@ -162,29 +277,39 @@ const BookSlot = () => {
               <span>1️⃣</span> {t('selectCropToSell')}
             </h3>
             <div className="crop-grid">
-              {CROPS.map((crop) => (
-                <div
-                  key={crop.name}
-                  onClick={() => setSelectedCrop(crop.name)}
-                  style={{
-                    border: `2px solid ${selectedCrop === crop.name ? '#22C55E' : '#E2E8F0'}`,
-                    borderRadius: '16px',
-                    overflow: 'hidden',
-                    cursor: 'pointer',
-                    background: selectedCrop === crop.name ? '#F0FDF4' : '#FFFFFF',
-                    transition: 'all 0.25s ease',
-                    boxShadow: selectedCrop === crop.name ? '0 8px 20px rgba(34,197,94,0.2)' : 'none',
-                  }}
-                >
-                  <div style={{ height: '90px', overflow: 'hidden' }}>
-                    <img src={crop.img} alt={crop.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              {dbCrops.map((crop) => {
+                const isSelected = selectedCropId === crop.id.toString();
+                const cropImg = CROP_IMAGES[crop.name] || 'https://images.unsplash.com/photo-1518977676601-b53f82aba655?w=400&q=80&auto=format&fit=crop';
+                const cropIcon = CROP_ICONS[crop.name] || '🌾';
+                const mspVal = crop.prices?.[0]?.mspPrice ?? crop.msp ?? DEFAULT_MSP[crop.name] ?? 2275;
+                return (
+                  <div
+                    key={crop.id}
+                    onClick={() => { setSelectedCropId(crop.id.toString()); setSelectedCropName(crop.name); }}
+                    style={{
+                      border: `2px solid ${isSelected ? '#22C55E' : '#E2E8F0'}`,
+                      borderRadius: '16px',
+                      overflow: 'hidden',
+                      cursor: 'pointer',
+                      background: isSelected ? '#F0FDF4' : '#FFFFFF',
+                      transition: 'all 0.25s ease',
+                      boxShadow: isSelected ? '0 8px 20px rgba(34,197,94,0.2)' : 'none',
+                    }}
+                  >
+                    <div style={{ height: '90px', overflow: 'hidden' }}>
+                      <img src={cropImg} alt={crop.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    </div>
+                    <div style={{ padding: '0.85rem' }}>
+                      <div style={{ fontWeight: 800, fontSize: '0.9rem', color: '#1E293B' }}>
+                        {cropIcon} {isHindi ? (crop.nameHi || crop.name) : crop.name}
+                      </div>
+                      <div style={{ fontSize: '0.78rem', color: '#15803D', fontWeight: 700, marginTop: '0.2rem' }}>
+                        MSP: ₹{typeof mspVal === 'number' ? mspVal.toLocaleString('en-IN') : mspVal}/Qtl
+                      </div>
+                    </div>
                   </div>
-                  <div style={{ padding: '0.85rem' }}>
-                    <div style={{ fontWeight: 800, fontSize: '0.9rem', color: '#1E293B' }}>{crop.name}</div>
-                    <div style={{ fontSize: '0.78rem', color: '#15803D', fontWeight: 700, marginTop: '0.2rem' }}>MSP: {crop.msp}</div>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             {/* Quantity Input */}
@@ -216,7 +341,7 @@ const BookSlot = () => {
                   className="input-field"
                   style={{ cursor: 'pointer' }}
                 >
-                  {mockCentres.map(c => (
+                  {dbCentres.map(c => (
                     <option key={c.id} value={c.id}>
                       {isHindi ? c.nameHi : c.name} ({isHindi ? c.distance.replace('km', 'किमी') : c.distance})
                     </option>
@@ -264,49 +389,59 @@ const BookSlot = () => {
                 </div>
               </div>
             </h3>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.85rem' }}>
-              {TIME_SLOTS.map((slot) => (
-                <div
-                  key={slot.id}
-                  onClick={() => setSelectedSlot(slot.id)}
-                  style={{
-                    padding: '1rem',
-                    borderRadius: '14px',
-                    border: `2px solid ${
-                      slot.id === '4'
-                        ? (selectedSlot === slot.id ? '#DC2626' : '#EF4444')
-                        : (selectedSlot === slot.id ? '#22C55E' : '#E2E8F0')
-                    }`,
-                    background: slot.id === '4'
-                      ? (selectedSlot === slot.id ? '#FEF2F2' : '#FFFFFF')
-                      : (selectedSlot === slot.id ? '#F0FDF4' : '#FFFFFF'),
-                    cursor: 'pointer',
-                    transition: 'all 0.2s',
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '0.5rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 800, color: '#1E293B', fontSize: '0.92rem' }}>
-                      <Clock size={16} color={slot.id === '4' ? '#DC2626' : '#15803D'} /> {slot.time}
-                    </div>
-                    {slot.id === '4' && (
-                      <div 
-                        className="card-info-tooltip-container" 
-                        tabIndex="0" 
-                        onClick={(e) => e.stopPropagation()} 
-                        style={{ color: '#DC2626', cursor: 'help', display: 'flex', alignItems: 'center' }}
-                      >
-                        <Info size={14} />
-                        <div className="card-info-tooltip">
-                          {t('lateSlotTooltip')}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  <div style={{ fontSize: '0.78rem', color: '#64748B', marginTop: '0.4rem' }}>
-                    {slot.slots} {t('tokenSlotsLeft')}
-                  </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '1rem' }}>
+              {slots.length === 0 ? (
+                <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '1.5rem', color: '#64748B', fontWeight: 600 }}>
+                  {isHindi ? 'इस तिथि के लिए कोई समय स्लॉट उपलब्ध नहीं है।' : 'No time slots available for this date.'}
                 </div>
-              ))}
+              ) : (
+                slots.map((slot, index) => {
+                  const isSelected = selectedSlot === slot.id;
+                  const isLateSlot = slot.time?.startsWith('05:00 PM') || slot.time?.startsWith('17:00') || (index === 3 && slots.length === 4);
+                  return (
+                    <div
+                      key={slot.id}
+                      onClick={() => { if (slot.available) setSelectedSlot(slot.id); }}
+                      style={{
+                        padding: '1.1rem 1rem',
+                        borderRadius: '16px',
+                        border: isLateSlot
+                          ? '2px solid #EF4444'
+                          : isSelected
+                          ? '2px solid #22C55E'
+                          : '1.5px solid #E2E8F0',
+                        background: isLateSlot
+                          ? (isSelected ? '#FEF2F2' : '#FFFFFF')
+                          : (!slot.available
+                            ? '#F1F5F9'
+                            : isSelected ? '#F0FDF4' : '#FFFFFF'),
+                        cursor: slot.available ? 'pointer' : 'not-allowed',
+                        transition: 'all 0.2s',
+                        opacity: slot.available ? 1 : 0.6,
+                        boxShadow: isSelected ? '0 4px 12px rgba(34, 197, 94, 0.15)' : 'none',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '0.4rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontWeight: 800, color: '#1E293B', fontSize: '0.92rem' }}>
+                          <Clock size={16} color={isLateSlot ? '#EF4444' : (slot.available ? '#15803D' : '#64748B')} />
+                          <span>{slot.time}</span>
+                        </div>
+                        {isLateSlot && (
+                          <div className="card-info-tooltip-container" tabIndex="0" aria-label="Late slot info" style={{ display: 'inline-flex', cursor: 'pointer' }} onClick={(e) => e.stopPropagation()}>
+                            <Info size={16} color="#EF4444" />
+                            <div className="card-info-tooltip">
+                              {t('lateSlotTooltip')}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ fontSize: '0.78rem', color: '#64748B', marginTop: '0.5rem', fontWeight: 600 }}>
+                        {slot.available ? `${slot.remainingCount} ${t('tokenSlotsLeft')}` : (isHindi ? 'भरी हुई (Full)' : 'Full')}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
 

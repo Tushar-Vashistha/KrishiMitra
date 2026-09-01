@@ -8,10 +8,11 @@ const { BadRequestError, ConflictError, UnauthorizedError } = require('../utils/
 const registerFarmer = async (req, res, next) => {
   try {
     const data = req.body;
+    const cleanMobile = data.mobile ? data.mobile.toString().replace(/\D/g, '').slice(-10) : '';
 
     // Check if mobile user already exists
     const existingUser = await prisma.user.findUnique({
-      where: { mobile: data.mobile },
+      where: { mobile: cleanMobile },
     });
     if (existingUser) {
       throw new ConflictError('A user with this mobile number already exists');
@@ -36,7 +37,7 @@ const registerFarmer = async (req, res, next) => {
     const result = await prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
         data: {
-          mobile: data.mobile,
+          mobile: cleanMobile,
           password: hashedPassword,
           role: 'FARMER',
         },
@@ -50,7 +51,7 @@ const registerFarmer = async (req, res, next) => {
           gender: data.gender,
           aadhaarMasked: maskAadhaar(data.aadhaar),
           aadhaarHash,
-          mobile: data.mobile,
+          mobile: cleanMobile,
           village: data.village,
           district: data.district,
           state: data.state,
@@ -71,8 +72,12 @@ const registerFarmer = async (req, res, next) => {
       return { user, profile };
     });
 
-    // Log audit trail
-    await logAction({
+    // Generate Auth Tokens directly
+    const accessToken = generateAccessToken(result.user);
+    const refreshToken = generateRefreshToken(result.user);
+
+    // Log audit trail asynchronously
+    logAction({
       userId: result.user.id,
       action: 'FARMER_REGISTRATION',
       entity: 'FarmerProfile',
@@ -84,14 +89,16 @@ const registerFarmer = async (req, res, next) => {
       success: true,
       message: 'Farmer registered successfully',
       data: {
+        accessToken,
+        refreshToken,
         userId: result.user.id,
         role: result.user.role,
-        profile: {
-          id: result.profile.id,
-          name: result.profile.name,
-          mobile: result.profile.mobile,
-          aadhaarMasked: result.profile.aadhaarMasked,
-          status: result.profile.status,
+        profile: result.profile,
+        user: {
+          id: result.user.id,
+          mobile: result.user.mobile,
+          role: result.user.role,
+          profile: result.profile,
         },
       },
     });
@@ -103,10 +110,11 @@ const registerFarmer = async (req, res, next) => {
 const registerCentre = async (req, res, next) => {
   try {
     const data = req.body;
+    const cleanMobile = data.mobile ? data.mobile.toString().replace(/\D/g, '').slice(-10) : '';
 
     // Check if user already exists
     const existingUser = await prisma.user.findUnique({
-      where: { mobile: data.mobile },
+      where: { mobile: cleanMobile },
     });
     if (existingUser) {
       throw new ConflictError('A user with this mobile number already exists');
@@ -127,7 +135,7 @@ const registerCentre = async (req, res, next) => {
     const result = await prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
         data: {
-          mobile: data.mobile,
+          mobile: cleanMobile,
           password: hashedPassword,
           role: data.role,
         },
@@ -138,7 +146,7 @@ const registerCentre = async (req, res, next) => {
           userId: user.id,
           name: data.name,
           designation: data.designation,
-          mobile: data.mobile,
+          mobile: cleanMobile,
         },
       });
 
@@ -154,7 +162,11 @@ const registerCentre = async (req, res, next) => {
       return { user, profile };
     });
 
-    await logAction({
+    // Generate Auth Tokens directly
+    const accessToken = generateAccessToken(result.user);
+    const refreshToken = generateRefreshToken(result.user);
+
+    logAction({
       userId: result.user.id,
       action: 'STAFF_REGISTRATION',
       entity: 'StaffProfile',
@@ -162,17 +174,26 @@ const registerCentre = async (req, res, next) => {
       metadata: { name: data.name, centreId: data.centreId, role: data.role },
     });
 
+    const staffProfileData = {
+      ...result.profile,
+      centreId: data.centreId,
+      assignments: [{ centre }],
+    };
+
     res.status(201).json({
       success: true,
       message: 'Centre staff registered successfully',
       data: {
+        accessToken,
+        refreshToken,
         userId: result.user.id,
         role: result.user.role,
-        profile: {
-          id: result.profile.id,
-          name: result.profile.name,
-          designation: result.profile.designation,
-          centreId: data.centreId,
+        profile: staffProfileData,
+        user: {
+          id: result.user.id,
+          mobile: result.user.mobile,
+          role: result.user.role,
+          profile: staffProfileData,
         },
       },
     });
@@ -184,9 +205,10 @@ const registerCentre = async (req, res, next) => {
 const login = async (req, res, next) => {
   try {
     const { mobile, password } = req.body;
+    const cleanMobile = mobile ? mobile.toString().replace(/\D/g, '').slice(-10) : '';
 
     const user = await prisma.user.findUnique({
-      where: { mobile },
+      where: { mobile: cleanMobile },
       include: {
         farmerProfile: true,
         staffProfile: {
@@ -207,7 +229,7 @@ const login = async (req, res, next) => {
     const accessToken = generateAccessToken(user);
     const refreshToken = generateRefreshToken(user);
 
-    await logAction({
+    logAction({
       userId: user.id,
       action: 'USER_LOGIN',
       entity: 'User',
