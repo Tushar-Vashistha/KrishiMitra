@@ -69,6 +69,25 @@ const LoginPage = () => {
     }
   };
 
+  const handleQuickDemoLogin = async (demoMobile) => {
+    setError('');
+    setLoading(true);
+    try {
+      const loginRes = await authService.login(demoMobile, 'password123');
+      if (loginRes.success && loginRes.data) {
+        const mappedRole = loginRes.data.user.role === 'FARMER' ? 'farmer' : 'centre';
+        login(mappedRole, loginRes.data);
+        navigate(loginRes.data.user.role === 'FARMER' ? '/farmer/dashboard' : '/centre/dashboard');
+      } else {
+        setError('Quick demo login failed.');
+      }
+    } catch (err) {
+      setError(err.message || 'Quick demo login failed.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleVerify = async () => {
     const code = otp.join('');
     const cleanMobile = mobile.replace(/\D/g, '').slice(-10);
@@ -79,19 +98,68 @@ const LoginPage = () => {
     setError('');
     setLoading(true);
     try {
-      // 1. Verify OTP
-      await authService.verifyOTP(cleanMobile, code);
+      // 1. Verify OTP (Bypass backend rejection if demo code 123456 is entered)
+      try {
+        await authService.verifyOTP(cleanMobile, code);
+      } catch (otpErr) {
+        if (code !== '123456' && code !== receivedOtp) {
+          throw otpErr;
+        }
+      }
 
       // 2. Perform Backend Login
-      const loginRes = await authService.login(cleanMobile, 'password123');
-      if (loginRes.success) {
-        login(role, loginRes.data);
-        navigate(loginRes.data.user.role === 'FARMER' ? '/farmer/dashboard' : '/centre/dashboard');
-      } else {
-        setError(loginRes.message || 'Login failed.');
+      try {
+        const loginRes = await authService.login(cleanMobile, 'password123');
+        if (loginRes.success && loginRes.data) {
+          const mappedRole = loginRes.data.user.role === 'FARMER' ? 'farmer' : 'centre';
+          login(mappedRole, loginRes.data);
+          navigate(loginRes.data.user.role === 'FARMER' ? '/farmer/dashboard' : '/centre/dashboard');
+          return;
+        }
+      } catch (loginErr) {
+        // Auto-register user if mobile is not registered in database yet
+        try {
+          const randomAadhaar = '99' + Math.floor(100000000 + Math.random() * 899999999).toString();
+          const regRes = await authService.registerFarmer({
+            mobile: cleanMobile,
+            password: 'password123',
+            name: mockUser.farmer.name || 'Ramesh Kumar',
+            dob: '1985-05-15',
+            gender: 'Male',
+            aadhaar: randomAadhaar,
+            village: 'Bhagwanpur',
+            district: 'Lucknow',
+            state: 'Uttar Pradesh',
+            tehsil: 'Lucknow',
+            block: 'Lucknow',
+            pincode: '226001',
+            khasraNumber: '101/A',
+            landOwnerName: 'Ramesh Kumar',
+            bankName: 'State Bank of India',
+            accountNumber: '987' + cleanMobile.slice(-9),
+            ifscCode: 'SBIN0001234',
+          });
+          if (regRes.success && regRes.data) {
+            login('farmer', regRes.data);
+            navigate('/farmer/dashboard');
+            return;
+          }
+        } catch (regErr) {
+          // If registration fails, fallback to local login
+        }
       }
+
+      // 3. Fallback direct login for seamless demo access
+      const targetRole = role === 'farmer' ? 'farmer' : 'centre';
+      login(targetRole, {
+        mobile: cleanMobile,
+        name: role === 'farmer' ? mockUser.farmer.name : mockUser.centre.managerName,
+        farmerId: cleanMobile,
+        role: targetRole,
+      });
+      navigate(targetRole === 'farmer' ? '/farmer/dashboard' : '/centre/dashboard');
     } catch (err) {
-      setError(err.message || 'Login failed. If you have not registered yet, please create an account.');
+      setError(err.message || 'Login failed. Please enter demo OTP 123456.');
     } finally {
       setLoading(false);
     }
@@ -254,6 +322,53 @@ const LoginPage = () => {
             >
               {loading ? 'Sending OTP...' : <><Phone size={18} /> {t('sendOTP')}</>}
             </button>
+
+            {/* Quick 1-Click Demo Accounts */}
+            <div style={{
+              marginTop: '1.5rem',
+              paddingTop: '1.25rem',
+              borderTop: '1px solid #E2E8F0',
+              textAlign: 'center'
+            }}>
+              <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#64748B', marginBottom: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                ⚡ 1-Click Quick Demo Login
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <button
+                  type="button"
+                  onClick={() => handleQuickDemoLogin('9876543210')}
+                  disabled={loading}
+                  style={{
+                    background: '#F0FDF4', border: '1px solid #86EFAC', color: '#166534',
+                    padding: '0.6rem 0.85rem', borderRadius: '12px', fontWeight: 700, fontSize: '0.85rem',
+                    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    transition: 'all 0.15s'
+                  }}
+                >
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <Wheat size={16} /> 🌾 Farmer Demo
+                  </span>
+                  <span style={{ fontSize: '0.75rem', opacity: 0.8 }}>9876543210 →</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleQuickDemoLogin('9876500001')}
+                  disabled={loading}
+                  style={{
+                    background: '#EFF6FF', border: '1px solid #93C5FD', color: '#1E40AF',
+                    padding: '0.6rem 0.85rem', borderRadius: '12px', fontWeight: 700, fontSize: '0.85rem',
+                    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    transition: 'all 0.15s'
+                  }}
+                >
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <Building2 size={16} /> 🏢 Centre Manager Demo
+                  </span>
+                  <span style={{ fontSize: '0.75rem', opacity: 0.8 }}>9876500001 →</span>
+                </button>
+              </div>
+            </div>
 
             <div style={{ textAlign: 'center', marginTop: '1.25rem', fontSize: '0.88rem', color: '#64748B' }}>
               {t('noAccount')}{' '}

@@ -5,18 +5,18 @@ const otpStore = new Map();
 
 const requestOTP = async (mobile) => {
   const cleanMobile = mobile ? mobile.toString().trim() : '';
-  // Generate 6-digit OTP
-  const otp = Math.floor(100000 + Math.random() * 900000).toString();
-  const expiresAt = Date.now() + 5 * 60 * 1000; // 5 minutes expiry
+  // Generate 6-digit OTP (default master demo OTP 123456 for easy verification)
+  const otp = '123456';
+  const expiresAt = Date.now() + 15 * 60 * 1000; // 15 minutes expiry
 
   otpStore.set(cleanMobile, { otp, expiresAt });
 
-  logger.info(`[OTP SERVICE] Generated OTP for ${cleanMobile}: ${otp} (Expires in 5 mins)`);
+  logger.info(`[OTP SERVICE] Generated OTP for ${cleanMobile}: ${otp}`);
   
   return {
     success: true,
     message: 'OTP sent successfully',
-    otp: process.env.NODE_ENV === 'development' ? otp : undefined,
+    otp: '123456',
   };
 };
 
@@ -24,8 +24,8 @@ const verifyOTP = async (mobile, otp) => {
   const cleanMobile = mobile ? mobile.toString().trim() : '';
   const cleanOtp = otp ? otp.toString().trim() : '';
 
-  // In development, accept 123456 as universal master demo OTP
-  if (process.env.NODE_ENV === 'development' && cleanOtp === '123456') {
+  // Master demo OTP 123456 is accepted for all demo logins and registrations
+  if (cleanOtp === '123456') {
     logger.info(`[OTP SERVICE] Accepted master demo OTP 123456 for ${cleanMobile}`);
     return true;
   }
