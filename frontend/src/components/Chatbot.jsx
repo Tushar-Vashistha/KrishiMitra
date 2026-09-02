@@ -1,46 +1,93 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { MessageCircle, X, Send, Bot, User } from 'lucide-react';
+import { MessageCircle, X, Send, Bot, User, Loader2, Globe } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { chatbotService } from '../services/api';
 
 const Chatbot = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [open, setOpen] = useState(false);
-  const [messages, setMessages] = useState([
-    { from: 'bot', text: t('chatGreeting'), time: new Date() }
-  ]);
+  const currentLang = i18n.language || 'en';
+  const isHindi = currentLang === 'hi';
+
+  const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
   const bottomRef = useRef(null);
+
+  // Initialize or sync initial message whenever chatbot opens or app language changes
+  useEffect(() => {
+    if (open) {
+      if (messages.length === 0 || (messages.length === 1 && messages[0].isGreeting)) {
+        setMessages([
+          {
+            from: 'bot',
+            isGreeting: true,
+            text: t('chatGreeting'),
+            time: new Date(),
+          }
+        ]);
+      }
+    }
+  }, [open, i18n.language]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, loading]);
+
+  const switchLanguage = (newLang) => {
+    i18n.changeLanguage(newLang);
+    const confirmMsg = newLang === 'hi'
+      ? 'भाषा हिंदी चुनी गई है। 🌾\nआज मैं आपकी क्या सहायता कर सकता हूँ?'
+      : 'Language set to English. 🌾\nHow can I help you today?';
+    
+    setMessages(prev => [
+      ...prev,
+      { from: 'bot', isGreeting: true, text: confirmMsg, time: new Date() }
+    ]);
+  };
 
   const sendMessage = async (textToSend = input) => {
     const trimmed = typeof textToSend === 'string' ? textToSend.trim() : '';
-    if (!trimmed) return;
-    
+    if (!trimmed || loading) return;
+
     const userMsg = { from: 'user', text: trimmed, time: new Date() };
     setMessages(prev => [...prev, userMsg]);
     if (textToSend === input) setInput('');
-    
+    setLoading(true);
+
     try {
-      const res = await chatbotService.ask(trimmed);
-      if (res.success && res.data) {
+      const res = await chatbotService.ask(trimmed, currentLang);
+      if (res && res.success && res.data) {
         setMessages(prev => [...prev, { from: 'bot', text: res.data.response, time: new Date() }]);
+      } else {
+        const errorText = isHindi 
+          ? 'अप्रत्याशित प्रतिक्रिया मिली। कृपया पुन: प्रयास करें।' 
+          : 'I received an unexpected response. Please try again.';
+        setMessages(prev => [...prev, { from: 'bot', text: errorText, time: new Date() }]);
       }
     } catch (err) {
       console.error('Chatbot error:', err);
-      setMessages(prev => [...prev, { from: 'bot', text: 'Sorry, I am having trouble connecting right now.', time: new Date() }]);
+      const networkErrorText = isHindi
+        ? 'क्षमा करें, वर्तमान में कनेक्ट करने में समस्या हो रही है। कृपया अपना नेटवर्क जांचें या कुछ समय बाद प्रयास करें।'
+        : 'Sorry, I am having trouble connecting right now. Please check your network or try again shortly.';
+      setMessages(prev => [...prev, { from: 'bot', text: networkErrorText, time: new Date() }]);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const quickQuestions = [
+  const quickQuestions = isHindi ? [
+    "क्रेडिट स्कोर कैसे काम करता है?",
+    "स्लॉट कैसे बुक करें?",
+    "आज का मंडी भाव",
+    "भुगतान की स्थिति",
+    "तत्काल बुकिंग",
+  ] : [
     "How does Credit Score work?",
     "How to book a slot?",
     "Today's mandi rates",
     "My payment status",
-    "Cancel my slot",
+    "Tatkaal booking",
   ];
 
   return (
@@ -48,9 +95,9 @@ const Chatbot = () => {
       {/* Chat Window */}
       {open && (
         <div style={{
-          width: '320px',
+          width: '350px',
           maxWidth: 'calc(100vw - 2rem)',
-          height: '460px',
+          height: '500px',
           background: 'white',
           borderRadius: '16px',
           boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
@@ -76,18 +123,41 @@ const Chatbot = () => {
             }}>
               <Bot size={20} color="white" />
             </div>
-            <div>
+            <div style={{ flex: 1 }}>
               <div style={{ color: 'white', fontWeight: 700, fontSize: '0.95rem' }}>
                 {t('chatbotTitle')}
               </div>
-              <div style={{ color: 'rgba(255,255,255,0.8)', fontSize: '0.72rem' }}>
+              <div style={{ color: 'rgba(255,255,255,0.85)', fontSize: '0.72rem' }}>
                 🟢 Online • {t('chatbotSubtitle')}
               </div>
             </div>
+
+            {/* Language switch button in header */}
+            <button
+              onClick={() => switchLanguage(isHindi ? 'en' : 'hi')}
+              title={isHindi ? "English में बदलें" : "Switch to Hindi"}
+              style={{
+                background: 'rgba(255,255,255,0.2)',
+                border: '1px solid rgba(255,255,255,0.3)',
+                borderRadius: '12px',
+                color: 'white',
+                padding: '0.25rem 0.6rem',
+                fontSize: '0.75rem',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.3rem',
+                fontWeight: 700,
+              }}
+            >
+              <Globe size={13} color="white" />
+              {isHindi ? 'EN' : 'हिं'}
+            </button>
+
             <button
               onClick={() => setOpen(false)}
               style={{
-                marginLeft: 'auto', background: 'none', border: 'none',
+                background: 'none', border: 'none',
                 color: 'white', cursor: 'pointer', padding: '0.25rem'
               }}
             >
@@ -117,13 +187,14 @@ const Chatbot = () => {
                   </div>
                 )}
                 <div style={{
-                  maxWidth: '78%',
+                  maxWidth: '82%',
                   background: msg.from === 'user' ? '#2E7D32' : 'white',
                   color: msg.from === 'user' ? 'white' : '#1C1C1C',
-                  padding: '0.5rem 0.75rem',
-                  borderRadius: msg.from === 'user' ? '12px 12px 2px 12px' : '12px 12px 12px 2px',
+                  padding: '0.65rem 0.85rem',
+                  borderRadius: msg.from === 'user' ? '14px 14px 2px 14px' : '14px 14px 14px 2px',
                   fontSize: '0.85rem',
                   lineHeight: 1.5,
+                  whiteSpace: 'pre-line',
                   boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
                 }}>
                   {msg.text}
@@ -138,6 +209,25 @@ const Chatbot = () => {
                 )}
               </div>
             ))}
+
+            {loading && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <div style={{
+                  width: 28, height: 28, background: '#E8F5E9', borderRadius: '50%',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
+                }}>
+                  <Bot size={14} color="#2E7D32" />
+                </div>
+                <div style={{
+                  background: 'white', padding: '0.5rem 0.8rem', borderRadius: '14px 14px 14px 2px',
+                  fontSize: '0.8rem', color: '#666', display: 'flex', alignItems: 'center', gap: '0.4rem',
+                  boxShadow: '0 1px 4px rgba(0,0,0,0.08)'
+                }}>
+                  <Loader2 size={14} className="animate-spin" color="#2E7D32" />
+                  <span>{isHindi ? 'कृषिमित्र AI विचार कर रहा है...' : 'KrishiMitra AI is thinking...'}</span>
+                </div>
+              </div>
+            )}
             <div ref={bottomRef} />
           </div>
 
@@ -154,11 +244,14 @@ const Chatbot = () => {
               <button
                 key={i}
                 onClick={() => sendMessage(q)}
+                disabled={loading}
                 style={{
                   background: '#E8F5E9', color: '#2E7D32',
                   border: '1px solid #C8E6C9', borderRadius: '20px',
                   padding: '0.2rem 0.6rem', fontSize: '0.72rem',
-                  cursor: 'pointer', fontWeight: 500, whiteSpace: 'nowrap',
+                  cursor: loading ? 'not-allowed' : 'pointer',
+                  fontWeight: 500, whiteSpace: 'nowrap',
+                  opacity: loading ? 0.6 : 1,
                 }}
               >
                 {q}
@@ -180,6 +273,7 @@ const Chatbot = () => {
               onChange={e => setInput(e.target.value)}
               onKeyPress={e => e.key === 'Enter' && sendMessage()}
               placeholder={t('typeMessage')}
+              disabled={loading}
               style={{
                 flex: 1, border: '1.5px solid #E5E7EB', borderRadius: '8px',
                 padding: '0.5rem 0.75rem', fontSize: '0.85rem',
@@ -190,12 +284,13 @@ const Chatbot = () => {
               onBlur={e => e.target.style.borderColor = '#E5E7EB'}
             />
             <button
-              onClick={sendMessage}
+              onClick={() => sendMessage()}
+              disabled={loading || !input.trim()}
               style={{
-                width: 38, height: 38, background: '#2E7D32',
+                width: 38, height: 38, background: (loading || !input.trim()) ? '#9E9E9E' : '#2E7D32',
                 border: 'none', borderRadius: '8px',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                cursor: 'pointer', flexShrink: 0,
+                cursor: (loading || !input.trim()) ? 'not-allowed' : 'pointer', flexShrink: 0,
               }}
             >
               <Send size={16} color="white" />

@@ -145,5 +145,5 @@ export const notificationService = {
 };
 
 export const chatbotService = {
-  ask: (message) => api.post('/chatbot', { message }),
+  ask: (message, language) => api.post('/chatbot', { message, language }),
 };

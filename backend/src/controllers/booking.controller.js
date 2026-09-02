@@ -177,7 +177,7 @@ const createBooking = async (req, res, next) => {
 
 const createTatkaalBooking = async (req, res, next) => {
   try {
-    const { cropId, weight, centreId, date, slotTime, vehicleNumber, vehicleType } = req.body;
+    const { cropId, weight, centreId, date, slotTime = 'Immediate', vehicleNumber, vehicleType } = req.body;
     const farmerId = req.user.farmerProfile.id;
 
     if (req.user.farmerProfile.status !== 'VERIFIED') {

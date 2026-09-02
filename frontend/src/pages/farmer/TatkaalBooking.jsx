@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Zap, Clock, CheckCircle2, ArrowRight } from 'lucide-react';
+import { Zap, ArrowRight } from 'lucide-react';
 import { cropService, centreService, tatkaalService } from '../../services/api';
 import { useNavigate } from 'react-router-dom';
 
@@ -11,14 +11,11 @@ const TatkaalBooking = () => {
   
   const [dbCrops, setDbCrops] = useState([]);
   const [dbCentres, setDbCentres] = useState([]);
-  const [slots, setSlots] = useState([]);
   
   const [selectedCropId, setSelectedCropId] = useState('');
   const [selectedCropName, setSelectedCropName] = useState('');
   const [selectedCentre, setSelectedCentre] = useState('');
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
-  const [selectedSlot, setSelectedSlot] = useState('');
-  const [selectedSlotTime, setSelectedSlotTime] = useState('');
   const [quantity, setQuantity] = useState('20');
   const [errorMsg, setErrorMsg] = useState('');
   const [booked, setBooked] = useState(false);
@@ -51,51 +48,22 @@ const TatkaalBooking = () => {
     initData();
   }, []);
 
-  // 2. Fetch Tatkaal slots availability when centre changes (date is always today)
-  useEffect(() => {
-    if (!selectedCentre || !selectedDate) return;
-    const fetchSlots = async () => {
-      try {
-        const slotsRes = await tatkaalService.getAvailability(selectedCentre, selectedDate);
-        if (slotsRes.success && slotsRes.data) {
-          setSlots(slotsRes.data);
-          if (slotsRes.data.length > 0) {
-            setSelectedSlot(slotsRes.data[0].id);
-            setSelectedSlotTime(slotsRes.data[0].time);
-          } else {
-            setSelectedSlot('');
-            setSelectedSlotTime('');
-          }
-        }
-      } catch (err) {
-        console.error('Failed to load Tatkaal slots:', err);
-      }
-    };
-    fetchSlots();
-  }, [selectedCentre, selectedDate]);
-
   const handleTatkaal = async (e) => {
     e.preventDefault();
     setErrorMsg('');
-    if (!selectedSlot) {
-      setErrorMsg('Please select a time slot.');
-      return;
-    }
     try {
-      const activeSlotObj = slots.find(s => s.id === selectedSlot);
       const payload = {
         cropId: parseInt(selectedCropId),
         weight: parseFloat(quantity),
         centreId: parseInt(selectedCentre),
         date: selectedDate,
-        slotTime: activeSlotObj ? activeSlotObj.time : '14:00 - 15:00',
+        slotTime: 'Immediate',
         vehicleNumber: '',
         vehicleType: '',
       };
       const res = await tatkaalService.create(payload);
       if (res.success && res.data) {
         setAssignedToken(`T-${res.data.queueToken?.tokenNumber || '09'}`);
-        setSelectedSlotTime(payload.slotTime);
         setBooked(true);
         setTimeout(() => {
           navigate('/farmer/track-slot');
@@ -122,8 +90,8 @@ const TatkaalBooking = () => {
           </h2>
           <p style={{ color: '#64748B', fontSize: '0.9rem', marginBottom: '1.5rem' }}>
             {isHindi 
-              ? `आज ${selectedSlotTime || '02:00 PM - 05:00 PM'} की निकासी के लिए प्राथमिकता टोकन #${assignedToken} सौंपा गया।` 
-              : `Priority Token #${assignedToken} assigned for today ${selectedSlotTime || '02:00 PM - 05:00 PM'} clearance.`}
+              ? `आज तत्काल निकासी के लिए प्राथमिकता टोकन #${assignedToken} सौंपा गया।` 
+              : `Priority Token #${assignedToken} assigned for immediate clearance.`}
           </p>
           <div className="badge-yellow" style={{ fontSize: '0.85rem', padding: '6px 16px' }}>
             {isHindi ? 'लाइव ट्रैकिंग पर रीडायरेक्ट किया जा रहा है...' : 'Redirecting to live tracking...'}
@@ -253,75 +221,12 @@ const TatkaalBooking = () => {
               />
             </div>
 
-            {/* Time Slot Selection */}
-            <div>
-              <label className="input-label" style={{ marginBottom: '0.75rem', display: 'block' }}>
-                {isHindi ? 'समय स्लॉट चुनें' : 'Select Time Slot'}
-              </label>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.85rem' }}>
-                {slots.length === 0 ? (
-                  <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '1.5rem', color: '#64748B', fontWeight: 600 }}>
-                    {isHindi ? 'आज इस केंद्र पर कोई तत्काल स्लॉट उपलब्ध नहीं है।' : 'No Tatkaal slots available today for this centre.'}
-                  </div>
-                ) : (
-                  slots.map((slot) => (
-                    <div
-                      key={slot.id}
-                      onClick={() => { if (slot.available) setSelectedSlot(slot.id); }}
-                      style={{
-                        padding: '1rem',
-                        borderRadius: '14px',
-                        border: `2px solid ${
-                          !slot.available
-                            ? '#E2E8F0'
-                            : selectedSlot === slot.id ? '#D97706' : '#E2E8F0'
-                        }`,
-                        background: !slot.available
-                          ? '#F1F5F9'
-                          : selectedSlot === slot.id ? '#FFFBEB' : '#FFFFFF',
-                        cursor: slot.available ? 'pointer' : 'not-allowed',
-                        transition: 'all 0.2s',
-                        opacity: slot.available ? 1 : 0.6,
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 800, color: '#1E293B', fontSize: '0.92rem' }}>
-                        <Clock size={16} color={slot.available ? '#D97706' : '#64748B'} /> {slot.time}
-                      </div>
-                      <div style={{ fontSize: '0.78rem', color: slot.available ? '#B45309' : '#94A3B8', marginTop: '0.4rem', fontWeight: 700 }}>
-                        {slot.available ? `${slot.remainingCount} ${isHindi ? 'खाली हैं' : 'slots left'}` : (isHindi ? 'भरी हुई (Full)' : 'Full')}
-                      </div>
-                      <div style={{ fontSize: '0.74rem', color: '#64748B', marginTop: '0.15rem' }}>
-                        {isHindi ? `शुल्क: ₹${slot.fee}` : `Fee: ₹${slot.fee}`}
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-
             <button type="submit" className="btn-gold" style={{ padding: '1rem', fontSize: '1.1rem', borderRadius: '14px', marginTop: '0.5rem' }}>
               {isHindi ? 'तत्काल स्लॉट बुक करें' : 'Book Immediate Tatkaal Slot'} <ArrowRight size={20} />
             </button>
           </form>
         </div>
       </div>
-      <style>{`
-        .card-info-tooltip-container:hover .card-info-tooltip,
-        .card-info-tooltip-container:focus-within .card-info-tooltip {
-          visibility: visible !important;
-          opacity: 1 !important;
-        }
-        .card-info-tooltip::after {
-          content: "";
-          position: absolute;
-          top: 100%;
-          left: 50%;
-          transform: translateX(-50%);
-          border-width: 6px;
-          border-style: solid;
-          border-color: #ef4444 transparent transparent transparent;
-        }
-      `}</style>
     </div>
   );
 };

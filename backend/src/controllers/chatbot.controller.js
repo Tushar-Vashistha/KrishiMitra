@@ -3,12 +3,12 @@ const { BadRequestError } = require('../utils/errors');
 
 const askChatbot = async (req, res, next) => {
   try {
-    const { message } = req.body;
-    if (!message) {
-      throw new BadRequestError('Message query parameter is required');
+    const { message, language } = req.body;
+    if (message === undefined || message === null || (typeof message === 'string' && !message.trim())) {
+      throw new BadRequestError('Message parameter is required in request body');
     }
 
-    const response = await getChatbotResponse(message);
+    const response = await getChatbotResponse(message, language);
 
     res.status(200).json({
       success: true,

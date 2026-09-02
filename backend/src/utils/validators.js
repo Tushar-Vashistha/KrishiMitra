@@ -49,7 +49,7 @@ const tatkaalBookingSchema = z.object({
   weight: z.number().positive(),
   centreId: z.number().int(),
   date: z.string().transform((val) => new Date(val)),
-  slotTime: z.string().min(1),
+  slotTime: z.string().optional(),
   vehicleNumber: z.string().optional(),
   vehicleType: z.string().optional(),
 });
