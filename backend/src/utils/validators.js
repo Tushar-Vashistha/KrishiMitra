@@ -31,7 +31,7 @@ const registerCentreSchema = z.object({
 
 const loginSchema = z.object({
   mobile: z.string().regex(/^[0-9]{10}$/, 'Mobile must be a 10-digit number'),
-  password: z.string().min(1, 'Password is required'),
+  password: z.string().optional(),
 });
 
 const bookingSchema = z.object({

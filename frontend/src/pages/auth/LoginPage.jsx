@@ -98,52 +98,30 @@ const LoginPage = () => {
     setError('');
     setLoading(true);
     try {
-      // 1. Verify OTP with Backend
-      await authService.verifyOTP(cleanMobile, code);
+      // 1. Attempt Backend OTP verification
+      try {
+        await authService.verifyOTP(cleanMobile, code);
+      } catch (otpErr) {
+        // Reject invalid non-demo OTPs
+        if (code !== '123456' && code !== receivedOtp) {
+          throw otpErr;
+        }
+      }
 
       // 2. Perform Backend Login
       try {
         const loginRes = await authService.login(cleanMobile, 'password123');
         if (loginRes.success && loginRes.data) {
-          const mappedRole = loginRes.data.user.role === 'FARMER' ? 'farmer' : 'centre';
+          const mappedRole = loginRes.data.user.role === 'FARMER' ? 'farmer' : (role === 'centre' ? 'centre' : 'farmer');
           login(mappedRole, loginRes.data);
-          navigate(loginRes.data.user.role === 'FARMER' ? '/farmer/dashboard' : '/centre/dashboard');
+          navigate(mappedRole === 'farmer' ? '/farmer/dashboard' : '/centre/dashboard');
           return;
         }
       } catch (loginErr) {
-        // Auto-register user if mobile is not registered in database yet
-        try {
-          const randomAadhaar = '99' + Math.floor(100000000 + Math.random() * 899999999).toString();
-          const regRes = await authService.registerFarmer({
-            mobile: cleanMobile,
-            password: 'password123',
-            name: mockUser.farmer.name || 'Ramesh Kumar',
-            dob: '1985-05-15',
-            gender: 'Male',
-            aadhaar: randomAadhaar,
-            village: 'Bhagwanpur',
-            district: 'Lucknow',
-            state: 'Uttar Pradesh',
-            tehsil: 'Lucknow',
-            block: 'Lucknow',
-            pincode: '226001',
-            khasraNumber: '101/A',
-            landOwnerName: 'Ramesh Kumar',
-            bankName: 'State Bank of India',
-            accountNumber: '987' + cleanMobile.slice(-9),
-            ifscCode: 'SBIN0001234',
-          });
-          if (regRes.success && regRes.data) {
-            login('farmer', regRes.data);
-            navigate('/farmer/dashboard');
-            return;
-          }
-        } catch (regErr) {
-          // If registration fails, fallback to local login
-        }
+        console.warn('Backend login fallback warning:', loginErr);
       }
 
-      // 3. Fallback direct login for seamless demo access
+      // 3. Fallback direct login for seamless demo access on deployed site
       const targetRole = role === 'farmer' ? 'farmer' : 'centre';
       login(targetRole, {
         mobile: cleanMobile,
@@ -153,7 +131,7 @@ const LoginPage = () => {
       });
       navigate(targetRole === 'farmer' ? '/farmer/dashboard' : '/centre/dashboard');
     } catch (err) {
-      setError(err.message || 'Login failed. Please enter demo OTP 123456.');
+      setError(err.message || 'Invalid or expired OTP. Please enter demo OTP 123456.');
     } finally {
       setLoading(false);
     }
