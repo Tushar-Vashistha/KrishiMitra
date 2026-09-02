@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { centreService } from '../../services/api';
+import { mockCentres } from '../../data/mockData';
 import { MapPin, Phone, Clock, Navigation, ArrowRight, Building, Search } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -9,17 +10,20 @@ const NearestCentres = () => {
   const isHindi = i18n.language === 'hi';
   const [filter, setFilter] = useState('All');
   const [search, setSearch] = useState('');
-  const [centres, setCentres] = useState([]);
+  const [centres, setCentres] = useState(mockCentres);
 
   useEffect(() => {
     const fetchCentres = async () => {
       try {
         const res = await centreService.getAll();
-        if (res && res.success && Array.isArray(res.data)) {
+        if (res && res.success && Array.isArray(res.data) && res.data.length > 0) {
           setCentres(res.data);
+        } else {
+          setCentres(mockCentres);
         }
       } catch (err) {
-        console.error('Failed to load centres:', err);
+        console.warn('Failed to load centres from API, using mockCentres:', err);
+        setCentres(mockCentres);
       }
     };
     fetchCentres();

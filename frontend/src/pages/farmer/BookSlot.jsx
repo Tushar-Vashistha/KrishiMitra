@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { cropService, centreService, bookingService } from '../../services/api';
-import { mockCentres } from '../../data/mockData';
+import { mockCentres, mockCrops, mockSlots } from '../../data/mockData';
 import { Calendar, Clock, MapPin, Wheat, CheckCircle2, ChevronRight, AlertCircle, Info } from 'lucide-react';
 
 import riceCrop from '../../assets/rice_crop.jpg';
@@ -66,42 +66,52 @@ const BookSlot = () => {
     return d.toISOString().split('T')[0];
   };
 
-  const [dbCrops, setDbCrops] = useState([]);
-  const [dbCentres, setDbCentres] = useState([]);
-  const [slots, setSlots] = useState([]);
+  const [dbCrops, setDbCrops] = useState(mockCrops);
+  const [dbCentres, setDbCentres] = useState(mockCentres);
+  const [slots, setSlots] = useState(mockSlots);
   
-  const [selectedCropId, setSelectedCropId] = useState('');
-  const [selectedCropName, setSelectedCropName] = useState('');
+  const [selectedCropId, setSelectedCropId] = useState(mockCrops[0]?.id?.toString() || '1');
+  const [selectedCropName, setSelectedCropName] = useState(mockCrops[0]?.name || 'Wheat');
   const [quantity, setQuantity] = useState('25');
-  const [selectedCentre, setSelectedCentre] = useState('');
+  const [selectedCentre, setSelectedCentre] = useState(mockCentres[0]?.id?.toString() || '1');
   const [selectedDate, setSelectedDate] = useState(getTomorrowDate());
-  const [selectedSlot, setSelectedSlot] = useState('');
+  const [selectedSlot, setSelectedSlot] = useState(mockSlots[0]?.id || 'S1');
   const [booked, setBooked] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  // 1. Fetch crops & centres on load
+  // 1. Fetch crops & centres on load (with fallback)
   useEffect(() => {
     const initData = async () => {
+      let crops = [];
+      let centres = [];
+
       try {
         const cropsRes = await cropService.getAll();
-        if (cropsRes.success && cropsRes.data) {
-          setDbCrops(cropsRes.data);
-          if (cropsRes.data.length > 0) {
-            setSelectedCropId(cropsRes.data[0].id.toString());
-            setSelectedCropName(cropsRes.data[0].name);
-          }
-        }
-        
-        // Fetch centres (using Lucknow defaults for coordinates)
-        const centresRes = await centreService.getNearby(26.8467, 80.9462, 100);
-        if (centresRes.success && centresRes.data) {
-          setDbCentres(centresRes.data);
-          if (centresRes.data.length > 0) {
-            setSelectedCentre(centresRes.data[0].id.toString());
-          }
+        if (cropsRes.success && Array.isArray(cropsRes.data) && cropsRes.data.length > 0) {
+          crops = cropsRes.data;
         }
       } catch (err) {
-        console.error('Failed to load crops/centres:', err);
+        console.warn('Backend crops fetch fallback to mock data:', err);
+      }
+      if (crops.length === 0) crops = mockCrops;
+      setDbCrops(crops);
+      if (crops.length > 0) {
+        setSelectedCropId(crops[0].id.toString());
+        setSelectedCropName(crops[0].name);
+      }
+      
+      try {
+        const centresRes = await centreService.getNearby(26.8467, 80.9462, 100);
+        if (centresRes.success && Array.isArray(centresRes.data) && centresRes.data.length > 0) {
+          centres = centresRes.data;
+        }
+      } catch (err) {
+        console.warn('Backend centres fetch fallback to mock data:', err);
+      }
+      if (centres.length === 0) centres = mockCentres;
+      setDbCentres(centres);
+      if (centres.length > 0) {
+        setSelectedCentre(centres[0].id.toString());
       }
     };
     initData();
@@ -111,18 +121,21 @@ const BookSlot = () => {
   useEffect(() => {
     if (!selectedCentre || !selectedDate) return;
     const fetchSlots = async () => {
+      let availableSlots = [];
       try {
         const slotsRes = await centreService.getSlotsAvailability(selectedCentre, selectedDate);
-        if (slotsRes.success && slotsRes.data) {
-          setSlots(slotsRes.data);
-          if (slotsRes.data.length > 0) {
-            setSelectedSlot(slotsRes.data[0].id);
-          } else {
-            setSelectedSlot('');
-          }
+        if (slotsRes.success && Array.isArray(slotsRes.data) && slotsRes.data.length > 0) {
+          availableSlots = slotsRes.data;
         }
       } catch (err) {
-        console.error('Failed to load slots:', err);
+        console.warn('Backend slots fetch fallback to mock data:', err);
+      }
+      if (availableSlots.length === 0) availableSlots = mockSlots;
+      setSlots(availableSlots);
+      if (availableSlots.length > 0) {
+        setSelectedSlot(availableSlots[0].id);
+      } else {
+        setSelectedSlot('');
       }
     };
     fetchSlots();
@@ -439,8 +452,31 @@ const BookSlot = () => {
           </div>
 
           {/* Submit */}
-          <button type="submit" className="btn-primary" style={{ padding: '1rem', fontSize: '1.1rem', borderRadius: '14px' }}>
-            {t('confirmAndGenerateToken')} <ChevronRight size={20} />
+          <button
+            type="submit"
+            className="btn-primary"
+            style={{
+              width: '100%',
+              minHeight: '52px',
+              backgroundColor: '#059669',
+              background: 'linear-gradient(135deg, #059669 0%, #10B981 100%)',
+              color: '#FFFFFF',
+              border: 'none',
+              borderRadius: '14px',
+              padding: '1rem',
+              fontSize: '1.1rem',
+              fontWeight: '800',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.65rem',
+              boxShadow: '0 6px 20px rgba(16, 185, 129, 0.3)',
+              boxSizing: 'border-box',
+            }}
+          >
+            <span style={{ color: '#FFFFFF', fontWeight: '800' }}>{t('confirmAndGenerateToken')}</span>
+            <ChevronRight size={20} color="#FFFFFF" style={{ flexShrink: 0 }} />
           </button>
         </form>
       </div>

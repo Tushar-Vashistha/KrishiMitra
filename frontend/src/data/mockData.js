@@ -71,7 +71,64 @@ export const mockMandiRates = [
   { id: 11, crop: "Chana", cropHi: "चना", msp: 5440, market: 5500, unit: "₹/Qtl", change: "+60", trend: "up" },
 ];
 
-export const mockCentres = [];
+export const mockCentres = [
+  {
+    id: 1,
+    centreId: 'UP-LKO-001',
+    name: 'Bhagwanpur Procurement Centre',
+    nameHi: 'भगवानपुर मंडी कृषि खरीद केंद्र',
+    type: 'Government',
+    distance: '2.5 km',
+    address: 'Mandi Samiti, Bhagwanpur, Lucknow, UP',
+    openingTime: '07:00 AM',
+    closingTime: '08:00 PM',
+    phone: '9876500001',
+    open: true,
+    status: 'ACTIVE',
+    crops: ['Wheat', 'Paddy', 'Mustard', 'Maize']
+  },
+  {
+    id: 2,
+    centreId: 'UP-LKO-002',
+    name: 'Sitapur Road Procurement Centre',
+    nameHi: 'सीतापुर रोड नवीन फल एवं सब्जी मंडी',
+    type: 'Government',
+    distance: '5.8 km',
+    address: 'Sitapur Road, Mohibullapur, Lucknow, UP',
+    openingTime: '07:00 AM',
+    closingTime: '08:00 PM',
+    phone: '9876500002',
+    open: true,
+    status: 'ACTIVE',
+    crops: ['Wheat', 'Paddy', 'Sugarcane']
+  },
+  {
+    id: 3,
+    centreId: 'UP-LKO-003',
+    name: 'Dubagga Agri Procurement Hub',
+    nameHi: 'दुबग्गा कृषि उपज मंडी समिति',
+    type: 'Authorized Private',
+    distance: '8.2 km',
+    address: 'Dubagga Bypass, Hardoi Road, Lucknow, UP',
+    openingTime: '07:00 AM',
+    closingTime: '08:00 PM',
+    phone: '9876500003',
+    open: true,
+    status: 'ACTIVE',
+    crops: ['Wheat', 'Mustard', 'Chana', 'Soybean']
+  }
+];
+
+export const mockCrops = [
+  { id: 1, name: 'Wheat', nameHi: 'गेहूं', msp: 2275, unit: '₹/Qtl' },
+  { id: 2, name: 'Paddy', nameHi: 'धान / चावल', msp: 2183, unit: '₹/Qtl' },
+  { id: 3, name: 'Mustard', nameHi: 'सरसों', msp: 5650, unit: '₹/Qtl' },
+  { id: 4, name: 'Sugarcane', nameHi: 'गन्ना', msp: 315, unit: '₹/Qtl' },
+  { id: 5, name: 'Maize', nameHi: 'मक्का', msp: 2090, unit: '₹/Qtl' },
+  { id: 6, name: 'Chana', nameHi: 'चना', msp: 5440, unit: '₹/Qtl' },
+  { id: 7, name: 'Soybean', nameHi: 'सोयाबीन', msp: 4600, unit: '₹/Qtl' },
+  { id: 8, name: 'Groundnut', nameHi: 'मूंगफली', msp: 6377, unit: '₹/Qtl' }
+];
 
 export const mockSlots = [
   { id: "S1", code: "7-10", time: "07:00 AM - 10:00 AM", maxCapacity: 20, booked: 12, available: true, label: "Slot 1 (07:00 - 10:00 AM)" },

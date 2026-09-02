@@ -175,75 +175,142 @@ button, a, input, select, textarea { min-height: 40px; }
   }
 }
 
-/* ── Buttons ── */
-.btn-primary {
-  background: linear-gradient(135deg, #059669 0%, #10B981 100%);
-  color: white;
-  border: none;
-  border-radius: 12px;
-  padding: 0.75rem 1.8rem;
-  font-weight: 800;
-  font-size: 1rem;
-  cursor: pointer;
-  transition: transform 0.1s ease, background 0.1s ease, box-shadow 0.1s ease;
+/* ── Premium Modern Button Theme System ── */
+button, .btn {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.5rem;
-  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.3);
+  gap: 0.55rem;
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  border-radius: 14px;
+  cursor: pointer;
+  outline: none;
+  user-select: none;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+button:focus-visible, .btn:focus-visible {
+  outline: 3px solid rgba(16, 185, 129, 0.5);
+  outline-offset: 2px;
+}
+
+button:active, .btn:active {
+  transform: scale(0.975) translateY(0);
+}
+
+/* Primary Emerald Button */
+.btn-primary {
+  background: linear-gradient(135deg, #059669 0%, #10B981 100%);
+  color: #FFFFFF;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 0.8rem 1.8rem;
+  font-size: 1rem;
+  box-shadow: 0 6px 20px -3px rgba(16, 185, 129, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.25);
 }
 .btn-primary:hover {
   background: linear-gradient(135deg, #047857 0%, #059669 100%);
-  transform: translateY(-2px) scale(1.01);
-  box-shadow: 0 10px 28px rgba(16, 185, 129, 0.42);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px -4px rgba(16, 185, 129, 0.48), inset 0 1px 0 rgba(255, 255, 255, 0.35);
 }
-.btn-primary:active { transform: scale(0.97) translateY(0); }
 
+/* Tatkaal & Emergency Gold Button */
+.btn-gold, .btn-tatkaal {
+  background: linear-gradient(135deg, #B45309 0%, #D97706 45%, #F59E0B 100%);
+  color: #FFFFFF;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  padding: 1rem 2rem;
+  font-size: 1.1rem;
+  border-radius: 16px;
+  box-shadow: 0 8px 24px -4px rgba(217, 119, 6, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  position: relative;
+  overflow: hidden;
+}
+.btn-gold::after, .btn-tatkaal::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: linear-gradient(60deg, transparent 30%, rgba(255, 255, 255, 0.2) 50%, transparent 70%);
+  transform: rotate(30deg);
+  transition: transform 0.6s ease;
+  pointer-events: none;
+}
+.btn-gold:hover::after, .btn-tatkaal:hover::after {
+  transform: rotate(30deg) translate(30%, 30%);
+}
+.btn-gold:hover, .btn-tatkaal:hover {
+  background: linear-gradient(135deg, #92400E 0%, #B45309 45%, #D97706 100%);
+  transform: translateY(-3px);
+  box-shadow: 0 14px 32px -4px rgba(217, 119, 6, 0.52), inset 0 1px 0 rgba(255, 255, 255, 0.45);
+}
+
+/* Warm Amber Button */
 .btn-yellow {
-  background: linear-gradient(135deg, #F59E0B 0%, #FBBF24 100%);
-  color: #0F172A;
-  border: none;
-  border-radius: 12px;
-  padding: 0.75rem 1.8rem;
-  font-weight: 800;
+  background: linear-gradient(135deg, #D97706 0%, #F59E0B 60%, #FBBF24 100%);
+  color: #FFFFFF;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 0.8rem 1.8rem;
   font-size: 1rem;
-  cursor: pointer;
-  transition: transform 0.1s ease, background 0.1s ease, box-shadow 0.1s ease;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  box-shadow: 0 6px 20px rgba(245, 158, 11, 0.3);
+  box-shadow: 0 6px 20px -3px rgba(245, 158, 11, 0.35);
 }
 .btn-yellow:hover {
-  background: linear-gradient(135deg, #FBBF24 0%, #FCD34D 100%);
-  transform: translateY(-2px) scale(1.01);
-  box-shadow: 0 10px 28px rgba(245, 158, 11, 0.45);
+  background: linear-gradient(135deg, #B45309 0%, #D97706 60%, #F59E0B 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px -4px rgba(245, 158, 11, 0.48);
 }
-.btn-yellow:active { transform: scale(0.97) translateY(0); }
 
-.btn-outline-green {
+/* Outline Emerald Button */
+.btn-outline, .btn-outline-green {
   background: #FFFFFF;
   color: #059669;
   border: 2px solid #10B981;
-  border-radius: 12px;
-  padding: 0.7rem 1.6rem;
-  font-weight: 800;
-  font-size: 1rem;
-  cursor: pointer;
-  transition: transform 0.1s ease, background 0.1s ease, box-shadow 0.1s ease;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
+  padding: 0.75rem 1.75rem;
+  font-size: 0.98rem;
   box-shadow: 0 4px 14px rgba(16, 185, 129, 0.08);
 }
-.btn-outline-green:hover {
+.btn-outline:hover, .btn-outline-green:hover {
   background: linear-gradient(135deg, #059669 0%, #10B981 100%);
-  color: white;
+  color: #FFFFFF;
   border-color: transparent;
-  transform: translateY(-3px);
-  box-shadow: 0 10px 25px rgba(16, 185, 129, 0.3);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px rgba(16, 185, 129, 0.32);
+}
+
+/* Danger Crimson Button */
+.btn-danger, .btn-red {
+  background: linear-gradient(135deg, #DC2626 0%, #EF4444 100%);
+  color: #FFFFFF;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 0.75rem 1.6rem;
+  font-size: 0.95rem;
+  box-shadow: 0 6px 18px rgba(220, 38, 38, 0.28);
+}
+.btn-danger:hover, .btn-red:hover {
+  background: linear-gradient(135deg, #B91C1C 0%, #DC2626 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(220, 38, 38, 0.38);
+}
+
+/* Subtle Slate Button */
+.btn-subtle {
+  background: #F1F5F9;
+  color: #334155;
+  border: 1.5px solid #CBD5E1;
+  padding: 0.75rem 1.5rem;
+  font-size: 0.95rem;
+}
+.btn-subtle:hover {
+  background: #E2E8F0;
+  color: #0F172A;
+  border-color: #94A3B8;
+  transform: translateY(-2px);
 }
 
 /* ── Form Inputs ── */
