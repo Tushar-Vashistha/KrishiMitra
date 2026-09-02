@@ -57,12 +57,14 @@ const getMarketRates = async (req, res, next) => {
       let msp = latestPrice ? latestPrice.mspPrice : 0;
       let market = latestPrice ? latestPrice.marketPrice : 0;
       let change = 0;
-      let trend = 'stable';
 
       if (latestPrice && previousPrice) {
         change = latestPrice.marketPrice - previousPrice.marketPrice;
-        trend = change > 0 ? 'up' : change < 0 ? 'down' : 'stable';
+      } else if (latestPrice) {
+        change = latestPrice.marketPrice - latestPrice.mspPrice;
       }
+
+      const trend = change > 0 ? 'up' : change < 0 ? 'down' : 'stable';
 
       return {
         id: crop.id,
@@ -71,7 +73,7 @@ const getMarketRates = async (req, res, next) => {
         msp,
         market,
         unit: crop.unit,
-        change: change >= 0 ? `+${change}` : `${change}`,
+        change: change > 0 ? `+${change}` : `${change}`,
         trend,
         effectiveDate: latestPrice ? latestPrice.effectiveDate.toISOString().split('T')[0] : null,
       };

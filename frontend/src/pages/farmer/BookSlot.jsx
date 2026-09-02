@@ -297,7 +297,7 @@ const BookSlot = () => {
                         {cropIcon} {isHindi ? (crop.nameHi || crop.name) : crop.name}
                       </div>
                       <div style={{ fontSize: '0.78rem', color: '#15803D', fontWeight: 700, marginTop: '0.2rem' }}>
-                        MSP: ₹{typeof mspVal === 'number' ? mspVal.toLocaleString('en-IN') : mspVal}/Qtl
+                        {isHindi ? 'एमएसपी: ₹' : 'MSP: ₹'}{typeof mspVal === 'number' ? mspVal.toLocaleString('en-IN') : mspVal}{isHindi ? '/क्विंटल' : '/Qtl'}
                       </div>
                     </div>
                   </div>
@@ -313,7 +313,7 @@ const BookSlot = () => {
                 value={quantity}
                 onChange={(e) => setQuantity(e.target.value)}
                 className="input-field"
-                placeholder="e.g. 25"
+                placeholder={isHindi ? 'उदा. 25' : 'e.g. 25'}
                 min="1"
                 required
               />

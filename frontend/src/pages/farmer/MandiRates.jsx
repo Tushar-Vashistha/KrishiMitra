@@ -52,6 +52,41 @@ const MandiRates = () => {
     (r.crop || '').toLowerCase().includes(query.toLowerCase()) || (r.cropHi || '').includes(query)
   );
 
+  const renderTrendBadge = (rate) => {
+    let changeVal = rate.change;
+    let trendVal = rate.trend;
+
+    let parsedNum = NaN;
+    if (typeof changeVal === 'string') {
+      parsedNum = parseFloat(changeVal.replace('+', ''));
+    } else if (typeof changeVal === 'number') {
+      parsedNum = changeVal;
+    }
+
+    if (isNaN(parsedNum) || parsedNum === 0 || changeVal === '+0' || changeVal === '0') {
+      if (rate.market && rate.msp && rate.market !== rate.msp) {
+        parsedNum = rate.market - rate.msp;
+        changeVal = parsedNum > 0 ? `+${parsedNum}` : `${parsedNum}`;
+        trendVal = parsedNum > 0 ? 'up' : parsedNum < 0 ? 'down' : 'stable';
+      }
+    }
+
+    const isUp = trendVal === 'up' || parsedNum > 0;
+    const isDown = trendVal === 'down' || parsedNum < 0;
+
+    const displayStr = typeof changeVal === 'string'
+      ? changeVal
+      : (parsedNum > 0 ? `+${parsedNum}` : `${parsedNum}`);
+
+    const badgeClass = isUp ? 'badge-green' : isDown ? 'badge-red' : 'badge-gray';
+
+    return (
+      <span className={badgeClass}>
+        {isDown ? <TrendingDown size={14} /> : <TrendingUp size={14} />} {displayStr}
+      </span>
+    );
+  };
+
   if (loading) {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F8FAFC' }}>
@@ -144,12 +179,10 @@ const MandiRates = () => {
                   }} />
                   <div style={{ position: 'absolute', bottom: '0.8rem', left: '1rem', color: 'white' }}>
                     <div style={{ fontWeight: 800, fontSize: '1.1rem' }}>{isHindi ? rate.cropHi : rate.crop}</div>
-                    <div style={{ fontSize: '0.75rem', opacity: 0.85 }}>{rate.unit}</div>
+                    <div style={{ fontSize: '0.75rem', opacity: 0.85 }}>{isHindi ? '₹/क्विंटल' : rate.unit}</div>
                   </div>
                   <div style={{ position: 'absolute', top: '0.8rem', right: '0.8rem' }}>
-                    <span className={rate.trend === 'up' ? 'badge-green' : 'badge-red'}>
-                      {rate.trend === 'up' ? <TrendingUp size={14} /> : <TrendingDown size={14} />} {rate.change}
-                    </span>
+                    {renderTrendBadge(rate)}
                   </div>
                 </div>
 

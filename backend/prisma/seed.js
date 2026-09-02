@@ -212,21 +212,34 @@ async function main() {
   // Wheat msp=2275, market=2310
   // Mustard msp=5650, market=5700
   const cropPricesMap = {
-    Paddy: { msp: 2183, market: 2210 },
-    Wheat: { msp: 2275, market: 2310 },
-    Mustard: { msp: 5650, market: 5700 },
-    Sugarcane: { msp: 315, market: 340 },
-    Maize: { msp: 2090, market: 2120 },
-    Chana: { msp: 5440, market: 5500 },
-    Soybean: { msp: 4600, market: 4520 },
-    Groundnut: { msp: 6377, market: 6500 },
+    Paddy: { msp: 2183, market: 2210, prevMarket: 2183 },
+    Wheat: { msp: 2275, market: 2310, prevMarket: 2275 },
+    Mustard: { msp: 5650, market: 5700, prevMarket: 5650 },
+    Sugarcane: { msp: 315, market: 340, prevMarket: 315 },
+    Maize: { msp: 2090, market: 2120, prevMarket: 2090 },
+    Chana: { msp: 5440, market: 5500, prevMarket: 5440 },
+    Soybean: { msp: 4600, market: 4520, prevMarket: 4600 },
+    Groundnut: { msp: 6377, market: 6500, prevMarket: 6377 },
   };
 
+  const prevDate = new Date('2025-12-01');
   const effectiveDate = new Date('2026-01-01');
+
   for (const crop of crops) {
-    const priceInfo = cropPricesMap[crop.name] || { msp: 1000, market: 1100 };
+    const priceInfo = cropPricesMap[crop.name] || { msp: 1000, market: 1100, prevMarket: 1000 };
     
-    // Global price (centreId = null)
+    // Seed previous price for trend calculation
+    await prisma.cropPrice.create({
+      data: {
+        cropId: crop.id,
+        centreId: null,
+        mspPrice: priceInfo.msp,
+        marketPrice: priceInfo.prevMarket,
+        effectiveDate: prevDate,
+      },
+    }).catch(() => null);
+
+    // Seed latest price
     await prisma.cropPrice.create({
       data: {
         cropId: crop.id,
