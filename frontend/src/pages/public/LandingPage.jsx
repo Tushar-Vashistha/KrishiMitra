@@ -1,19 +1,35 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   ShieldCheck, TrendingUp, Bot, MapPin, ChevronDown, ChevronUp,
   Phone, Mail, Wheat, Clock, ArrowRight, CheckCircle,
-  Navigation, Sparkles, Award, User, UserPlus, Smartphone
+  Navigation, Sparkles, Award, User, UserPlus, Smartphone, Building
 } from 'lucide-react';
-import { mockCentres } from '../../data/mockData';
+import { centreService } from '../../services/api';
 import heroTractorImg from '../../assets/hero_tractor_field.jpg';
 
 const LandingPage = () => {
+  const navigate = useNavigate();
   const { t, i18n } = useTranslation();
   const isHindi = i18n.language === 'hi';
   const [openFaq, setOpenFaq] = useState(null);
   const [hoveredStep, setHoveredStep] = useState(null);
+  const [centres, setCentres] = useState([]);
+
+  useEffect(() => {
+    const fetchCentres = async () => {
+      try {
+        const res = await centreService.getAll();
+        if (res && res.success && Array.isArray(res.data)) {
+          setCentres(res.data);
+        }
+      } catch (err) {
+        console.error('Failed to load centres:', err);
+      }
+    };
+    fetchCentres();
+  }, []);
 
   const faqs = [
     { q: t('faq1Q'), a: t('faq1A') },
@@ -281,7 +297,10 @@ const LandingPage = () => {
                 gap: '1.15rem',
                 padding: '0.4rem 0.6rem',
                 borderRight: idx !== features.length - 1 ? '1px solid #F1F5F9' : 'none',
-              }}>
+                cursor: 'pointer',
+              }}
+              onClick={() => navigate('/login')}
+              >
                 <div style={{
                   width: '52px',
                   height: '52px',
@@ -373,52 +392,58 @@ const LandingPage = () => {
             gap: '1.75rem',
           }}>
             {/* Trust Score */}
-            <div className="card" style={{ textAlign: 'center', padding: '2.2rem 1.75rem' }}>
-              <div className="icon-wrap-green">
-                <ShieldCheck size={34} color="#059669" />
+            <Link to="/login" style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
+              <div className="card" style={{ textAlign: 'center', padding: '2.2rem 1.75rem', cursor: 'pointer', height: '100%' }}>
+                <div className="icon-wrap-green">
+                  <ShieldCheck size={34} color="#059669" />
+                </div>
+                <h3 style={{ fontWeight: 800, fontSize: '1.2rem', marginBottom: '0.6rem', color: '#047857' }}>
+                  {t('trustScore')}
+                </h3>
+                <p style={{ color: '#64748B', fontSize: '0.92rem', lineHeight: 1.65 }}>
+                  {t('trustScoreDesc')}
+                </p>
+                <div style={{ marginTop: '1.2rem' }}>
+                  <span className="badge-green">● Verified Farmers</span>
+                </div>
               </div>
-              <h3 style={{ fontWeight: 800, fontSize: '1.2rem', marginBottom: '0.6rem', color: '#047857' }}>
-                {t('trustScore')}
-              </h3>
-              <p style={{ color: '#64748B', fontSize: '0.92rem', lineHeight: 1.65 }}>
-                {t('trustScoreDesc')}
-              </p>
-              <div style={{ marginTop: '1.2rem' }}>
-                <span className="badge-green">● Verified Farmers</span>
-              </div>
-            </div>
+            </Link>
 
             {/* Daily Prices */}
-            <div className="card" style={{ textAlign: 'center', padding: '2.2rem 1.75rem' }}>
-              <div className="icon-wrap-gold">
-                <TrendingUp size={34} color="#D97706" />
+            <Link to="/login" style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
+              <div className="card" style={{ textAlign: 'center', padding: '2.2rem 1.75rem', cursor: 'pointer', height: '100%' }}>
+                <div className="icon-wrap-gold">
+                  <TrendingUp size={34} color="#D97706" />
+                </div>
+                <h3 style={{ fontWeight: 800, fontSize: '1.2rem', marginBottom: '0.6rem', color: '#047857' }}>
+                  {t('dailyPrices')}
+                </h3>
+                <p style={{ color: '#64748B', fontSize: '0.92rem', lineHeight: 1.65 }}>
+                  {t('dailyPricesDesc')}
+                </p>
+                <div style={{ marginTop: '1.2rem' }}>
+                  <span className="badge-yellow">● Live MSP Rates</span>
+                </div>
               </div>
-              <h3 style={{ fontWeight: 800, fontSize: '1.2rem', marginBottom: '0.6rem', color: '#047857' }}>
-                {t('dailyPrices')}
-              </h3>
-              <p style={{ color: '#64748B', fontSize: '0.92rem', lineHeight: 1.65 }}>
-                {t('dailyPricesDesc')}
-              </p>
-              <div style={{ marginTop: '1.2rem' }}>
-                <span className="badge-yellow">● Live MSP Rates</span>
-              </div>
-            </div>
+            </Link>
 
             {/* KrishiMitra AI */}
-            <div className="card" style={{ textAlign: 'center', padding: '2.2rem 1.75rem' }}>
-              <div className="icon-wrap-blue">
-                <Bot size={34} color="#1D4ED8" />
+            <Link to="/login" style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
+              <div className="card" style={{ textAlign: 'center', padding: '2.2rem 1.75rem', cursor: 'pointer', height: '100%' }}>
+                <div className="icon-wrap-blue">
+                  <Bot size={34} color="#1D4ED8" />
+                </div>
+                <h3 style={{ fontWeight: 800, fontSize: '1.2rem', marginBottom: '0.6rem', color: '#047857' }}>
+                  {t('krishiMitraAI')}
+                </h3>
+                <p style={{ color: '#64748B', fontSize: '0.92rem', lineHeight: 1.65 }}>
+                  {t('krishiMitraAIDesc')}
+                </p>
+                <div style={{ marginTop: '1.2rem' }}>
+                  <span className="badge-blue">● 24×7 Support</span>
+                </div>
               </div>
-              <h3 style={{ fontWeight: 800, fontSize: '1.2rem', marginBottom: '0.6rem', color: '#047857' }}>
-                {t('krishiMitraAI')}
-              </h3>
-              <p style={{ color: '#64748B', fontSize: '0.92rem', lineHeight: 1.65 }}>
-                {t('krishiMitraAIDesc')}
-              </p>
-              <div style={{ marginTop: '1.2rem' }}>
-                <span className="badge-blue">● 24×7 Support</span>
-              </div>
-            </div>
+            </Link>
           </div>
         </div>
       </section>
@@ -449,43 +474,53 @@ const LandingPage = () => {
               { step: '3', icon: '🌾', title: isHindi ? 'फसल लाएं' : 'Bring Your Crop', desc: isHindi ? 'टोकन नंबर से प्रवेश करें' : 'Enter with your token number' },
               { step: '4', icon: '💰', title: isHindi ? 'भुगतान पाएं' : 'Get Paid', desc: isHindi ? 'सीधे बैंक में MSP भुगतान' : 'MSP payment directly to your bank' },
             ].map((item, i) => (
-              <div
+              <Link
                 key={i}
-                className="card"
-                style={{
-                  textAlign: 'center',
-                  padding: '2.2rem 1.25rem',
-                  border: hoveredStep === i ? '2px solid #10B981' : '1.5px solid #E2E8F0',
-                  transform: hoveredStep === i ? 'translateY(-6px)' : 'translateY(0)',
-                  transition: 'all 0.3s ease',
-                  background: '#FFFFFF',
-                }}
-                onMouseEnter={() => setHoveredStep(i)}
-                onMouseLeave={() => setHoveredStep(null)}
+                to="/login"
+                style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}
               >
-                <div style={{
-                  width: 72, height: 72, borderRadius: '50%',
-                  background: 'linear-gradient(135deg, #ECFDF5, #A7F3D0)',
-                  border: '2px solid #6EE7B7',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  margin: '0 auto 1rem', fontSize: '2rem',
-                  position: 'relative',
-                  boxShadow: '0 6px 16px rgba(16,185,129,0.18)',
-                }}>
-                  {item.icon}
-                  <span style={{
-                    position: 'absolute', top: -8, right: -8,
-                    width: 28, height: 28,
-                    background: 'linear-gradient(135deg, #F59E0B, #FBBF24)',
-                    borderRadius: '50%', color: '#0F172A',
-                    fontSize: '0.82rem', fontWeight: 900,
+                <div
+                  className="card"
+                  style={{
+                    textAlign: 'center',
+                    padding: '2.2rem 1.25rem',
+                    border: hoveredStep === i ? '2px solid #10B981' : '1.5px solid #E2E8F0',
+                    transform: hoveredStep === i ? 'translateY(-6px)' : 'translateY(0)',
+                    boxShadow: hoveredStep === i ? '0 20px 35px -8px rgba(16, 185, 129, 0.2), 0 8px 16px -4px rgba(15, 23, 42, 0.06)' : '0 4px 20px -2px rgba(15, 23, 42, 0.04)',
+                    transition: 'all 0.35s cubic-bezier(0.4, 0, 0.2, 1)',
+                    background: '#FFFFFF',
+                    cursor: 'pointer',
+                    height: '100%',
+                  }}
+                  onMouseEnter={() => setHoveredStep(i)}
+                  onMouseLeave={() => setHoveredStep(null)}
+                >
+                  <div style={{
+                    width: 72, height: 72, borderRadius: '50%',
+                    background: 'linear-gradient(135deg, #ECFDF5, #A7F3D0)',
+                    border: '2px solid #6EE7B7',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    boxShadow: '0 3px 10px rgba(245,158,11,0.4)',
-                  }}>{item.step}</span>
+                    margin: '0 auto 1rem', fontSize: '2rem',
+                    position: 'relative',
+                    boxShadow: hoveredStep === i ? '0 10px 22px rgba(16,185,129,0.35)' : '0 6px 16px rgba(16,185,129,0.18)',
+                    transform: hoveredStep === i ? 'scale(1.1)' : 'scale(1)',
+                    transition: 'all 0.35s cubic-bezier(0.4, 0, 0.2, 1)',
+                  }}>
+                    {item.icon}
+                    <span style={{
+                      position: 'absolute', top: -8, right: -8,
+                      width: 28, height: 28,
+                      background: 'linear-gradient(135deg, #F59E0B, #FBBF24)',
+                      borderRadius: '50%', color: '#0F172A',
+                      fontSize: '0.82rem', fontWeight: 900,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      boxShadow: '0 3px 10px rgba(245,158,11,0.4)',
+                    }}>{item.step}</span>
+                  </div>
+                  <h4 style={{ fontWeight: 800, marginBottom: '0.5rem', color: '#0F172A', fontSize: '1.05rem' }}>{item.title}</h4>
+                  <p style={{ fontSize: '0.88rem', color: '#64748B', lineHeight: 1.6 }}>{item.desc}</p>
                 </div>
-                <h4 style={{ fontWeight: 800, marginBottom: '0.5rem', color: '#0F172A', fontSize: '1.05rem' }}>{item.title}</h4>
-                <p style={{ fontSize: '0.88rem', color: '#64748B', lineHeight: 1.6 }}>{item.desc}</p>
-              </div>
+              </Link>
             ))}
           </div>
         </div>
@@ -504,61 +539,75 @@ const LandingPage = () => {
             gap: '1.25rem',
             marginBottom: '2rem',
           }}>
-            {mockCentres.map(centre => (
-              <div key={centre.id} className="card" style={{ position: 'relative', padding: '1.5rem' }}>
-                <div style={{ position: 'absolute', top: '1.2rem', right: '1.2rem' }}>
-                  <span className={centre.open ? 'badge-green' : 'badge-red'}>
-                    {centre.open ? `● ${t('open')}` : `● ${t('closed')}`}
-                  </span>
-                </div>
-
-                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start', marginBottom: '0.9rem', paddingRight: '3rem' }}>
-                  <div style={{
-                    width: 46, height: 46,
-                    background: 'linear-gradient(135deg, #ECFDF5, #A7F3D0)',
-                    borderRadius: '14px',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                    boxShadow: '0 4px 12px rgba(16,185,129,0.15)',
-                  }}>
-                    <MapPin size={22} color="#059669" />
+            {centres.length > 0 ? (
+              centres.map(centre => (
+                <div key={centre.id} className="card" style={{ position: 'relative', padding: '1.5rem', cursor: 'pointer' }} onClick={() => navigate('/login')}>
+                  <div style={{ position: 'absolute', top: '1.2rem', right: '1.2rem' }}>
+                    <span className={(centre.status === 'ACTIVE' || centre.open) ? 'badge-green' : 'badge-red'}>
+                      {(centre.status === 'ACTIVE' || centre.open !== false) ? `● ${t('open')}` : `● ${t('closed')}`}
+                    </span>
                   </div>
-                  <div>
-                    <div style={{ fontWeight: 800, fontSize: '0.98rem', color: '#0F172A', lineHeight: 1.3 }}>
-                      {isHindi ? centre.nameHi : centre.name}
+
+                  <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start', marginBottom: '0.9rem', paddingRight: '3rem' }}>
+                    <div style={{
+                      width: 46, height: 46,
+                      background: 'linear-gradient(135deg, #ECFDF5, #A7F3D0)',
+                      borderRadius: '14px',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                      boxShadow: '0 4px 12px rgba(16,185,129,0.15)',
+                    }}>
+                      <MapPin size={22} color="#059669" />
                     </div>
-                    <div style={{ fontSize: '0.78rem', color: '#64748B', fontWeight: 600, marginTop: '0.1rem' }}>
-                      {isHindi ? (
-                        centre.type === 'Government' ? t('government') :
-                        centre.type === 'Cooperative' ? t('cooperative') :
-                        centre.type === 'Authorized Private' ? t('authorizedPrivate') :
-                        centre.type
-                      ) : centre.type}
+                    <div>
+                      <div style={{ fontWeight: 800, fontSize: '0.98rem', color: '#0F172A', lineHeight: 1.3 }}>
+                        {isHindi ? (centre.nameHi || centre.name) : centre.name}
+                      </div>
+                      <div style={{ fontSize: '0.78rem', color: '#64748B', fontWeight: 600, marginTop: '0.1rem' }}>
+                        {isHindi ? (
+                          centre.type === 'Government' ? t('government') :
+                          centre.type === 'Cooperative' ? t('cooperative') :
+                          centre.type === 'Authorized Private' ? t('authorizedPrivate') :
+                          centre.type
+                        ) : centre.type}
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginBottom: '0.9rem' }}>
-                  <div style={{ fontSize: '0.82rem', color: '#475569', display: 'flex', gap: '0.4rem' }}>
-                    <Navigation size={14} color="#059669" style={{ marginTop: 2, flexShrink: 0 }} />
-                    <span>{centre.distance} away • {centre.address}</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginBottom: '0.9rem' }}>
+                    <div style={{ fontSize: '0.82rem', color: '#475569', display: 'flex', gap: '0.4rem' }}>
+                      <Navigation size={14} color="#059669" style={{ marginTop: 2, flexShrink: 0 }} />
+                      <span>{centre.distance ? `${centre.distance} away • ` : ''}{centre.address}</span>
+                    </div>
+                    <div style={{ fontSize: '0.82rem', color: '#475569', display: 'flex', gap: '0.4rem' }}>
+                      <Clock size={14} color="#D97706" style={{ marginTop: 2, flexShrink: 0 }} />
+                      <span>{centre.openTime || centre.openingTime || '08:00 AM'} – {centre.closeTime || centre.closingTime || '06:00 PM'}</span>
+                    </div>
                   </div>
-                  <div style={{ fontSize: '0.82rem', color: '#475569', display: 'flex', gap: '0.4rem' }}>
-                    <Clock size={14} color="#D97706" style={{ marginTop: 2, flexShrink: 0 }} />
-                    <span>{centre.openTime} – {centre.closeTime}</span>
-                  </div>
-                </div>
 
-                <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginBottom: 0 }}>
-                  {centre.crops.map(c => (
-                    <span key={c} style={{
-                      background: '#ECFDF5', color: '#047857',
-                      border: '1px solid #A7F3D0',
-                      borderRadius: '6px', padding: '2px 8px', fontSize: '0.75rem', fontWeight: 700,
-                    }}>{c}</span>
-                  ))}
+                  {centre.crops && Array.isArray(centre.crops) && centre.crops.length > 0 && (
+                    <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginBottom: 0 }}>
+                      {centre.crops.map(c => (
+                        <span key={typeof c === 'string' ? c : c.name} style={{
+                          background: '#ECFDF5', color: '#047857',
+                          border: '1px solid #A7F3D0',
+                          borderRadius: '6px', padding: '2px 8px', fontSize: '0.75rem', fontWeight: 700,
+                        }}>{typeof c === 'string' ? c : c.name}</span>
+                      ))}
+                    </div>
+                  )}
                 </div>
+              ))
+            ) : (
+              <div className="card" style={{ textAlign: 'center', padding: '2.5rem 1.5rem', gridColumn: '1 / -1', background: '#F8FAFC', border: '1.5px dashed #CBD5E1' }}>
+                <Building size={40} color="#94A3B8" style={{ marginBottom: '0.8rem' }} />
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#334155', margin: '0 0 0.4rem' }}>
+                  {isHindi ? 'कोई पंजीकृत खरीद केंद्र उपलब्ध नहीं है' : 'No Procurement Centres Registered Yet'}
+                </h3>
+                <p style={{ color: '#64748B', fontSize: '0.9rem', margin: 0 }}>
+                  {isHindi ? 'नये पंजीकृत खरीद केंद्र स्वचालित रूप से यहां दिखाई देंगे।' : 'Newly registered procurement centres will automatically appear here.'}
+                </p>
               </div>
-            ))}
+            )}
           </div>
         </div>
       </section>

@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { mockCentres } from '../../data/mockData';
+import { centreService } from '../../services/api';
 import { MapPin, Phone, Clock, Navigation, ArrowRight, Building, Search } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -9,6 +9,21 @@ const NearestCentres = () => {
   const isHindi = i18n.language === 'hi';
   const [filter, setFilter] = useState('All');
   const [search, setSearch] = useState('');
+  const [centres, setCentres] = useState([]);
+
+  useEffect(() => {
+    const fetchCentres = async () => {
+      try {
+        const res = await centreService.getAll();
+        if (res && res.success && Array.isArray(res.data)) {
+          setCentres(res.data);
+        }
+      } catch (err) {
+        console.error('Failed to load centres:', err);
+      }
+    };
+    fetchCentres();
+  }, []);
 
   const typeColor = {
     'Government': { bg: '#DCFCE7', color: '#15803D', border: '#86EFAC' },
@@ -16,9 +31,12 @@ const NearestCentres = () => {
     'Authorized Private': { bg: '#FEF3C7', color: '#D97706', border: '#FDE68A' },
   };
 
-  const filteredCentres = mockCentres.filter(c => {
-    const matchesFilter = filter === 'All' || c.type.toLowerCase().includes(filter.toLowerCase());
-    const matchesSearch = c.name.toLowerCase().includes(search.toLowerCase()) || c.address.toLowerCase().includes(search.toLowerCase());
+  const filteredCentres = centres.filter(c => {
+    const typeStr = c.type || 'Government';
+    const nameStr = c.name || '';
+    const addressStr = c.address || '';
+    const matchesFilter = filter === 'All' || typeStr.toLowerCase().includes(filter.toLowerCase());
+    const matchesSearch = nameStr.toLowerCase().includes(search.toLowerCase()) || addressStr.toLowerCase().includes(search.toLowerCase());
     return matchesFilter && matchesSearch;
   });
 
@@ -133,85 +151,101 @@ const NearestCentres = () => {
 
         {/* Centre Cards List */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.25rem' }}>
-          {filteredCentres.map((centre) => {
-            const tc = typeColor[centre.type] || typeColor['Government'];
-            return (
-              <div key={centre.id} className="card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
-                    <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-                      <div style={{
-                        width: 44, height: 44, background: tc.bg, borderRadius: '12px',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        border: `1px solid ${tc.border}`, fontSize: '1.2rem'
-                      }}>
-                        🏢
-                      </div>
-                      <div>
-                        <div style={{ fontWeight: 800, fontSize: '1rem', color: '#1E293B', lineHeight: 1.2 }}>
-                          {isHindi ? centre.nameHi : centre.name}
+          {filteredCentres.length > 0 ? (
+            filteredCentres.map((centre) => {
+              const tc = typeColor[centre.type] || typeColor['Government'];
+              const isOpen = centre.status === 'ACTIVE' || centre.open !== false;
+              const openTime = centre.openTime || centre.openingTime || '08:00 AM';
+              const closeTime = centre.closeTime || centre.closingTime || '06:00 PM';
+              const cropsList = Array.isArray(centre.crops) ? centre.crops : [];
+              return (
+                <div key={centre.id} className="card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
+                      <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                        <div style={{
+                          width: 44, height: 44, background: tc.bg, borderRadius: '12px',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          border: `1px solid ${tc.border}`, fontSize: '1.2rem'
+                        }}>
+                          🏢
                         </div>
-                        <span style={{ fontSize: '0.72rem', background: tc.bg, color: tc.color, fontWeight: 700, padding: '2px 8px', borderRadius: '4px', marginTop: '0.2rem', display: 'inline-block' }}>
-                          {isHindi ? (
-                            centre.type === 'Government' ? t('government') :
-                            centre.type === 'Cooperative' ? t('cooperative') :
-                            centre.type === 'Authorized Private' ? t('authorizedPrivate') :
-                            centre.type
-                          ) : centre.type}
-                        </span>
+                        <div>
+                          <div style={{ fontWeight: 800, fontSize: '1rem', color: '#1E293B', lineHeight: 1.2 }}>
+                            {isHindi ? (centre.nameHi || centre.name) : centre.name}
+                          </div>
+                          <span style={{ fontSize: '0.72rem', background: tc.bg, color: tc.color, fontWeight: 700, padding: '2px 8px', borderRadius: '4px', marginTop: '0.2rem', display: 'inline-block' }}>
+                            {isHindi ? (
+                              centre.type === 'Government' ? t('government') :
+                              centre.type === 'Cooperative' ? t('cooperative') :
+                              centre.type === 'Authorized Private' ? t('authorizedPrivate') :
+                              centre.type
+                            ) : centre.type}
+                          </span>
+                        </div>
                       </div>
-                    </div>
 
-                    <span className={centre.open ? 'badge-green' : 'badge-red'}>
-                      {centre.open ? '● Open' : '● Closed'}
-                    </span>
-                  </div>
-
-                  <div style={{ fontSize: '0.85rem', color: '#475569', display: 'flex', flexDirection: 'column', gap: '0.35rem', margin: '1rem 0' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <MapPin size={14} color="#15803D" /> {centre.address} ({centre.distance})
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <Clock size={14} color="#D97706" /> {centre.openTime} – {centre.closeTime}
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <Phone size={14} color="#1D4ED8" /> {centre.phone}
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '1.25rem' }}>
-                    {centre.crops.map(c => (
-                      <span key={c} style={{ background: '#F0FDF4', color: '#15803D', border: '1px solid #A7F3D0', borderRadius: '6px', padding: '2px 8px', fontSize: '0.75rem', fontWeight: 700 }}>
-                        {c}
+                      <span className={isOpen ? 'badge-green' : 'badge-red'}>
+                        {isOpen ? '● Open' : '● Closed'}
                       </span>
-                    ))}
+                    </div>
+
+                    <div style={{ fontSize: '0.85rem', color: '#475569', display: 'flex', flexDirection: 'column', gap: '0.35rem', margin: '1rem 0' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <MapPin size={14} color="#15803D" /> {centre.address} {centre.distance ? `(${centre.distance})` : ''}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <Clock size={14} color="#D97706" /> {openTime} – {closeTime}
+                      </div>
+                      {centre.phone && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <Phone size={14} color="#1D4ED8" /> {centre.phone}
+                        </div>
+                      )}
+                    </div>
+
+                    {cropsList.length > 0 && (
+                      <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '1.25rem' }}>
+                        {cropsList.map(c => (
+                          <span key={typeof c === 'string' ? c : c.name} style={{ background: '#F0FDF4', color: '#15803D', border: '1px solid #A7F3D0', borderRadius: '6px', padding: '2px 8px', fontSize: '0.75rem', fontWeight: 700 }}>
+                            {typeof c === 'string' ? c : c.name}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                </div>
 
-                <div style={{ display: 'flex', gap: '0.75rem' }}>
-                  <a
-                    href={`https://maps.google.com/?q=${centre.lat},${centre.lng}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="btn-outline"
-                    style={{ flex: 1, padding: '0.55rem', fontSize: '0.85rem' }}
-                  >
-                    <Navigation size={14} /> Map
-                  </a>
+                  <div style={{ display: 'flex', gap: '0.75rem' }}>
+                    {centre.lat && centre.lng ? (
+                      <a
+                        href={`https://maps.google.com/?q=${centre.lat},${centre.lng}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn-outline"
+                        style={{ flex: 1, padding: '0.55rem', fontSize: '0.85rem' }}
+                      >
+                        <Navigation size={14} /> Map
+                      </a>
+                    ) : null}
 
-                  {centre.open && centre.slotsAvailable > 0 ? (
                     <Link to="/farmer/book-slot" className="btn-primary" style={{ flex: 1, padding: '0.55rem', fontSize: '0.85rem' }}>
                       Book Slot <ArrowRight size={14} />
                     </Link>
-                  ) : (
-                    <div style={{ flex: 1, background: '#F1F5F9', color: '#94A3B8', borderRadius: '12px', padding: '0.55rem', textAlign: 'center', fontSize: '0.85rem', fontWeight: 700 }}>
-                      Full
-                    </div>
-                  )}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })
+          ) : (
+            <div className="card" style={{ textAlign: 'center', padding: '3rem 1.5rem', gridColumn: '1 / -1', background: '#F8FAFC', border: '1.5px dashed #CBD5E1' }}>
+              <Building size={48} color="#94A3B8" style={{ marginBottom: '1rem' }} />
+              <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: '#334155', marginBottom: '0.5rem' }}>
+                {isHindi ? 'कोई खरीद केंद्र नहीं मिला' : 'No Procurement Centres Found'}
+              </h3>
+              <p style={{ color: '#64748B', fontSize: '0.92rem' }}>
+                {isHindi ? 'वर्तमान में कोई खरीद केंद्र उपलब्ध नहीं है।' : 'There are currently no procurement centres available.'}
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </div>

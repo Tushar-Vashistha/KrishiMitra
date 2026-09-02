@@ -75,44 +75,7 @@ async function main() {
   const activeSeason = season || await prisma.procurementSeason.findFirst({ where: { active: true } });
 
   // 5. Seed Procurement Centres
-  const centresData = [
-    {
-      centreId: 'UP-LKO-001',
-      name: 'Bhagwanpur Govt. Procurement Centre',
-      nameHi: 'भगवानपुर सरकारी खरीद केंद्र',
-      type: 'Government',
-      address: 'NH-27, Bhagwanpur, Lucknow',
-      lat: 26.8467,
-      lng: 80.9462,
-      openingTime: '08:00 AM',
-      closingTime: '06:00 PM',
-      phone: '0522-2200001',
-    },
-    {
-      centreId: 'UP-LKO-002',
-      name: 'Mohanlalganj Cooperative Centre',
-      nameHi: 'मोहनलालगंज सहकारी केंद्र',
-      type: 'Cooperative',
-      address: 'Mohanlalganj Road, Lucknow',
-      lat: 26.7427,
-      lng: 80.8989,
-      openingTime: '09:00 AM',
-      closingTime: '05:00 PM',
-      phone: '0522-2200002',
-    },
-    {
-      centreId: 'UP-LKO-003',
-      name: 'Malihabad PACS Centre',
-      nameHi: 'मलिहाबाद PACS केंद्र',
-      type: 'Government',
-      address: 'Malihabad, Lucknow',
-      lat: 26.9151,
-      lng: 80.7264,
-      openingTime: '08:00 AM',
-      closingTime: '05:00 PM',
-      phone: '0522-2200003',
-    },
-  ];
+  const centresData = [];
 
   const centres = [];
   for (const c of centresData) {
@@ -183,16 +146,18 @@ async function main() {
       },
     }).catch(() => null);
 
-    // Centre-specific price (for Bhagwanpur centre UP-LKO-001)
-    await prisma.cropPrice.create({
-      data: {
-        cropId: crop.id,
-        centreId: centres[0].id,
-        mspPrice: priceInfo.msp,
-        marketPrice: priceInfo.market,
-        effectiveDate,
-      },
-    }).catch(() => null);
+    // Centre-specific price
+    if (centres.length > 0) {
+      await prisma.cropPrice.create({
+        data: {
+          cropId: crop.id,
+          centreId: centres[0].id,
+          mspPrice: priceInfo.msp,
+          marketPrice: priceInfo.market,
+          effectiveDate,
+        },
+      }).catch(() => null);
+    }
   }
 
   // 7. Seed Admin User

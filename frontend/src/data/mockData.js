@@ -71,72 +71,7 @@ export const mockMandiRates = [
   { id: 11, crop: "Chana", cropHi: "चना", msp: 5440, market: 5500, unit: "₹/Qtl", change: "+60", trend: "up" },
 ];
 
-export const mockCentres = [
-  {
-    id: 1,
-    name: "Bhagwanpur Govt. Procurement Centre",
-    nameHi: "भगवानपुर सरकारी खरीद केंद्र",
-    type: "Government",
-    distance: "2.3 km",
-    open: true,
-    openTime: "08:00 AM",
-    closeTime: "06:00 PM",
-    slotsAvailable: 8,
-    address: "NH-27, Bhagwanpur, Lucknow",
-    lat: 26.8467,
-    lng: 80.9462,
-    crops: ["Wheat", "Paddy", "Maize"],
-    phone: "0522-XXXXXXX",
-  },
-  {
-    id: 2,
-    name: "Mohanlalganj Cooperative Centre",
-    nameHi: "मोहनलालगंज सहकारी केंद्र",
-    type: "Cooperative",
-    distance: "5.1 km",
-    open: true,
-    openTime: "09:00 AM",
-    closeTime: "05:00 PM",
-    slotsAvailable: 3,
-    address: "Mohanlalganj Road, Lucknow",
-    lat: 26.7427,
-    lng: 80.8989,
-    crops: ["Wheat", "Mustard"],
-    phone: "0522-XXXXXXX",
-  },
-  {
-    id: 3,
-    name: "Malihabad PACS Centre",
-    nameHi: "मलिहाबाद PACS केंद्र",
-    type: "Government",
-    distance: "8.7 km",
-    open: false,
-    openTime: "08:00 AM",
-    closeTime: "05:00 PM",
-    slotsAvailable: 0,
-    address: "Malihabad, Lucknow",
-    lat: 26.9151,
-    lng: 80.7264,
-    crops: ["Wheat", "Paddy", "Maize", "Mustard"],
-    phone: "0522-XXXXXXX",
-  },
-  {
-    id: 4,
-    name: "Kakori Private Authorized Centre",
-    nameHi: "ककोरी अधिकृत निजी केंद्र",
-    type: "Authorized Private",
-    distance: "11.2 km",
-    open: true,
-    openTime: "07:00 AM",
-    closeTime: "07:00 PM",
-    slotsAvailable: 12,
-    address: "Kakori Market, Lucknow",
-    lat: 26.8784,
-    lng: 80.7543,
-    crops: ["Wheat", "Soybean", "Gram"],
-    phone: "0522-XXXXXXX",
-  },
-];
+export const mockCentres = [];
 
 export const mockSlots = [
   { id: "S1", code: "7-10", time: "07:00 AM - 10:00 AM", maxCapacity: 20, booked: 12, available: true, label: "Slot 1 (07:00 - 10:00 AM)" },
@@ -496,10 +431,10 @@ export const mockBookings = {
 };
 
 export const mockPaymentHistory = [
-  { id: "PAY-001", date: "2024-11-10", crop: "Wheat", weight: 20, amount: 45500, status: "Paid", centre: "Bhagwanpur Centre" },
-  { id: "PAY-002", date: "2024-10-25", crop: "Paddy", weight: 35, amount: 76405, status: "Paid", centre: "Mohanlalganj Centre" },
-  { id: "PAY-003", date: "2024-10-05", crop: "Mustard", weight: 15, amount: 84750, status: "Paid", centre: "Bhagwanpur Centre" },
-  { id: "PAY-004", date: "2024-09-20", crop: "Maize", weight: 10, amount: 20900, status: "Paid", centre: "Kakori Centre" },
+  { id: "PAY-001", date: "2024-11-10", crop: "Wheat", weight: 20, amount: 45500, status: "Paid", centre: "Govt. Procurement Centre" },
+  { id: "PAY-002", date: "2024-10-25", crop: "Paddy", weight: 35, amount: 76405, status: "Paid", centre: "Cooperative Centre" },
+  { id: "PAY-003", date: "2024-10-05", crop: "Mustard", weight: 15, amount: 84750, status: "Paid", centre: "Govt. Procurement Centre" },
+  { id: "PAY-004", date: "2024-09-20", crop: "Maize", weight: 10, amount: 20900, status: "Paid", centre: "PACS Procurement Centre" },
 ];
 
 export const mockCounters = [
@@ -514,7 +449,7 @@ export const chatbotResponses = {
   "book": "You can book a slot by going to your Farmer Dashboard → Book Slot. Each slot is 1 hour long. | आप किसान डैशबोर्ड → स्लॉट बुक करें पर जाकर स्लॉट बुक कर सकते हैं।",
   "payment": "Your payment is processed after crop verification at the centre. It reaches your bank within 2-3 days. | केंद्र पर फसल सत्यापन के बाद 2-3 दिनों में आपके बैंक में भुगतान आता है।",
   "mandi": "Today's Wheat MSP is ₹2,275/Quintal, Paddy is ₹2,183/Quintal. Check full rates on Mandi Rates page. | आज गेहूं MSP ₹2,275/क्विंटल, धान ₹2,183/क्विंटल है।",
-  "wait": "Current average waiting time at Bhagwanpur Centre is 35 minutes. | भगवानपुर केंद्र पर वर्तमान औसत प्रतीक्षा समय 35 मिनट है।",
+  "wait": "Current average waiting time at the Procurement Centre is 35 minutes. | खरीद केंद्र पर वर्तमान औसत प्रतीक्षा समय 35 मिनट है।",
   "cancel": "You can cancel your slot prior to the day of booking, but cancellations are not allowed on the day of the booking. Go to Track Slot → Cancel. | आप बुकिंग के दिन से पहले अपना स्लॉट रद्द कर सकते हैं, लेकिन बुकिंग वाले दिन रद्दीकरण की अनुमति नहीं है।",
   "tatkaal": "Tatkaal Booking is priority/emergency booking with a small fee of ₹50. Available on the Tatkaal page. | तत्काल बुकिंग ₹50 अतिरिक्त शुल्क के साथ प्राथमिकता बुकिंग है।",
   "credit": "Your Credit / Trust Score starts at 100 points. How it works: 1) On-time Arrival: +10 pts bonus. 2) Absenteeism: -25 pts penalty. 3) Blacklist Policy: Score ≤ 25 blocks normal bookings (only the last slot of the day is allowed, max 2 blacklisted farmers/day). | आपका क्रेडिट / विश्वास स्कोर 100 से शुरू होता है। नियम: 1) समय पर उपस्थिति: +10 अंक। 2) अनुपस्थिति: -25 अंक। 3) ब्लैकलिस्ट नीति: स्कोर 25 या कम होने पर सामान्य बुकिंग बंद (केवल दिन का अंतिम स्लॉट, अधिकतम 2 किसान/दिन)।",
@@ -525,10 +460,10 @@ export const chatbotResponses = {
 };
 
 export const mockPayments = [
-  { id: "PAY-001", txnId: "TXN-2024-8841", date: "2024-11-10", crop: "Wheat", quantity: "20 Qtl", amount: 45500, status: "Paid", centre: "Bhagwanpur Centre" },
-  { id: "PAY-002", txnId: "TXN-2024-7129", date: "2024-10-25", crop: "Paddy", quantity: "35 Qtl", amount: 76405, status: "Paid", centre: "Mohanlalganj Centre" },
-  { id: "PAY-003", txnId: "TXN-2024-5402", date: "2024-10-05", crop: "Mustard", quantity: "15 Qtl", amount: 84750, status: "Paid", centre: "Bhagwanpur Centre" },
-  { id: "PAY-004", txnId: "TXN-2024-3119", date: "2024-09-20", crop: "Maize", quantity: "10 Qtl", amount: 20900, status: "Paid", centre: "Kakori Centre" },
+  { id: "PAY-001", txnId: "TXN-2024-8841", date: "2024-11-10", crop: "Wheat", quantity: "20 Qtl", amount: 45500, status: "Paid", centre: "Govt. Procurement Centre" },
+  { id: "PAY-002", txnId: "TXN-2024-7129", date: "2024-10-25", crop: "Paddy", quantity: "35 Qtl", amount: 76405, status: "Paid", centre: "Cooperative Centre" },
+  { id: "PAY-003", txnId: "TXN-2024-5402", date: "2024-10-05", crop: "Mustard", quantity: "15 Qtl", amount: 84750, status: "Paid", centre: "Govt. Procurement Centre" },
+  { id: "PAY-004", txnId: "TXN-2024-3119", date: "2024-09-20", crop: "Maize", quantity: "10 Qtl", amount: 20900, status: "Paid", centre: "PACS Procurement Centre" },
 ];
 
 export const mockCancelledSlots = [

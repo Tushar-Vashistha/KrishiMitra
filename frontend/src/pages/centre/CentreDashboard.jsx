@@ -555,7 +555,7 @@ const CentreDashboard = () => {
                   </span>
                 </div>
                 <h1 style={{ fontSize: "1.75rem", fontWeight: 900, margin: "0.35rem 0 0.15rem", letterSpacing: "-0.02em", lineHeight: 1.2 }}>
-                  {user?.name || (isHindi ? "भगवानपुर सरकारी खरीद केंद्र" : "Bhagwanpur Govt. Procurement Centre")}
+                  {user?.name || (isHindi ? "सरकारी कृषि खरीद केंद्र" : "Govt. Procurement Centre")}
                 </h1>
                 <div style={{ fontSize: "0.85rem", opacity: 0.9, display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
                   <span>📍 {user?.district || "Lucknow"}, {user?.state || "Uttar Pradesh"}</span>
@@ -1440,7 +1440,7 @@ const CentreDashboard = () => {
                       fontSize: "0.75rem",
                       fontWeight: 800
                     }}>
-                      📍 {activeBooking.village || "Bhagwanpur"}, Lucknow
+                      📍 {activeBooking.village || "Centre Location"}, Lucknow
                     </span>
                     <span style={{
                       background: "rgba(0, 0, 0, 0.25)",
