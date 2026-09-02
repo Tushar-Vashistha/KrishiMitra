@@ -141,7 +141,7 @@ const FarmerRegister = () => {
         }
       }
       setSubmitted(true);
-      navigate('/farmer/dashboard');
+      navigate('/farmer/dashboard', { replace: true });
     } catch (err) {
       setErrorMsg(err.message || 'Registration failed. Please check details.');
     } finally {

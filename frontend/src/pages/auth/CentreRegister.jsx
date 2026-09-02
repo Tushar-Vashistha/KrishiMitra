@@ -417,7 +417,7 @@ const CentreRegister = () => {
             {/* CTA Buttons */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               <button
-                onClick={() => navigate('/centre/dashboard')}
+                onClick={() => navigate('/centre/dashboard', { replace: true })}
                 className="btn-primary"
                 style={{
                   background: 'linear-gradient(135deg, #047857 0%, #059669 100%)',

@@ -62,6 +62,15 @@ const PageLoader = () => (
 );
 
 // Protected route components
+const GuestRoute = ({ children }) => {
+  const { user } = useAuth();
+  if (user) {
+    const targetPath = user.role === 'farmer' ? '/farmer/dashboard' : '/centre/dashboard';
+    return <Navigate to={targetPath} replace />;
+  }
+  return children;
+};
+
 const FarmerRoute = ({ children }) => {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
@@ -77,21 +86,42 @@ const CentreRoute = ({ children }) => {
 };
 
 const App = () => {
+  React.useEffect(() => {
+    const handleAuthRedirect = () => {
+      const savedUser = localStorage.getItem('krishimitra_user');
+      const guestPaths = ['/', '/login', '/register', '/register/farmer', '/register/centre'];
+      if (savedUser && guestPaths.includes(window.location.pathname)) {
+        try {
+          const parsed = JSON.parse(savedUser);
+          const target = parsed.role === 'farmer' ? '/farmer/dashboard' : '/centre/dashboard';
+          window.location.replace(target);
+        } catch (e) {}
+      }
+    };
+
+    window.addEventListener('popstate', handleAuthRedirect);
+    window.addEventListener('pageshow', handleAuthRedirect);
+    return () => {
+      window.removeEventListener('popstate', handleAuthRedirect);
+      window.removeEventListener('pageshow', handleAuthRedirect);
+    };
+  }, []);
+
   return (
     <BrowserRouter>
       <Header />
       <main>
         <Suspense fallback={<PageLoader />}>
           <Routes>
-            {/* Public */}
-            <Route path="/" element={<LandingPage />} />
+            {/* Public / Guest */}
+            <Route path="/" element={<GuestRoute><LandingPage /></GuestRoute>} />
             <Route path="/nearest-centres" element={<NearestCentres />} />
 
-            {/* Auth */}
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/register" element={<RegisterSelection />} />
-            <Route path="/register/farmer" element={<FarmerRegister />} />
-            <Route path="/register/centre" element={<CentreRegister />} />
+            {/* Auth (Guest only) */}
+            <Route path="/login" element={<GuestRoute><LoginPage /></GuestRoute>} />
+            <Route path="/register" element={<GuestRoute><RegisterSelection /></GuestRoute>} />
+            <Route path="/register/farmer" element={<GuestRoute><FarmerRegister /></GuestRoute>} />
+            <Route path="/register/centre" element={<GuestRoute><CentreRegister /></GuestRoute>} />
 
             {/* Farmer (protected) */}
             <Route path="/farmer/dashboard" element={<FarmerRoute><FarmerDashboard /></FarmerRoute>} />

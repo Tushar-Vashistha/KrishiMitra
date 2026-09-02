@@ -92,7 +92,7 @@ const Header = () => {
         gap: '1rem',
       }}>
         {/* Logo + Name */}
-        <Link to="/" style={{
+        <Link to={user ? dashboardPath : "/"} style={{
           display: 'flex', alignItems: 'center', gap: '0.75rem',
           textDecoration: 'none', color: '#0F172A', flexShrink: 0,
           transition: 'transform 0.2s ease',

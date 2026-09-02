@@ -69,7 +69,7 @@ const LoginPage = () => {
       farmerId: demoMobile,
       role: targetRole,
     });
-    navigate(targetRole === 'farmer' ? '/farmer/dashboard' : '/centre/dashboard');
+    navigate(targetRole === 'farmer' ? '/farmer/dashboard' : '/centre/dashboard', { replace: true });
     authService.login(demoMobile, 'password123').catch(() => {});
   };
 
@@ -88,7 +88,7 @@ const LoginPage = () => {
       farmerId: cleanMobile,
       role: targetRole,
     });
-    navigate(targetRole === 'farmer' ? '/farmer/dashboard' : '/centre/dashboard');
+    navigate(targetRole === 'farmer' ? '/farmer/dashboard' : '/centre/dashboard', { replace: true });
     authService.verifyOTP(cleanMobile, code).then(() => {
       authService.login(cleanMobile, 'password123').catch(() => {});
     }).catch(() => {});

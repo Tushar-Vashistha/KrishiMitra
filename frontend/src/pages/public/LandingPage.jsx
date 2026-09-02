@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, Navigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { useAuth } from '../../hooks/useAuth';
 import {
   ShieldCheck, TrendingUp, Bot, MapPin, ChevronDown, ChevronUp,
   Phone, Mail, Wheat, Clock, ArrowRight, CheckCircle,
@@ -11,7 +12,13 @@ import heroTractorImg from '../../assets/hero_tractor_field.jpg';
 
 const LandingPage = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { t, i18n } = useTranslation();
+
+  if (user) {
+    const targetPath = user.role === 'farmer' ? '/farmer/dashboard' : '/centre/dashboard';
+    return <Navigate to={targetPath} replace />;
+  }
   const isHindi = i18n.language === 'hi';
   const [openFaq, setOpenFaq] = useState(null);
   const [hoveredStep, setHoveredStep] = useState(null);
