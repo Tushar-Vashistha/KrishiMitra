@@ -392,58 +392,82 @@ const LandingPage = () => {
             gap: '1.75rem',
           }}>
             {/* Trust Score */}
-            <Link to="/login" style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
-              <div className="card" style={{ textAlign: 'center', padding: '2.2rem 1.75rem', cursor: 'pointer', height: '100%' }}>
-                <div className="icon-wrap-green">
-                  <ShieldCheck size={34} color="#059669" />
-                </div>
-                <h3 style={{ fontWeight: 800, fontSize: '1.2rem', marginBottom: '0.6rem', color: '#047857' }}>
-                  {t('trustScore')}
-                </h3>
-                <p style={{ color: '#64748B', fontSize: '0.92rem', lineHeight: 1.65 }}>
-                  {t('trustScoreDesc')}
-                </p>
-                <div style={{ marginTop: '1.2rem' }}>
-                  <span className="badge-green">● Verified Farmers</span>
-                </div>
+            <button
+              type="button"
+              className="card"
+              onClick={() => navigate('/login')}
+              style={{
+                width: '100%', height: '100%', textAlign: 'center', padding: '2.2rem 1.75rem',
+                cursor: 'pointer', background: '#FFFFFF', border: '1.5px solid #E2E8F0',
+                borderRadius: '16px', fontFamily: 'inherit', outline: 'none',
+                display: 'flex', flexDirection: 'column', alignItems: 'center'
+              }}
+            >
+              <div className="icon-wrap-green">
+                <ShieldCheck size={34} color="#059669" />
               </div>
-            </Link>
+              <h3 style={{ fontWeight: 800, fontSize: '1.2rem', marginBottom: '0.6rem', color: '#047857' }}>
+                {t('trustScore')}
+              </h3>
+              <p style={{ color: '#64748B', fontSize: '0.92rem', lineHeight: 1.65, margin: 0 }}>
+                {t('trustScoreDesc')}
+              </p>
+              <div style={{ marginTop: '1.2rem' }}>
+                <span className="badge-green">● Verified Farmers</span>
+              </div>
+            </button>
 
             {/* Daily Prices */}
-            <Link to="/login" style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
-              <div className="card" style={{ textAlign: 'center', padding: '2.2rem 1.75rem', cursor: 'pointer', height: '100%' }}>
-                <div className="icon-wrap-gold">
-                  <TrendingUp size={34} color="#D97706" />
-                </div>
-                <h3 style={{ fontWeight: 800, fontSize: '1.2rem', marginBottom: '0.6rem', color: '#047857' }}>
-                  {t('dailyPrices')}
-                </h3>
-                <p style={{ color: '#64748B', fontSize: '0.92rem', lineHeight: 1.65 }}>
-                  {t('dailyPricesDesc')}
-                </p>
-                <div style={{ marginTop: '1.2rem' }}>
-                  <span className="badge-yellow">● Live MSP Rates</span>
-                </div>
+            <button
+              type="button"
+              className="card"
+              onClick={() => navigate('/login')}
+              style={{
+                width: '100%', height: '100%', textAlign: 'center', padding: '2.2rem 1.75rem',
+                cursor: 'pointer', background: '#FFFFFF', border: '1.5px solid #E2E8F0',
+                borderRadius: '16px', fontFamily: 'inherit', outline: 'none',
+                display: 'flex', flexDirection: 'column', alignItems: 'center'
+              }}
+            >
+              <div className="icon-wrap-gold">
+                <TrendingUp size={34} color="#D97706" />
               </div>
-            </Link>
+              <h3 style={{ fontWeight: 800, fontSize: '1.2rem', marginBottom: '0.6rem', color: '#047857' }}>
+                {t('dailyPrices')}
+              </h3>
+              <p style={{ color: '#64748B', fontSize: '0.92rem', lineHeight: 1.65, margin: 0 }}>
+                {t('dailyPricesDesc')}
+              </p>
+              <div style={{ marginTop: '1.2rem' }}>
+                <span className="badge-yellow">● Live MSP Rates</span>
+              </div>
+            </button>
 
             {/* KrishiMitra AI */}
-            <Link to="/login" style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
-              <div className="card" style={{ textAlign: 'center', padding: '2.2rem 1.75rem', cursor: 'pointer', height: '100%' }}>
-                <div className="icon-wrap-blue">
-                  <Bot size={34} color="#1D4ED8" />
-                </div>
-                <h3 style={{ fontWeight: 800, fontSize: '1.2rem', marginBottom: '0.6rem', color: '#047857' }}>
-                  {t('krishiMitraAI')}
-                </h3>
-                <p style={{ color: '#64748B', fontSize: '0.92rem', lineHeight: 1.65 }}>
-                  {t('krishiMitraAIDesc')}
-                </p>
-                <div style={{ marginTop: '1.2rem' }}>
-                  <span className="badge-blue">● 24×7 Support</span>
-                </div>
+            <button
+              type="button"
+              className="card"
+              onClick={() => navigate('/login')}
+              style={{
+                width: '100%', height: '100%', textAlign: 'center', padding: '2.2rem 1.75rem',
+                cursor: 'pointer', background: '#FFFFFF', border: '1.5px solid #E2E8F0',
+                borderRadius: '16px', fontFamily: 'inherit', outline: 'none',
+                display: 'flex', flexDirection: 'column', alignItems: 'center'
+              }}
+            >
+              <div className="icon-wrap-blue">
+                <Bot size={34} color="#1D4ED8" />
               </div>
-            </Link>
+              <h3 style={{ fontWeight: 800, fontSize: '1.2rem', marginBottom: '0.6rem', color: '#047857' }}>
+                {t('krishiMitraAI')}
+              </h3>
+              <p style={{ color: '#64748B', fontSize: '0.92rem', lineHeight: 1.65, margin: 0 }}>
+                {t('krishiMitraAIDesc')}
+              </p>
+              <div style={{ marginTop: '1.2rem' }}>
+                <span className="badge-blue">● 24×7 Support</span>
+              </div>
+            </button>
           </div>
         </div>
       </section>
@@ -474,53 +498,56 @@ const LandingPage = () => {
               { step: '3', icon: '🌾', title: isHindi ? 'फसल लाएं' : 'Bring Your Crop', desc: isHindi ? 'टोकन नंबर से प्रवेश करें' : 'Enter with your token number' },
               { step: '4', icon: '💰', title: isHindi ? 'भुगतान पाएं' : 'Get Paid', desc: isHindi ? 'सीधे बैंक में MSP भुगतान' : 'MSP payment directly to your bank' },
             ].map((item, i) => (
-              <Link
+              <button
                 key={i}
-                to="/login"
-                style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}
+                type="button"
+                className="card"
+                onClick={() => navigate('/login')}
+                onMouseEnter={() => setHoveredStep(i)}
+                onMouseLeave={() => setHoveredStep(null)}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  textAlign: 'center',
+                  padding: '2.2rem 1.25rem',
+                  border: hoveredStep === i ? '2px solid #10B981' : '1.5px solid #E2E8F0',
+                  transform: hoveredStep === i ? 'translateY(-6px)' : 'translateY(0)',
+                  boxShadow: hoveredStep === i ? '0 20px 35px -8px rgba(16, 185, 129, 0.2), 0 8px 16px -4px rgba(15, 23, 42, 0.06)' : '0 4px 20px -2px rgba(15, 23, 42, 0.04)',
+                  transition: 'all 0.35s cubic-bezier(0.4, 0, 0.2, 1)',
+                  background: '#FFFFFF',
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  outline: 'none',
+                }}
               >
-                <div
-                  className="card"
-                  style={{
-                    textAlign: 'center',
-                    padding: '2.2rem 1.25rem',
-                    border: hoveredStep === i ? '2px solid #10B981' : '1.5px solid #E2E8F0',
-                    transform: hoveredStep === i ? 'translateY(-6px)' : 'translateY(0)',
-                    boxShadow: hoveredStep === i ? '0 20px 35px -8px rgba(16, 185, 129, 0.2), 0 8px 16px -4px rgba(15, 23, 42, 0.06)' : '0 4px 20px -2px rgba(15, 23, 42, 0.04)',
-                    transition: 'all 0.35s cubic-bezier(0.4, 0, 0.2, 1)',
-                    background: '#FFFFFF',
-                    cursor: 'pointer',
-                    height: '100%',
-                  }}
-                  onMouseEnter={() => setHoveredStep(i)}
-                  onMouseLeave={() => setHoveredStep(null)}
-                >
-                  <div style={{
-                    width: 72, height: 72, borderRadius: '50%',
-                    background: 'linear-gradient(135deg, #ECFDF5, #A7F3D0)',
-                    border: '2px solid #6EE7B7',
+                <div style={{
+                  width: 72, height: 72, borderRadius: '50%',
+                  background: 'linear-gradient(135deg, #ECFDF5, #A7F3D0)',
+                  border: '2px solid #6EE7B7',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  margin: '0 auto 1rem', fontSize: '2rem',
+                  position: 'relative',
+                  boxShadow: hoveredStep === i ? '0 10px 22px rgba(16,185,129,0.35)' : '0 6px 16px rgba(16,185,129,0.18)',
+                  transform: hoveredStep === i ? 'scale(1.1)' : 'scale(1)',
+                  transition: 'all 0.35s cubic-bezier(0.4, 0, 0.2, 1)',
+                }}>
+                  {item.icon}
+                  <span style={{
+                    position: 'absolute', top: -8, right: -8,
+                    width: 28, height: 28,
+                    background: 'linear-gradient(135deg, #F59E0B, #FBBF24)',
+                    borderRadius: '50%', color: '#0F172A',
+                    fontSize: '0.82rem', fontWeight: 900,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    margin: '0 auto 1rem', fontSize: '2rem',
-                    position: 'relative',
-                    boxShadow: hoveredStep === i ? '0 10px 22px rgba(16,185,129,0.35)' : '0 6px 16px rgba(16,185,129,0.18)',
-                    transform: hoveredStep === i ? 'scale(1.1)' : 'scale(1)',
-                    transition: 'all 0.35s cubic-bezier(0.4, 0, 0.2, 1)',
-                  }}>
-                    {item.icon}
-                    <span style={{
-                      position: 'absolute', top: -8, right: -8,
-                      width: 28, height: 28,
-                      background: 'linear-gradient(135deg, #F59E0B, #FBBF24)',
-                      borderRadius: '50%', color: '#0F172A',
-                      fontSize: '0.82rem', fontWeight: 900,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      boxShadow: '0 3px 10px rgba(245,158,11,0.4)',
-                    }}>{item.step}</span>
-                  </div>
-                  <h4 style={{ fontWeight: 800, marginBottom: '0.5rem', color: '#0F172A', fontSize: '1.05rem' }}>{item.title}</h4>
-                  <p style={{ fontSize: '0.88rem', color: '#64748B', lineHeight: 1.6 }}>{item.desc}</p>
+                    boxShadow: '0 3px 10px rgba(245,158,11,0.4)',
+                  }}>{item.step}</span>
                 </div>
-              </Link>
+                <h4 style={{ fontWeight: 800, marginBottom: '0.5rem', color: '#0F172A', fontSize: '1.05rem' }}>{item.title}</h4>
+                <p style={{ fontSize: '0.88rem', color: '#64748B', lineHeight: 1.6, margin: 0 }}>{item.desc}</p>
+              </button>
             ))}
           </div>
         </div>
