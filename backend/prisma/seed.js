@@ -75,7 +75,98 @@ async function main() {
   const activeSeason = season || await prisma.procurementSeason.findFirst({ where: { active: true } });
 
   // 5. Seed Procurement Centres
-  const centresData = [];
+  const centresData = [
+    {
+      centreId: 'UP-LKO-001',
+      name: 'Bhagwanpur Procurement Centre',
+      nameHi: 'भगवानपुर मंडी कृषि खरीद केंद्र',
+      type: 'Government',
+      address: 'Mandi Samiti, Bhagwanpur, Lucknow, UP',
+      lat: 26.8467,
+      lng: 80.9462,
+      openingTime: '07:00 AM',
+      closingTime: '08:00 PM',
+      open: true,
+      phone: '9876500001',
+      agencyName: 'State Mandi Board',
+      licenseNumber: 'UP-GOV-AGRI-2024-884',
+      panGstin: '09AAACG1234F1Z1',
+      managerName: 'Anil Verma',
+      designation: 'Centre Manager',
+      mobile: '9876500001',
+      email: 'bhagwanpur.mandi@upgov.in',
+      state: 'Uttar Pradesh',
+      district: 'Lucknow',
+      tehsil: 'Lucknow',
+      village: 'Bhagwanpur',
+      capacity: 500.0,
+      maxStorage: 12000.0,
+      weighingFacility: true,
+      qualityTesting: true,
+      godownStorage: true,
+      staffCount: 5,
+    },
+    {
+      centreId: 'UP-LKO-002',
+      name: 'Sitapur Road Procurement Centre',
+      nameHi: 'सीतापुर रोड नवीन फल एवं सब्जी मंडी',
+      type: 'Government',
+      address: 'Sitapur Road, Mohibullapur, Lucknow, UP',
+      lat: 26.9124,
+      lng: 80.9381,
+      openingTime: '07:00 AM',
+      closingTime: '08:00 PM',
+      open: true,
+      phone: '9876500002',
+      agencyName: 'Food Corporation of India (FCI)',
+      licenseNumber: 'UP-GOV-AGRI-2024-885',
+      panGstin: '09AAACF9876F1Z2',
+      managerName: 'Suresh Chandra',
+      designation: 'Centre Manager',
+      mobile: '9876500002',
+      email: 'sitapur.mandi@upgov.in',
+      state: 'Uttar Pradesh',
+      district: 'Lucknow',
+      tehsil: 'Lucknow',
+      village: 'Mohibullapur',
+      capacity: 600.0,
+      maxStorage: 15000.0,
+      weighingFacility: true,
+      qualityTesting: true,
+      godownStorage: true,
+      staffCount: 6,
+    },
+    {
+      centreId: 'UP-LKO-003',
+      name: 'Dubagga Agri Procurement Hub',
+      nameHi: 'दुबग्गा कृषि उपज मंडी समिति',
+      type: 'Corporate-Private',
+      address: 'Dubagga Bypass, Hardoi Road, Lucknow, UP',
+      lat: 26.8682,
+      lng: 80.8715,
+      openingTime: '07:00 AM',
+      closingTime: '08:00 PM',
+      open: true,
+      phone: '9876500003',
+      agencyName: 'ITC Agri Business Ltd.',
+      licenseNumber: 'UP-PVT-AGRI-2024-102',
+      panGstin: '09AAACI5544F1Z3',
+      managerName: 'Rajesh Sharma',
+      designation: 'Regional Manager',
+      mobile: '9876500003',
+      email: 'dubagga.itc@agri.com',
+      state: 'Uttar Pradesh',
+      district: 'Lucknow',
+      tehsil: 'Lucknow',
+      village: 'Dubagga',
+      capacity: 450.0,
+      maxStorage: 10000.0,
+      weighingFacility: true,
+      qualityTesting: true,
+      godownStorage: true,
+      staffCount: 4,
+    }
+  ];
 
   const centres = [];
   for (const c of centresData) {
@@ -194,13 +285,15 @@ async function main() {
     },
   });
 
-  await prisma.staffAssignment.create({
-    data: {
-      staffProfileId: managerProfile.id,
-      centreId: centres[0].id,
-      active: true,
-    },
-  }).catch(() => null);
+  if (centres.length > 0) {
+    await prisma.staffAssignment.create({
+      data: {
+        staffProfileId: managerProfile.id,
+        centreId: centres[0].id,
+        active: true,
+      },
+    }).catch(() => null);
+  }
 
   // 9. Seed Farmer User (Ramesh Kumar - matching mock user profile)
   const farmerUser = await prisma.user.upsert({

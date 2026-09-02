@@ -501,7 +501,7 @@ const FarmerDashboard = () => {
             <span>{isHindi ? '⚠️ आवश्यक सूचना: ' : '⚠️ Important Rule: '}</span>
             <span style={{ color: '#991B1B' }}>
               {isHindi
-                ? 'स्लॉट बुकिंग कम से कम 1 दिन पहले होगी (Same day booking not allowed)। यदि आज ही फसल बेचनी है तो "तत्काल बुकिंग" का प्रयोग करें।'
+                ? 'स्लॉट बुकिंग कम से कम 1 दिन पहले होगी (उसी दिन की बुकिंग मान्य नहीं है)। यदि आज ही फसल बेचनी है तो "तत्काल बुकिंग" का प्रयोग करें।'
                 : 'Slot booking must be done at least 1 day in advance (Same day booking is not allowed). For emergency selling today, please use "Tatkaal Booking".'}
             </span>
           </div>
@@ -805,7 +805,7 @@ const FarmerDashboard = () => {
                     {isHindi ? 'सरकारी खरीद केंद्र सूचनाएं' : 'Procurement Centre Updates'}
                   </h3>
                   <p style={{ margin: '2px 0 0', fontSize: '0.75rem', color: '#A7F3D0' }}>
-                    {unreadCount > 0 ? (isHindi ? `${unreadCount} अपठित सूचनाएं (Unread Updates)` : `${unreadCount} new unread updates`) : (isHindi ? 'सभी सूचनाएं अपडेट हैं' : 'All notifications up to date')}
+                    {unreadCount > 0 ? (isHindi ? `${unreadCount} अपठित सूचनाएं` : `${unreadCount} new unread updates`) : (isHindi ? 'सभी सूचनाएं अद्यतन हैं' : 'All notifications up to date')}
                   </p>
                 </div>
               </div>

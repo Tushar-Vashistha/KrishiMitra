@@ -77,7 +77,7 @@ const PaymentHistory = () => {
               display: "inline-block",
               marginBottom: "0.5rem"
             }}>
-              {isHindi ? "💰 प्रत्यक्ष बैंक हस्तांतरण (DBT)" : "💰 DIRECT BANK TRANSFER (DBT)"}
+              {isHindi ? "💰 प्रत्यक्ष बैंक हस्तांतरण (डीबीटी)" : "💰 DIRECT BANK TRANSFER (DBT)"}
             </span>
             <h1 style={{ 
               fontSize: "2.5rem", 
@@ -133,10 +133,10 @@ const PaymentHistory = () => {
                     <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
                       <span className={isPaid ? "badge-green" : isProcessing ? "badge-blue" : "badge-red"}>
                         {isPaid 
-                          ? (isHindi ? "● डीबीटी अंतरित (Paid)" : "● Paid via DBT") 
+                          ? (isHindi ? "● डीबीटी अंतरित (सफल)" : "● Paid via DBT") 
                           : isProcessing 
-                            ? (isHindi ? "🔄 प्रक्रियाधीन (PFMS)" : "🔄 Processing") 
-                            : (isHindi ? "❌ असफल (Failed)" : "❌ Failed")}
+                            ? (isHindi ? "🔄 प्रक्रियाधीन" : "🔄 Processing") 
+                            : (isHindi ? "❌ असफल" : "❌ Failed")}
                       </span>
                       <span style={{ fontSize: "0.78rem", color: "#64748B" }}>{p.date}</span>
                       <span style={{ background: "#F1F5F9", border: "1px solid #E2E8F0", padding: "1px 6px", borderRadius: "4px", fontSize: "0.72rem", fontWeight: 700 }}>

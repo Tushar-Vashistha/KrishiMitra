@@ -65,9 +65,7 @@ const TatkaalBooking = () => {
       if (res.success && res.data) {
         setAssignedToken(`T-${res.data.queueToken?.tokenNumber || '09'}`);
         setBooked(true);
-        setTimeout(() => {
-          navigate('/farmer/track-slot');
-        }, 2000);
+        navigate('/farmer/track-slot');
       }
     } catch (err) {
       setErrorMsg(err.message || 'Failed to book Tatkaal slot.');

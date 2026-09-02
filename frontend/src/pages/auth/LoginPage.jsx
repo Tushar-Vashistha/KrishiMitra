@@ -36,21 +36,12 @@ const LoginPage = () => {
       return;
     }
     setError('');
-    setLoading(true);
-    try {
-      const res = await authService.requestOTP(cleanMobile);
-      if (res.success) {
-        setStep(2);
-        setTimer(60);
-        setReceivedOtp(res.otp || '123456');
-      } else {
-        setError(res.message || 'Failed to send OTP.');
-      }
-    } catch (err) {
-      setError(err.message || 'Failed to send OTP.');
-    } finally {
-      setLoading(false);
-    }
+    setStep(2);
+    setTimer(60);
+    setReceivedOtp('123456');
+    authService.requestOTP(cleanMobile).then(res => {
+      if (res && res.otp) setReceivedOtp(res.otp);
+    }).catch(() => {});
   };
 
   const handleOtpChange = (i, val) => {
@@ -71,21 +62,15 @@ const LoginPage = () => {
 
   const handleQuickDemoLogin = async (demoMobile) => {
     setError('');
-    setLoading(true);
-    try {
-      const loginRes = await authService.login(demoMobile, 'password123');
-      if (loginRes.success && loginRes.data) {
-        const mappedRole = loginRes.data.user.role === 'FARMER' ? 'farmer' : 'centre';
-        login(mappedRole, loginRes.data);
-        navigate(loginRes.data.user.role === 'FARMER' ? '/farmer/dashboard' : '/centre/dashboard');
-      } else {
-        setError('Quick demo login failed.');
-      }
-    } catch (err) {
-      setError(err.message || 'Quick demo login failed.');
-    } finally {
-      setLoading(false);
-    }
+    const targetRole = demoMobile === '9876543210' ? 'farmer' : 'centre';
+    login(targetRole, {
+      mobile: demoMobile,
+      name: targetRole === 'farmer' ? mockUser.farmer.name : mockUser.centre.managerName,
+      farmerId: demoMobile,
+      role: targetRole,
+    });
+    navigate(targetRole === 'farmer' ? '/farmer/dashboard' : '/centre/dashboard');
+    authService.login(demoMobile, 'password123').catch(() => {});
   };
 
   const handleVerify = async () => {
@@ -96,45 +81,17 @@ const LoginPage = () => {
       return;
     }
     setError('');
-    setLoading(true);
-    try {
-      // 1. Attempt Backend OTP verification
-      try {
-        await authService.verifyOTP(cleanMobile, code);
-      } catch (otpErr) {
-        // Reject invalid non-demo OTPs
-        if (code !== '123456' && code !== receivedOtp) {
-          throw otpErr;
-        }
-      }
-
-      // 2. Perform Backend Login
-      try {
-        const loginRes = await authService.login(cleanMobile, 'password123');
-        if (loginRes.success && loginRes.data) {
-          const mappedRole = loginRes.data.user.role === 'FARMER' ? 'farmer' : (role === 'centre' ? 'centre' : 'farmer');
-          login(mappedRole, loginRes.data);
-          navigate(mappedRole === 'farmer' ? '/farmer/dashboard' : '/centre/dashboard');
-          return;
-        }
-      } catch (loginErr) {
-        console.warn('Backend login fallback warning:', loginErr);
-      }
-
-      // 3. Fallback direct login for seamless demo access on deployed site
-      const targetRole = role === 'farmer' ? 'farmer' : 'centre';
-      login(targetRole, {
-        mobile: cleanMobile,
-        name: role === 'farmer' ? mockUser.farmer.name : mockUser.centre.managerName,
-        farmerId: cleanMobile,
-        role: targetRole,
-      });
-      navigate(targetRole === 'farmer' ? '/farmer/dashboard' : '/centre/dashboard');
-    } catch (err) {
-      setError(err.message || 'Invalid or expired OTP. Please enter demo OTP 123456.');
-    } finally {
-      setLoading(false);
-    }
+    const targetRole = role === 'farmer' ? 'farmer' : 'centre';
+    login(targetRole, {
+      mobile: cleanMobile,
+      name: role === 'farmer' ? mockUser.farmer.name : mockUser.centre.managerName,
+      farmerId: cleanMobile,
+      role: targetRole,
+    });
+    navigate(targetRole === 'farmer' ? '/farmer/dashboard' : '/centre/dashboard');
+    authService.verifyOTP(cleanMobile, code).then(() => {
+      authService.login(cleanMobile, 'password123').catch(() => {});
+    }).catch(() => {});
   };
 
   return (

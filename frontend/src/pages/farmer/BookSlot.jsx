@@ -114,14 +114,9 @@ const BookSlot = () => {
       try {
         const slotsRes = await centreService.getSlotsAvailability(selectedCentre, selectedDate);
         if (slotsRes.success && slotsRes.data) {
-          const sampleCounts = [4, 2, 6, 5];
-          const formattedSlots = slotsRes.data.map((s, idx) => ({
-            ...s,
-            remainingCount: (s.remainingCount === 10 || s.bookedCount === 0) ? (sampleCounts[idx] || s.remainingCount) : s.remainingCount
-          }));
-          setSlots(formattedSlots);
-          if (formattedSlots.length > 0) {
-            setSelectedSlot(formattedSlots[0].id);
+          setSlots(slotsRes.data);
+          if (slotsRes.data.length > 0) {
+            setSelectedSlot(slotsRes.data[0].id);
           } else {
             setSelectedSlot('');
           }
@@ -152,9 +147,7 @@ const BookSlot = () => {
       const res = await bookingService.create(payload);
       if (res.success) {
         setBooked(true);
-        setTimeout(() => {
-          navigate('/farmer/track-slot');
-        }, 2000);
+        navigate('/farmer/track-slot');
       }
     } catch (err) {
       setErrorMsg(err.message || 'Failed to book slot.');
@@ -241,11 +234,11 @@ const BookSlot = () => {
           <AlertCircle size={24} color="#DC2626" style={{ flexShrink: 0, marginTop: '2px' }} />
           <div>
             <div style={{ fontWeight: 800, fontSize: '0.95rem', color: '#991B1B' }}>
-              {isHindi ? '⚠️ बुकिंग नियम / Booking Policy:' : '⚠️ Booking Policy:'}
+              {isHindi ? '⚠️ बुकिंग नियम:' : '⚠️ Booking Policy:'}
             </div>
             <div style={{ fontSize: '0.88rem', fontWeight: 700, color: '#DC2626', marginTop: '0.2rem', lineHeight: 1.4 }}>
               {isHindi 
-                ? 'बुकिंग कम से कम 1 दिन पहले होगी (Booking ek din pehle hogi) — Same day booking not allowed (उसी दिन की बुकिंग मान्य नहीं है)।' 
+                ? 'बुकिंग कम से कम 1 दिन पहले होगी — उसी दिन की बुकिंग मान्य नहीं है।' 
                 : 'Booking must be made at least 1 day in advance — Same day booking is not allowed.'}
             </div>
             <div style={{ fontSize: '0.8rem', color: '#7F1D1D', marginTop: '0.35rem', fontWeight: 500 }}>
@@ -253,7 +246,7 @@ const BookSlot = () => {
                 ? '💡 यदि आपको आज ही तत्काल अपनी उपज बेचनी है, तो कृपया ' 
                 : '💡 For urgent same-day slot allocation, please use '}
               <Link to="/farmer/tatkaal" style={{ color: '#DC2626', fontWeight: 800, textDecoration: 'underline' }}>
-                {isHindi ? 'तत्काल बुकिंग (Tatkaal Booking)' : 'Tatkaal Booking'}
+                {isHindi ? 'तत्काल बुकिंग' : 'Tatkaal Booking'}
               </Link>
             </div>
           </div>
@@ -369,7 +362,7 @@ const BookSlot = () => {
                   gap: '0.35rem'
                 }}>
                   <span>⚠️</span>
-                  <span>{isHindi ? 'बुकिंग 1 दिन पहले होगी (Same day booking not allowed)' : 'Booking must be at least 1 day in advance (Same day not allowed)'}</span>
+                  <span>{isHindi ? 'बुकिंग कम से कम 1 दिन पहले होगी (उसी दिन की बुकिंग मान्य नहीं है)' : 'Booking must be at least 1 day in advance (Same day not allowed)'}</span>
                 </div>
               </div>
             </div>
@@ -436,7 +429,7 @@ const BookSlot = () => {
                         )}
                       </div>
                       <div style={{ fontSize: '0.78rem', color: '#64748B', marginTop: '0.5rem', fontWeight: 600 }}>
-                        {slot.available ? `${slot.remainingCount} ${t('tokenSlotsLeft')}` : (isHindi ? 'भरी हुई (Full)' : 'Full')}
+                        {slot.available ? `${slot.remainingCount} ${t('tokenSlotsLeft')}` : (isHindi ? 'भरी हुई' : 'Full')}
                       </div>
                     </div>
                   );

@@ -31,7 +31,7 @@ const updateMeProfile = async (req, res, next) => {
 
     // Filter updateable fields
     const {
-      name, village, district, state, tehsil, block, pincode,
+      name, mobile, aadhaar, village, district, state, tehsil, block, pincode,
       khasraNumber, landOwnerName, bankName, accountNumber, ifscCode
     } = req.body;
 
@@ -39,6 +39,24 @@ const updateMeProfile = async (req, res, next) => {
       name, village, district, state, tehsil, block, pincode,
       khasraNumber, landOwnerName, bankName, ifscCode
     };
+
+    if (mobile) {
+      const cleanMobile = mobile.toString().replace(/\D/g, '').slice(-10);
+      if (cleanMobile.length === 10) {
+        updateData.mobile = cleanMobile;
+        await prisma.user.update({
+          where: { id: req.user.id },
+          data: { mobile: cleanMobile },
+        });
+      }
+    }
+
+    if (aadhaar) {
+      const { hashSensitive, maskAadhaar } = require('../utils/helpers');
+      const aadhaarRaw = aadhaar.toString().replace(/\D/g, '');
+      updateData.aadhaarMasked = maskAadhaar(aadhaarRaw);
+      updateData.aadhaarHash = hashSensitive(aadhaarRaw + '_' + req.user.id);
+    }
 
     // Clean undefined fields
     Object.keys(updateData).forEach(key => updateData[key] === undefined && delete updateData[key]);

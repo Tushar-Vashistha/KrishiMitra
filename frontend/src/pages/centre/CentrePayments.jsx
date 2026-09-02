@@ -215,7 +215,7 @@ const CentrePayments = () => {
               </h1>
               <p style={{ opacity: 0.85, fontSize: '0.88rem', marginTop: '0.3rem', maxWidth: '650px' }}>
                 {isHindi
-                  ? 'प्रत्येक किसान के लिए तौल पर्ची/बिल अपलोड करें और डीबीटी भुगतान स्थिति (Due / Processed / Approved) प्रबंधित करें।'
+                  ? 'प्रत्येक किसान के लिए तौल पर्ची/बिल अपलोड करें और डीबीटी भुगतान स्थिति (देय / प्रक्रियाधीन / स्वीकृत) प्रबंधित करें।'
                   : 'Upload weighment slips on unique farmer tokens, verify MSP amounts, and authorize direct bank transfer payments.'}
               </p>
             </div>
@@ -335,9 +335,9 @@ const CentrePayments = () => {
             <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
               {[
                 { id: 'all', label: isHindi ? 'सभी रिकॉर्ड्स' : 'All Bills' },
-                { id: 'Due', label: isHindi ? 'देय (Due)' : 'Payment Due' },
-                { id: 'Processing', label: isHindi ? 'प्रक्रियाधीन (Processing)' : 'Processing' },
-                { id: 'Approved', label: isHindi ? 'स्वीकृत (Approved)' : 'Approved' }
+                { id: 'Due', label: isHindi ? 'देय' : 'Payment Due' },
+                { id: 'Processing', label: isHindi ? 'प्रक्रियाधीन' : 'Processing' },
+                { id: 'Approved', label: isHindi ? 'स्वीकृत' : 'Approved' }
               ].map(tab => (
                 <button
                   key={tab.id}
@@ -550,7 +550,7 @@ const CentrePayments = () => {
                         }}
                       >
                         <AlertCircle size={13} />
-                        <span>{isHindi ? 'भुगतान देय (Due)' : 'Payment Due'}</span>
+                        <span>{isHindi ? 'भुगतान देय' : 'Payment Due'}</span>
                       </button>
 
                       {/* 2. Payment Processed Button */}
@@ -573,7 +573,7 @@ const CentrePayments = () => {
                         }}
                       >
                         <Clock size={13} />
-                        <span>{isHindi ? 'प्रक्रियाधीन (Processed)' : 'Processing'}</span>
+                        <span>{isHindi ? 'प्रक्रियाधीन' : 'Processing'}</span>
                       </button>
 
                       {/* 3. Approved Button */}
@@ -597,7 +597,7 @@ const CentrePayments = () => {
                         }}
                       >
                         <CheckCircle2 size={14} />
-                        <span>{isHindi ? 'डीबीटी स्वीकृत करें (Approved)' : 'Approve Payment'}</span>
+                        <span>{isHindi ? 'डीबीटी स्वीकृत करें' : 'Approve Payment'}</span>
                       </button>
                     </div>
                   </div>

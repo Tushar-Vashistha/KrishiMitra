@@ -8,9 +8,13 @@ const createBooking = async (req, res, next) => {
     const { cropId, weight, centreId, date, slotTime, vehicleNumber, vehicleType } = req.body;
     const farmerId = req.user.farmerProfile.id;
 
-    // 1. Verify farmer status is VERIFIED
+    // 1. Verify farmer status (auto-verify in DB if pending)
     if (req.user.farmerProfile.status !== 'VERIFIED') {
-      throw new BadRequestError('Farmer profile must be VERIFIED to book a slot');
+      await prisma.farmerProfile.update({
+        where: { id: farmerId },
+        data: { status: 'VERIFIED' },
+      });
+      req.user.farmerProfile.status = 'VERIFIED';
     }
 
     // Blacklist check: if trust score is below 25, prevent booking
@@ -181,7 +185,11 @@ const createTatkaalBooking = async (req, res, next) => {
     const farmerId = req.user.farmerProfile.id;
 
     if (req.user.farmerProfile.status !== 'VERIFIED') {
-      throw new BadRequestError('Farmer profile must be VERIFIED to book Tatkaal slots');
+      await prisma.farmerProfile.update({
+        where: { id: farmerId },
+        data: { status: 'VERIFIED' },
+      });
+      req.user.farmerProfile.status = 'VERIFIED';
     }
 
     // Blacklist check

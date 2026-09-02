@@ -19,28 +19,43 @@ async function request(endpoint, options = {}) {
     headers['Authorization'] = `Bearer ${token}`;
   }
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 300);
+
   const config = {
     ...options,
     headers,
+    signal: controller.signal,
   };
 
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
+  try {
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
+    clearTimeout(timeoutId);
 
-  if (response.status === 401) {
-    localStorage.removeItem('krishimitra_user');
-    window.dispatchEvent(new Event('krishimitra_auth_change'));
+    if (response.status === 401) {
+      localStorage.removeItem('krishimitra_user');
+      window.dispatchEvent(new Event('krishimitra_auth_change'));
+    }
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const errorMessage = data?.error?.message || data?.message || 'Something went wrong';
+      const error = new Error(errorMessage);
+      error.status = response.status;
+      error.response = data;
+      throw error;
+    }
+
+    return data;
+  } catch (err) {
+    clearTimeout(timeoutId);
+    if (err.name === 'AbortError') {
+      const timeoutError = new Error('Request timeout');
+      timeoutError.status = 408;
+      throw timeoutError;
+    }
+    throw err;
   }
-
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const errorMessage = data?.error?.message || data?.message || 'Something went wrong';
-    const error = new Error(errorMessage);
-    error.status = response.status;
-    error.response = data;
-    throw error;
-  }
-
-  return data;
 }
 
 export const api = {
@@ -80,6 +95,7 @@ export const centreService = {
   getAll: () => api.get('/centres'),
   getNearby: (lat, lng, radius = 15) => api.get(`/centres/nearby?latitude=${lat}&longitude=${lng}&radius=${radius}`),
   getById: (id) => api.get(`/centres/${id}`),
+  update: (id, data) => api.put(`/centres/${id}`, data),
   getSlotsAvailability: (centreId, date) => api.get(`/centres/${centreId}/slots/availability?date=${date}`),
   getDashboard: (centreId) => api.get(`/centres/${centreId}/dashboard`),
   getCounters: (centreId) => api.get(`/centres/${centreId}/counters`),

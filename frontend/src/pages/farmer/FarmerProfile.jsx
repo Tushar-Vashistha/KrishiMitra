@@ -54,11 +54,21 @@ const FarmerProfile = () => {
     loadProfile();
   }, []);
 
-  // Edit form state with strictly Name, Mobile, Farmer ID
+  // Edit form state with full farmer profile details
   const [formData, setFormData] = useState({
     name: farmerData.name || 'Ramesh Kumar',
     mobile: farmerData.mobile || '9876543210',
     farmerId: farmerData.farmerId || 'UP-FARM-9021',
+    village: farmerData.village || 'Bhagwanpur',
+    district: farmerData.district || 'Lucknow',
+    state: farmerData.state || 'Uttar Pradesh',
+    tehsil: farmerData.tehsil || 'Lucknow',
+    pincode: farmerData.pincode || '226001',
+    khasraNumber: farmerData.khasraNumber || '101/A',
+    landOwnerName: farmerData.landOwnerName || farmerData.name || 'Ramesh Kumar',
+    bankName: farmerData.bankName || 'State Bank of India',
+    accountNumber: farmerData.accountNumber || '9876543210',
+    ifscCode: farmerData.ifscCode || 'SBIN0001234',
   });
 
   const handleCopyFarmerId = () => {
@@ -70,7 +80,22 @@ const FarmerProfile = () => {
   const handleSaveProfile = async (e) => {
     e.preventDefault();
     try {
-      await farmerService.updateProfile({ name: formData.name });
+      const res = await farmerService.updateProfile({
+        name: formData.name,
+        mobile: formData.mobile,
+        aadhaar: formData.farmerId,
+        village: formData.village,
+        district: formData.district,
+        state: formData.state,
+        tehsil: formData.tehsil,
+        pincode: formData.pincode,
+        khasraNumber: formData.khasraNumber,
+        landOwnerName: formData.landOwnerName,
+        bankName: formData.bankName,
+        accountNumber: formData.accountNumber,
+        ifscCode: formData.ifscCode,
+      });
+
       if (updateUser) {
         updateUser(formData);
       }
@@ -419,10 +444,9 @@ const FarmerProfile = () => {
               </button>
             </div>
 
-            <form onSubmit={handleSaveProfile} style={{ display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
-              {/* 1. Name */}
+            <form onSubmit={handleSaveProfile} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', maxHeight: '75vh', overflowY: 'auto', paddingRight: '0.5rem' }}>
               <div>
-                <label className="input-label" style={{ fontWeight: 700, marginBottom: '0.4rem', display: 'block' }}>
+                <label className="input-label" style={{ fontWeight: 700, marginBottom: '0.3rem', display: 'block' }}>
                   {isHindi ? 'किसान का नाम' : 'Farmer Name'} *
                 </label>
                 <input
@@ -431,39 +455,80 @@ const FarmerProfile = () => {
                   value={formData.name}
                   onChange={e => setFormData({ ...formData, name: e.target.value })}
                   className="input-field"
-                  placeholder={isHindi ? "उदा. रमेश कुमार" : "e.g. Ramesh Kumar"}
                 />
               </div>
 
-              {/* 2. Mobile Number */}
-              <div>
-                <label className="input-label" style={{ fontWeight: 700, marginBottom: '0.4rem', display: 'block' }}>
-                  {isHindi ? 'मोबाइल नंबर' : 'Mobile Number'} *
-                </label>
-                <input
-                  type="tel"
-                  required
-                  maxLength={10}
-                  value={formData.mobile}
-                  onChange={e => setFormData({ ...formData, mobile: e.target.value.replace(/\D/g, '').slice(0, 10) })}
-                  className="input-field"
-                  placeholder="10-digit mobile"
-                />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                <div>
+                  <label className="input-label" style={{ fontWeight: 700, marginBottom: '0.3rem', display: 'block' }}>
+                    {isHindi ? 'मोबाइल नंबर' : 'Mobile Number'} *
+                  </label>
+                  <input
+                    type="tel"
+                    required
+                    maxLength={10}
+                    value={formData.mobile}
+                    onChange={e => setFormData({ ...formData, mobile: e.target.value.replace(/\D/g, '').slice(0, 10) })}
+                    className="input-field"
+                  />
+                </div>
+
+                <div>
+                  <label className="input-label" style={{ fontWeight: 700, marginBottom: '0.3rem', display: 'block' }}>
+                    {isHindi ? 'किसान आईडी (आधार)' : 'Farmer ID / Aadhaar'} *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.farmerId}
+                    onChange={e => setFormData({ ...formData, farmerId: e.target.value })}
+                    className="input-field"
+                  />
+                </div>
               </div>
 
-              {/* 3. Farmer ID */}
-              <div>
-                <label className="input-label" style={{ fontWeight: 700, marginBottom: '0.4rem', display: 'block' }}>
-                  {isHindi ? 'किसान आईडी' : 'Farmer ID'} *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formData.farmerId}
-                  onChange={e => setFormData({ ...formData, farmerId: e.target.value })}
-                  className="input-field"
-                  placeholder="UP-FARM-9021"
-                />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                <div>
+                  <label className="input-label">Village</label>
+                  <input type="text" value={formData.village} onChange={e => setFormData({ ...formData, village: e.target.value })} className="input-field" />
+                </div>
+                <div>
+                  <label className="input-label">District</label>
+                  <input type="text" value={formData.district} onChange={e => setFormData({ ...formData, district: e.target.value })} className="input-field" />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                <div>
+                  <label className="input-label">Tehsil</label>
+                  <input type="text" value={formData.tehsil} onChange={e => setFormData({ ...formData, tehsil: e.target.value })} className="input-field" />
+                </div>
+                <div>
+                  <label className="input-label">State</label>
+                  <input type="text" value={formData.state} onChange={e => setFormData({ ...formData, state: e.target.value })} className="input-field" />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                <div>
+                  <label className="input-label">Khasra Number</label>
+                  <input type="text" value={formData.khasraNumber} onChange={e => setFormData({ ...formData, khasraNumber: e.target.value })} className="input-field" />
+                </div>
+                <div>
+                  <label className="input-label">Bank Name</label>
+                  <input type="text" value={formData.bankName} onChange={e => setFormData({ ...formData, bankName: e.target.value })} className="input-field" />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                <div>
+                  <label className="input-label">Account No.</label>
+                  <input type="text" value={formData.accountNumber} onChange={e => setFormData({ ...formData, accountNumber: e.target.value })} className="input-field" />
+                </div>
+                <div>
+                  <label className="input-label">IFSC Code</label>
+                  <input type="text" value={formData.ifscCode} onChange={e => setFormData({ ...formData, ifscCode: e.target.value })} className="input-field" />
+                </div>
               </div>
 
               <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem' }}>

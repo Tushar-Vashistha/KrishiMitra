@@ -39,8 +39,22 @@ const CentreProfile = () => {
     state: centreData.state || 'Uttar Pradesh',
   });
 
-  const handleSave = (e) => {
+  const handleSave = async (e) => {
     e.preventDefault();
+    try {
+      if (user?.centreId) {
+        await centreService.update(user.centreId, {
+          name: formData.name,
+          managerName: formData.manager,
+          designation: formData.designation,
+          mobile: formData.mobile,
+          district: formData.district,
+          state: formData.state,
+        });
+      }
+    } catch (err) {
+      console.warn('Backend centre update warning:', err);
+    }
     if (updateUser) {
       updateUser(formData);
     }

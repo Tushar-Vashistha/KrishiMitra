@@ -97,15 +97,11 @@ export const AuthProvider = ({ children }) => {
     });
   };
 
-  const logout = async () => {
-    try {
-      await authService.logout();
-    } catch (e) {
-      console.error('Logout API call failed:', e);
-    }
+  const logout = () => {
     setUser(null);
     localStorage.removeItem('krishimitra_user');
     window.dispatchEvent(new Event('krishimitra_auth_change'));
+    authService.logout().catch(e => console.error('Logout API call background error:', e));
   };
 
   return (

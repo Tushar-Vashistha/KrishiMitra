@@ -141,7 +141,7 @@ const CentreLiveQueue = () => {
         }
       } else if (booking.status === 'Processing') {
         showToast(isHindi ? `विधेयक और जे-फॉर्म उत्पन्न करने के लिए मुख्य डैशबोर्ड पर जाएं!` : `Go to main dashboard to generate J-Form & complete procurement!`);
-        setTimeout(() => navigate('/centre/dashboard'), 1500);
+        navigate('/centre/dashboard');
       }
     } catch (err) {
       alert(err.message || 'Failed to advance token stage.');
@@ -581,7 +581,7 @@ const CentreLiveQueue = () => {
                 <ShieldAlert size={18} color="#DC2626" style={{ flexShrink: 0 }} />
                 <span>
                   {isHindi
-                    ? 'नीति: रद्द किए गए स्लॉट स्वतः तत्काल (Tatkaal) स्लॉट में परिवर्तित हो जाते हैं और आपातकालीन/देरी से आने वाले किसानों को आवंटित किए जा सकते हैं।'
+                    ? 'नीति: रद्द किए गए स्लॉट स्वतः तत्काल स्लॉट में परिवर्तित हो जाते हैं और आपातकालीन/देरी से आने वाले किसानों को आवंटित किए जा सकते हैं।'
                     : 'Policy: Cancelled slots can be released into the emergency Tatkaal pool for late arrivals or blacklisted farmers (daily quota limit applies).'}
                 </span>
               </div>

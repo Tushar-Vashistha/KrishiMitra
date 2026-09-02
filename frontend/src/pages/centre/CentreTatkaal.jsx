@@ -242,7 +242,7 @@ const CentreTatkaal = () => {
                         border: `1px solid ${slot.status === 'Available' ? '#86EFAC' : '#BFDBFE'}`,
                         padding: '2px 9px', borderRadius: '20px', fontSize: '0.72rem', fontWeight: 800
                       }}>
-                        ● {slot.status === 'Available' ? (isHindi ? 'उपलब्ध (Open)' : 'Open for Allocation') : (isHindi ? 'आवंटित (Assigned)' : 'Allocated')}
+                        ● {slot.status === 'Available' ? (isHindi ? 'उपलब्ध' : 'Open for Allocation') : (isHindi ? 'आवंटित' : 'Allocated')}
                       </span>
 
                       {slot.isBlacklistedFarmer && (

@@ -101,9 +101,7 @@ const TrackSlot = () => {
       await bookingService.cancel(activeToken.bookingId);
       setIsCancelled(true);
       showToastMessage(isHindi ? 'बुकिंग सफलतापूर्वक रद्द कर दी गई!' : 'Booking cancelled successfully!');
-      setTimeout(() => {
-        navigate('/farmer/dashboard');
-      }, 2000);
+      navigate('/farmer/dashboard');
     } catch (err) {
       showToastMessage(err.message || 'Failed to cancel slot.');
     }
@@ -114,20 +112,15 @@ const TrackSlot = () => {
     alert(t('connectingSupport'));
   };
 
-  // Simulates refreshing the queue data
+  // Refresh queue data instantly
   const handleRefresh = () => {
-    if (isRefreshing) return;
-    setIsRefreshing(true);
-
-    setTimeout(() => {
-      setIsRefreshing(false);
-      
-      const now = new Date();
-      const hours = now.getHours();
-      const minutes = now.getMinutes().toString().padStart(2, '0');
-      const ampm = hours >= 12 ? 'PM' : 'AM';
-      const formattedTime = `${hours % 12 || 12}:${minutes} ${ampm}`;
-      setLastUpdated(formattedTime);
+    fetchQueueData();
+    const now = new Date();
+    const hours = now.getHours();
+    const minutes = now.getMinutes().toString().padStart(2, '0');
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    const formattedTime = `${hours % 12 || 12}:${minutes} ${ampm}`;
+    setLastUpdated(formattedTime);
 
       setCurrentTokenNum((prev) => {
         const next = prev + Math.floor(Math.random() * 2) + 1;
@@ -142,7 +135,6 @@ const TrackSlot = () => {
         
         return finalVal;
       });
-    }, 800);
   };
 
   // Percent representing current token progression from T-100 to T-127

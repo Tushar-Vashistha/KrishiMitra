@@ -243,59 +243,38 @@ const CentreDashboard = () => {
   };
 
   // Action: Mark Farmer Absent / Cancel
-  const handleMarkAbsent = async (bookingId, reason = "Farmer absent / No-show") => {
+  const handleMarkAbsent = (bookingId, reason = "Farmer absent / No-show") => {
     const booking = bookings.find(b => b.id === bookingId);
-    if (!booking || !booking.queueTokenId) {
-      alert("No active queue token associated with this booking.");
-      return;
-    }
-    try {
-      const res = await queueService.noShow(booking.queueTokenId);
-      if (res.success) {
-        showToast(isHindi ? `टोकन #${booking.token} को अनुपस्थित (Absent) चिह्नित किया गया!` : `Farmer token #${booking.token} marked as Absent!`);
-        fetchDashboardData();
+    if (booking) {
+      setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, status: 'Cancelled', paymentStatus: 'Cancelled' } : b));
+      showToast(isHindi ? `टोकन #${booking.token} को अनुपस्थित (Absent) चिह्नित किया गया!` : `Farmer token #${booking.token} marked as Absent!`);
+      if (booking.queueTokenId) {
+        queueService.noShow(booking.queueTokenId).catch(console.error);
       }
-    } catch (err) {
-      console.error(err);
-      alert(err.message || 'Failed to update token status.');
     }
   };
 
   // Action: Mark Farmer Arrived
-  const handleMarkArrived = async (bookingId) => {
+  const handleMarkArrived = (bookingId) => {
     const booking = bookings.find(b => b.id === bookingId);
-    if (!booking || !booking.queueTokenId) {
-      alert("No active queue token associated with this booking.");
-      return;
-    }
-    try {
-      const res = await queueService.arrive(booking.queueTokenId);
-      if (res.success) {
-        showToast(isHindi ? `टोकन #${booking.token} की उपस्थिति (Arrived) दर्ज कर ली गई है!` : `Farmer token #${booking.token} marked as Arrived!`);
-        fetchDashboardData();
+    if (booking) {
+      setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, status: 'Arrived' } : b));
+      showToast(isHindi ? `टोकन #${booking.token} की उपस्थिति (Arrived) दर्ज कर ली गई है!` : `Farmer token #${booking.token} marked as Arrived!`);
+      if (booking.queueTokenId) {
+        queueService.arrive(booking.queueTokenId).catch(console.error);
       }
-    } catch (err) {
-      console.error(err);
-      alert(err.message || 'Failed to update token status.');
     }
   };
 
   // Action: Mark Farmer Processing (Weighbridge / Quality Lab)
-  const handleMarkProcessing = async (bookingId) => {
+  const handleMarkProcessing = (bookingId) => {
     const booking = bookings.find(b => b.id === bookingId);
-    if (!booking || !booking.queueTokenId) {
-      alert("No active queue token associated with this booking.");
-      return;
-    }
-    try {
-      const res = await queueService.start(booking.queueTokenId, 1);
-      if (res.success) {
-        showToast(isHindi ? `टोकन #${booking.token} तौल व गुणवत्ता जांच (Processing) में भेजा गया!` : `Farmer token #${booking.token} marked as Processing!`);
-        fetchDashboardData();
+    if (booking) {
+      setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, status: 'Processing' } : b));
+      showToast(isHindi ? `टोकन #${booking.token} तौल व गुणवत्ता जांच (Processing) में भेजा गया!` : `Farmer token #${booking.token} marked as Processing!`);
+      if (booking.queueTokenId) {
+        queueService.start(booking.queueTokenId, 1).catch(console.error);
       }
-    } catch (err) {
-      console.error(err);
-      alert(err.message || 'Failed to update token status.');
     }
   };
 
@@ -1976,7 +1955,7 @@ const CentreDashboard = () => {
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
                   <div>
                     <label style={{ display: "block", fontWeight: 700, color: "#1E293B", marginBottom: "0.35rem", fontSize: "0.85rem" }}>
-                      {isHindi ? "खुलने का समय (Opening Time)" : "Opening Time"}
+                      {isHindi ? "खुलने का समय" : "Opening Time"}
                     </label>
                     <input
                       type="text"
@@ -1988,7 +1967,7 @@ const CentreDashboard = () => {
                   </div>
                   <div>
                     <label style={{ display: "block", fontWeight: 700, color: "#1E293B", marginBottom: "0.35rem", fontSize: "0.85rem" }}>
-                      {isHindi ? "बंद होने का समय (Closing Time)" : "Closing Time"}
+                      {isHindi ? "बंद होने का समय" : "Closing Time"}
                     </label>
                     <input
                       type="text"
@@ -2004,7 +1983,7 @@ const CentreDashboard = () => {
               {/* Slot Capacity per slot */}
               <div>
                 <label style={{ display: "block", fontWeight: 700, color: "#1E293B", marginBottom: "0.35rem", fontSize: "0.85rem" }}>
-                  {isHindi ? "प्रति स्लॉट किसान क्षमता (Vehicles / Slot Capacity)" : "Vehicle Quota Per Slot"}
+                  {isHindi ? "प्रति स्लॉट वाहन/किसान क्षमता" : "Vehicle Quota Per Slot"}
                 </label>
                 <input
                   type="number"
@@ -2019,7 +1998,7 @@ const CentreDashboard = () => {
               {/* Announcement / Broadcast for Farmers */}
               <div>
                 <label style={{ display: "block", fontWeight: 700, color: "#1E293B", marginBottom: "0.35rem", fontSize: "0.85rem" }}>
-                  {isHindi ? "किसानों के लिए सार्वजनिक सूचना (Farmer Broadcast Notice)" : "Farmer Broadcast Notice"}
+                  {isHindi ? "किसानों के लिए सार्वजनिक सूचना" : "Farmer Broadcast Notice"}
                 </label>
                 <textarea
                   value={tempSchedule.announcement}
@@ -2103,7 +2082,7 @@ const CentreDashboard = () => {
                   MSP PROCUREMENT BILLING DESK
                 </span>
                 <h3 style={{ margin: "0.2rem 0 0", fontSize: "1.35rem", fontWeight: 900 }}>
-                  {isHindi ? "खरीद बिल एवं तौल पर्ची (J-Form Generation)" : "MSP Procurement Bill & J-Form Receipt"}
+                  {isHindi ? "खरीद बिल एवं तौल पर्ची (जे-फार्म)" : "MSP Procurement Bill & J-Form Receipt"}
                 </h3>
               </div>
               <button
@@ -2150,7 +2129,7 @@ const CentreDashboard = () => {
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
                 <div>
                   <label style={{ display: "block", fontWeight: 700, color: "#1E293B", marginBottom: "0.35rem", fontSize: "0.85rem" }}>
-                    {isHindi ? "फसल का नाम (Crop)" : "Crop Name"}
+                    {isHindi ? "फसल का नाम" : "Crop Name"}
                   </label>
                   <select
                     value={billForm.crop}
@@ -2174,7 +2153,7 @@ const CentreDashboard = () => {
 
                 <div>
                   <label style={{ display: "block", fontWeight: 700, color: "#1E293B", marginBottom: "0.35rem", fontSize: "0.85rem" }}>
-                    {isHindi ? "गुणवत्ता ग्रेड (Quality Grade)" : "Quality Grade"}
+                    {isHindi ? "गुणवत्ता ग्रेड" : "Quality Grade"}
                   </label>
                   <select
                     value={billForm.qualityGrade}
@@ -2192,7 +2171,7 @@ const CentreDashboard = () => {
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "0.85rem" }}>
                 <div>
                   <label style={{ display: "block", fontWeight: 700, color: "#1E293B", marginBottom: "0.35rem", fontSize: "0.82rem" }}>
-                    {isHindi ? "नमी % (Moisture)" : "Moisture %"}
+                    {isHindi ? "नमी %" : "Moisture %"}
                   </label>
                   <input
                     type="number"
@@ -2208,7 +2187,7 @@ const CentreDashboard = () => {
 
                 <div>
                   <label style={{ display: "block", fontWeight: 700, color: "#1E293B", marginBottom: "0.35rem", fontSize: "0.82rem" }}>
-                    {isHindi ? "सकल वजन (Gross Qtl)" : "Gross Weight (Qtl)"}
+                    {isHindi ? "सकल वजन (क्विंटल)" : "Gross Weight (Qtl)"}
                   </label>
                   <input
                     type="number"
@@ -2230,7 +2209,7 @@ const CentreDashboard = () => {
 
                 <div>
                   <label style={{ display: "block", fontWeight: 700, color: "#1E293B", marginBottom: "0.35rem", fontSize: "0.82rem" }}>
-                    {isHindi ? "खाली वाहन (Tare Qtl)" : "Tare Weight (Qtl)"}
+                    {isHindi ? "खाली वाहन का वजन (क्विंटल)" : "Tare Weight (Qtl)"}
                   </label>
                   <input
                     type="number"
@@ -2265,7 +2244,7 @@ const CentreDashboard = () => {
               }}>
                 <div>
                   <span style={{ fontSize: "0.75rem", fontWeight: 800, color: "#065F46", textTransform: "uppercase" }}>
-                    {isHindi ? "शुद्ध फसल वजन (Net Crop Weight)" : "Net Crop Weight"}
+                    {isHindi ? "शुद्ध फसल वजन" : "Net Crop Weight"}
                   </span>
                   <div style={{ fontSize: "1.6rem", fontWeight: 900, color: "#064E3B" }}>
                     {billForm.netWeight.toFixed(1)} <span style={{ fontSize: "1rem" }}>Quintal</span>
@@ -2277,13 +2256,13 @@ const CentreDashboard = () => {
 
                 <div style={{ textAlign: "right" }}>
                   <span style={{ fontSize: "0.75rem", fontWeight: 800, color: "#065F46", textTransform: "uppercase" }}>
-                    {isHindi ? "कुल भुगतान राशि (Total Amount)" : "Total Payable Amount"}
+                    {isHindi ? "कुल भुगतान राशि" : "Total Payable Amount"}
                   </span>
                   <div style={{ fontSize: "1.85rem", fontWeight: 900, color: "#047857" }}>
                     ₹{billForm.totalAmount.toLocaleString("en-IN")}
                   </div>
                   <div style={{ fontSize: "0.75rem", color: "#065F46", fontWeight: 700 }}>
-                    {isHindi ? "100% प्रत्यक्ष बैंक अंतरण (DBT)" : "100% Direct Benefit Transfer"}
+                    {isHindi ? "100% प्रत्यक्ष बैंक अंतरण (डीबीटी)" : "100% Direct Benefit Transfer"}
                   </div>
                 </div>
               </div>
@@ -2291,13 +2270,13 @@ const CentreDashboard = () => {
               {/* Payment Process Status Selector */}
               <div>
                 <label style={{ display: "block", fontWeight: 700, color: "#1E293B", marginBottom: "0.45rem", fontSize: "0.88rem" }}>
-                  {isHindi ? "भुगतान स्थिति (Payment DBT Status)" : "Payment Processing Status"}
+                  {isHindi ? "भुगतान स्थिति (डीबीटी)" : "Payment Processing Status"}
                 </label>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "0.5rem" }}>
                   {[
-                    { id: "Due", label: isHindi ? "⏳ भुगतान देय (Due)" : "⏳ Payment Due", color: "#D97706", bg: "#FEF3C7" },
-                    { id: "Processing", label: isHindi ? "🔄 प्रक्रियाधीन (PFMS)" : "🔄 Processing (DBT)", color: "#2563EB", bg: "#EFF6FF" },
-                    { id: "Paid", label: isHindi ? "✓ खाता में अंतरित (Paid)" : "✓ Paid / Transferred", color: "#059669", bg: "#DCFCE7" },
+                    { id: "Due", label: isHindi ? "⏳ भुगतान देय" : "⏳ Payment Due", color: "#D97706", bg: "#FEF3C7" },
+                    { id: "Processing", label: isHindi ? "🔄 प्रक्रियाधीन" : "🔄 Processing (DBT)", color: "#2563EB", bg: "#EFF6FF" },
+                    { id: "Paid", label: isHindi ? "✓ खाते में अंतरित (सफल)" : "✓ Paid / Transferred", color: "#059669", bg: "#DCFCE7" },
                   ].map(pst => (
                     <button
                       key={pst.id}
@@ -2342,7 +2321,7 @@ const CentreDashboard = () => {
                   }}
                 >
                   <CheckCircle size={18} />
-                  {isHindi ? "खरीद बिल जमा करें (Submit & Sync to Farmer)" : "Submit Bill & Sync Receipt"}
+                  {isHindi ? "खरीद बिल जमा करें" : "Submit Bill & Sync Receipt"}
                 </button>
               </div>
 
@@ -2387,7 +2366,7 @@ const CentreDashboard = () => {
               <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
                 <AlertTriangle size={22} color="#FEE2E2" />
                 <h3 style={{ margin: 0, fontSize: "1.2rem", fontWeight: 900 }}>
-                  {isHindi ? "स्लॉट रद्द करें (Cancel Booking / No-Show)" : "Cancel Booking / Record No-Show"}
+                  {isHindi ? "स्लॉट रद्द करें" : "Cancel Booking / Record No-Show"}
                 </h3>
               </div>
               <button
@@ -2407,7 +2386,7 @@ const CentreDashboard = () => {
 
               <div>
                 <label style={{ display: "block", fontWeight: 700, color: "#1E293B", marginBottom: "0.35rem", fontSize: "0.85rem" }}>
-                  {isHindi ? "रद्द करने का कारण (Reason)" : "Reason for Cancellation"}
+                  {isHindi ? "रद्द करने का कारण" : "Reason for Cancellation"}
                 </label>
                 <select
                   value={cancelReason}
@@ -2440,7 +2419,7 @@ const CentreDashboard = () => {
                   style={{ width: "18px", height: "18px", cursor: "pointer" }}
                 />
                 <label htmlFor="tatkaalRel" style={{ fontSize: "0.82rem", color: "#92400E", fontWeight: 700, cursor: "pointer" }}>
-                  {isHindi ? "⚡ इस स्लॉट को 5 से 8 बजे के तत्काल कोटा (Tatkaal Pool) में तुरंत जारी करें" : "⚡ Immediately release this freed slot to the 5:00 - 8:00 PM Tatkaal Quota"}
+                  {isHindi ? "⚡ इस स्लॉट को 5 से 8 बजे के तत्काल कोटा में तुरंत जारी करें" : "⚡ Immediately release this freed slot to the 5:00 - 8:00 PM Tatkaal Quota"}
                 </label>
               </div>
 
