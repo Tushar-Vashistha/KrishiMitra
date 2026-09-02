@@ -5,6 +5,7 @@ import { cropService, centreService, tatkaalService } from '../../services/api';
 import { mockCentres, mockCrops } from '../../data/mockData';
 import { useNavigate } from 'react-router-dom';
 
+// Tatkaal Priority Booking Portal with Guaranteed Golden Submit Button
 const TatkaalBooking = () => {
   const navigate = useNavigate();
   const { t, i18n } = useTranslation();
