@@ -297,10 +297,7 @@ const LandingPage = () => {
                 gap: '1.15rem',
                 padding: '0.4rem 0.6rem',
                 borderRight: idx !== features.length - 1 ? '1px solid #F1F5F9' : 'none',
-                cursor: 'pointer',
-              }}
-              onClick={() => navigate('/login')}
-              >
+              }}>
                 <div style={{
                   width: '52px',
                   height: '52px',
@@ -392,82 +389,52 @@ const LandingPage = () => {
             gap: '1.75rem',
           }}>
             {/* Trust Score */}
-            <button
-              type="button"
-              className="card"
-              onClick={() => navigate('/login')}
-              style={{
-                width: '100%', height: '100%', textAlign: 'center', padding: '2.2rem 1.75rem',
-                cursor: 'pointer', background: '#FFFFFF', border: '1.5px solid #E2E8F0',
-                borderRadius: '16px', fontFamily: 'inherit', outline: 'none',
-                display: 'flex', flexDirection: 'column', alignItems: 'center'
-              }}
-            >
+            <div className="card" style={{ textAlign: 'center', padding: '2.2rem 1.75rem' }}>
               <div className="icon-wrap-green">
                 <ShieldCheck size={34} color="#059669" />
               </div>
               <h3 style={{ fontWeight: 800, fontSize: '1.2rem', marginBottom: '0.6rem', color: '#047857' }}>
                 {t('trustScore')}
               </h3>
-              <p style={{ color: '#64748B', fontSize: '0.92rem', lineHeight: 1.65, margin: 0 }}>
+              <p style={{ color: '#64748B', fontSize: '0.92rem', lineHeight: 1.65 }}>
                 {t('trustScoreDesc')}
               </p>
               <div style={{ marginTop: '1.2rem' }}>
                 <span className="badge-green">● Verified Farmers</span>
               </div>
-            </button>
+            </div>
 
             {/* Daily Prices */}
-            <button
-              type="button"
-              className="card"
-              onClick={() => navigate('/login')}
-              style={{
-                width: '100%', height: '100%', textAlign: 'center', padding: '2.2rem 1.75rem',
-                cursor: 'pointer', background: '#FFFFFF', border: '1.5px solid #E2E8F0',
-                borderRadius: '16px', fontFamily: 'inherit', outline: 'none',
-                display: 'flex', flexDirection: 'column', alignItems: 'center'
-              }}
-            >
+            <div className="card" style={{ textAlign: 'center', padding: '2.2rem 1.75rem' }}>
               <div className="icon-wrap-gold">
                 <TrendingUp size={34} color="#D97706" />
               </div>
               <h3 style={{ fontWeight: 800, fontSize: '1.2rem', marginBottom: '0.6rem', color: '#047857' }}>
                 {t('dailyPrices')}
               </h3>
-              <p style={{ color: '#64748B', fontSize: '0.92rem', lineHeight: 1.65, margin: 0 }}>
+              <p style={{ color: '#64748B', fontSize: '0.92rem', lineHeight: 1.65 }}>
                 {t('dailyPricesDesc')}
               </p>
               <div style={{ marginTop: '1.2rem' }}>
                 <span className="badge-yellow">● Live MSP Rates</span>
               </div>
-            </button>
+            </div>
 
             {/* KrishiMitra AI */}
-            <button
-              type="button"
-              className="card"
-              onClick={() => navigate('/login')}
-              style={{
-                width: '100%', height: '100%', textAlign: 'center', padding: '2.2rem 1.75rem',
-                cursor: 'pointer', background: '#FFFFFF', border: '1.5px solid #E2E8F0',
-                borderRadius: '16px', fontFamily: 'inherit', outline: 'none',
-                display: 'flex', flexDirection: 'column', alignItems: 'center'
-              }}
-            >
+            <div className="card" style={{ textAlign: 'center', padding: '2.2rem 1.75rem' }}>
               <div className="icon-wrap-blue">
                 <Bot size={34} color="#1D4ED8" />
               </div>
               <h3 style={{ fontWeight: 800, fontSize: '1.2rem', marginBottom: '0.6rem', color: '#047857' }}>
                 {t('krishiMitraAI')}
               </h3>
-              <p style={{ color: '#64748B', fontSize: '0.92rem', lineHeight: 1.65, margin: 0 }}>
+              <p style={{ color: '#64748B', fontSize: '0.92rem', lineHeight: 1.65 }}>
                 {t('krishiMitraAIDesc')}
               </p>
               <div style={{ marginTop: '1.2rem' }}>
                 <span className="badge-blue">● 24×7 Support</span>
               </div>
-            </button>
+            </div>
           </div>
         </div>
       </section>
@@ -568,7 +535,7 @@ const LandingPage = () => {
           }}>
             {centres.length > 0 ? (
               centres.map(centre => (
-                <div key={centre.id} className="card" style={{ position: 'relative', padding: '1.5rem', cursor: 'pointer' }} onClick={() => navigate('/login')}>
+                <div key={centre.id} className="card" style={{ position: 'relative', padding: '1.5rem' }}>
                   <div style={{ position: 'absolute', top: '1.2rem', right: '1.2rem' }}>
                     <span className={(centre.status === 'ACTIVE' || centre.open) ? 'badge-green' : 'badge-red'}>
                       {(centre.status === 'ACTIVE' || centre.open !== false) ? `● ${t('open')}` : `● ${t('closed')}`}
