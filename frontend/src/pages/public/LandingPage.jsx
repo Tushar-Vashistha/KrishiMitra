@@ -746,7 +746,7 @@ const LandingPage = () => {
             flexWrap: 'wrap', gap: '0.5rem',
           }}>
             <span style={{ fontSize: '0.82rem', color: '#64748B', fontWeight: 600 }}>{t('madeWith')}</span>
-            <span style={{ fontSize: '0.82rem', color: '#64748B', fontWeight: 600 }}>© 2024 KrishiMitra. All rights reserved.</span>
+            <span style={{ fontSize: '0.82rem', color: '#64748B', fontWeight: 600 }}>© 2026 KrishiMitra. All rights reserved.</span>
           </div>
         </div>
       </footer>
