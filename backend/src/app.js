@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
+const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 const swaggerUi = require('swagger-ui-express');
 
@@ -13,6 +14,9 @@ const app = express();
 
 // Security Middlewares
 app.use(helmet());
+
+// Response Compression (Gzip)
+app.use(compression());
 
 // CORS Configuration
 const corsOrigin = process.env.CORS_ORIGIN || '*';
