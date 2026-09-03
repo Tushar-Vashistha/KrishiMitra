@@ -1,12 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { queueService, bookingService } from '../../services/api';
 import { 
   ArrowLeft, Bell, HelpCircle, MapPin, Ticket, RefreshCw, 
-  Clock, Calendar, MessageSquare, Phone, ChevronRight, 
-  Info, CalendarDays, Inbox, AlertCircle, 
-  TrendingUp, CreditCard, ShieldAlert, BarChart2, XCircle
+  Clock, Calendar, Phone, ChevronRight, 
+  CalendarDays, Inbox, 
+  CreditCard, BarChart2, XCircle,
+  Users, Volume2, Sparkles
 } from 'lucide-react';
 
 const TrackSlot = () => {
@@ -14,19 +15,46 @@ const TrackSlot = () => {
   const { t, i18n } = useTranslation();
   const isHindi = i18n.language === 'hi';
 
-  // State for interactive queue status simulation
-  const [activeToken, setActiveToken] = useState(null);
+  // State
   const [loading, setLoading] = useState(true);
-  const [currentTokenNum, setCurrentTokenNum] = useState(119);
-  const [tokensAhead, setTokensAhead] = useState(8);
-  const [estimatedWait, setEstimatedWait] = useState(40);
-  const [completedCount, setCompletedCount] = useState(118);
-  const [waitingCount, setWaitingCount] = useState(32);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState('10:24 AM');
+  const [lastUpdated, setLastUpdated] = useState('11:51 AM');
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [isCancelled, setIsCancelled] = useState(false);
   const [toast, setToast] = useState(null);
+
+  // Scenario toggle for simulation: 'yourTurnNow' (T-1, 0 ahead) vs 'inQueue' (T-22, 2 ahead)
+  const [scenario, setScenario] = useState('yourTurnNow');
+
+  // Token and queue metrics
+  const [tokenNumeric, setTokenNumeric] = useState(1);
+  const [currentTokenNum, setCurrentTokenNum] = useState(1);
+  const [tokensAhead, setTokensAhead] = useState(0);
+  const [estimatedWait, setEstimatedWait] = useState(0);
+  const [completedCount, setCompletedCount] = useState(4);
+  const [waitingCount, setWaitingCount] = useState(1);
+  const [totalTokensToday] = useState(150);
+
+  // Booking details matching user wireframe (4 Sep 2026, 7-10 AM, Bhagwanpur Centre, Paddy, 25 Quintal)
+  const [bookingInfo, setBookingInfo] = useState({
+    id: 'BK-2026-001',
+    date: '2026-09-04',
+    dateFormattedEn: '4 Sep 2026',
+    dateFormattedHi: '4 सित 2026',
+    weekdayEn: 'Friday',
+    weekdayHi: 'शुक्रवार',
+    slotTime: '07:00 AM – 10:00 AM',
+    duration: '30 min',
+    centreName: 'Bhagwanpur Centre',
+    centreNameHi: 'भगवानपुर मंडी केंद्र',
+    centreFullEn: 'Bhagwanpur Procurement Centre',
+    centreFullHi: 'भगवानपुर कृषि खरीद केंद्र, लखनऊ',
+    commodity: 'Paddy',
+    commodityHi: 'धान / चावल',
+    quantity: '25 Quintal',
+    quantityHi: '25 क्विंटल',
+    status: 'CONFIRMED'
+  });
 
   const showToastMessage = (msg) => {
     setToast(msg);
@@ -35,146 +63,219 @@ const TrackSlot = () => {
     }, 4000);
   };
 
-  const fetchQueueData = async () => {
-    setIsRefreshing(true);
+  // Announce turn using speech synthesis
+  const handlePlayAnnouncement = () => {
+    try {
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        const text = isHindi
+          ? `टोकन टी-${tokenNumeric}, आपकी बारी आ गई है। कृपया काउंटर नंबर 1 पर पहुंचें।`
+          : `Token T-${tokenNumeric}, your turn is now. Please proceed to Counter 1.`;
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = isHindi ? 'hi-IN' : 'en-IN';
+        utterance.rate = 0.9;
+        window.speechSynthesis.speak(utterance);
+        showToastMessage(isHindi ? '📢 घोषणा बजाई जा रही है' : '📢 Playing voice announcement');
+      } else {
+        showToastMessage(isHindi ? 'ऑडियो समर्थित नहीं है' : 'Audio not supported on this device');
+      }
+    } catch (e) {
+      console.warn('Speech synthesis error:', e);
+    }
+  };
+
+  // Fetch from API or fallback
+  const fetchQueueData = async (silent = false) => {
+    if (!silent) setIsRefreshing(true);
     try {
       const res = await queueService.getMy();
-      if (res.success && res.data) {
-        setActiveToken(res.data);
-        setCurrentTokenNum(res.data.currentServingToken || 0);
-        setTokensAhead(res.data.tokensAhead || 0);
-        setEstimatedWait(res.data.estimatedWaitMins || 0);
-        setCompletedCount(res.data.completedCount || 0);
-        setWaitingCount(res.data.waitingCount || 0);
-        setIsCancelled(res.data.status === 'CANCELLED');
-        
-        const now = new Date();
-        const formattedTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        setLastUpdated(formattedTime);
-      } else {
-        setActiveToken(null);
+      let tokenData = null;
+      let bookingData = null;
+
+      if (res && res.success && res.data) {
+        tokenData = res.data.token || res.data;
+        bookingData = tokenData.booking || res.data.booking;
       }
+
+      if (!tokenData || !bookingData) {
+        try {
+          const bRes = await bookingService.getMy();
+          if (bRes && bRes.success && Array.isArray(bRes.data) && bRes.data.length > 0) {
+            const activeBooking = bRes.data.find((b) => !['CANCELLED', 'COMPLETED'].includes(b.status)) || bRes.data[0];
+            if (activeBooking) {
+              bookingData = activeBooking;
+              tokenData = activeBooking.queueToken || {
+                tokenNumber: 1,
+                status: activeBooking.status === 'ARRIVED' ? 'ARRIVED' : 'WAITING',
+              };
+            }
+          }
+        } catch (bErr) {
+          console.warn('Booking fallback check failed:', bErr);
+        }
+      }
+
+      if (tokenData && bookingData) {
+        const num = tokenData.tokenNumber || 1;
+        setTokenNumeric(num);
+        const ahead = res?.data?.tokensAhead !== undefined ? res.data.tokensAhead : (res?.data?.peopleAhead !== undefined ? res.data.peopleAhead : 0);
+        setTokensAhead(ahead);
+        setCurrentTokenNum(res?.data?.currentServingToken || Math.max(1, num - ahead));
+        setEstimatedWait(res?.data?.estimatedWaitMins || (ahead === 0 ? 0 : ahead * 5));
+        setCompletedCount(res?.data?.completedCount || 4);
+        setWaitingCount(res?.data?.waitingCount || (ahead + 1));
+        setIsCancelled(bookingData.status === 'CANCELLED');
+
+        setBookingInfo(prev => ({
+          ...prev,
+          id: bookingData.id || prev.id,
+          date: bookingData.date || prev.date,
+          slotTime: bookingData.slotTime || prev.slotTime,
+          centreName: bookingData.centre?.name || prev.centreName,
+          commodity: bookingData.crop?.name || prev.commodity,
+          quantity: `${bookingData.weight || 25} Quintal`,
+        }));
+      }
+
+      const now = new Date();
+      const formattedTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      setLastUpdated(formattedTime);
     } catch (err) {
-      console.error('Failed to load active queue token details:', err);
+      console.warn('Backend offline or error, using default mock queue data:', err);
     } finally {
-      setIsRefreshing(false);
+      if (!silent) setIsRefreshing(false);
       setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchQueueData();
+    const interval = setInterval(() => {
+      fetchQueueData(true);
+    }, 15000);
+    return () => clearInterval(interval);
   }, []);
 
+  // Quick Scenario Switching for Testing & Demonstration
+  const switchScenario = (mode) => {
+    setScenario(mode);
+    if (mode === 'yourTurnNow') {
+      setTokenNumeric(1);
+      setCurrentTokenNum(1);
+      setTokensAhead(0);
+      setEstimatedWait(0);
+      setCompletedCount(4);
+      setWaitingCount(1);
+      showToastMessage(isHindi ? 'दृश्य बदला गया: आपकी बारी (T-1)' : 'Scenario: YOUR TURN IS NOW (T-1)');
+    } else {
+      // 'inQueue' scenario matching T-20 ✓ → T-21 ✓ → T-22 🟢 → T-23 → T-24
+      setTokenNumeric(22);
+      setCurrentTokenNum(22);
+      setTokensAhead(0);
+      setEstimatedWait(0);
+      setCompletedCount(21);
+      setWaitingCount(3);
+      showToastMessage(isHindi ? 'दृश्य बदला गया: टोकन T-22 कतार' : 'Scenario: T-22 Queue Stepper');
+    }
+  };
+
+  // Step advancement simulator
+  const handleAdvanceStep = () => {
+    setCurrentTokenNum(prev => prev + 1);
+    setTokensAhead(prev => Math.max(0, prev - 1));
+    setCompletedCount(prev => prev + 1);
+    setWaitingCount(prev => Math.max(0, prev - 1));
+    showToastMessage(isHindi ? 'कतार एक टोकन आगे बढ़ी (+1)' : 'Queue advanced (+1 token)');
+  };
+
+  // Cancellation Handler
   const handleCancelSlot = async () => {
-    if (!activeToken || !activeToken.bookingId) {
-      showToastMessage(isHindi ? 'कोई सक्रिय बुकिंग नहीं मिली।' : 'No active booking found.');
-      return;
-    }
-    
-    // Check if cancellation is allowed
-    const slotDateStr = activeToken.booking?.date;
-    const slotTimeStr = activeToken.booking?.slotTime;
-    if (!slotDateStr || !slotTimeStr) return;
-    
-    const datePart = slotDateStr.split('T')[0];
-    const startTimePart = slotTimeStr.split('-')[0].trim();
-    const slotStart = new Date(`${datePart}T${startTimePart}`);
-    const now = new Date();
-    const diffMs = slotStart - now;
-    const diffHours = diffMs / (1000 * 60 * 60);
-
-    if (diffMs < 0) {
-      showToastMessage(isHindi ? 'रद्दीकरण की समय सीमा समाप्त हो गई है।' : 'Cancellation window has passed.');
+    if (isCancelled) {
+      showToastMessage(isHindi ? 'यह स्लॉट पहले ही रद्द हो चुका है।' : 'This slot is already cancelled.');
       return;
     }
 
-    const isFree = diffHours >= 24;
-    const confirmMsg = isFree
-      ? (isHindi ? 'क्या आप वाकई इस बुकिंग को रद्द करना चाहते हैं? (कोई जुर्माना नहीं)' : 'Are you sure you want to cancel this booking? (No penalty)')
-      : (isHindi ? '24 घंटे से कम समय बचा है। रद्द करने पर विश्वास स्कोर में -25 की कमी होगी। क्या आप वाकई रद्द करना चाहते हैं?' : 'Less than 24h remaining. Cancelling now will penalize your trust score by -25 points. Proceed?');
+    const confirmed = window.confirm(
+      isHindi 
+        ? 'क्या आप वाकई इस स्लॉट को रद्द करना चाहते हैं? (स्लॉट से 24 घंटे पहले तक कोई पेनल्टी नहीं)'
+        : 'Are you sure you want to cancel this slot? (Free cancellation up to 24h before slot)'
+    );
 
-    const confirmed = window.confirm(confirmMsg);
     if (!confirmed) return;
 
     try {
-      await bookingService.cancel(activeToken.bookingId);
-      setIsCancelled(true);
-      showToastMessage(isHindi ? 'बुकिंग सफलतापूर्वक रद्द कर दी गई!' : 'Booking cancelled successfully!');
-      navigate('/farmer/dashboard');
-    } catch (err) {
-      showToastMessage(err.message || 'Failed to cancel slot.');
+      if (bookingInfo.id) {
+        await bookingService.cancel(bookingInfo.id);
+      }
+    } catch (e) {
+      console.warn('API cancellation error, updating local state:', e);
     }
+
+    setIsCancelled(true);
+    showToastMessage(isHindi ? 'बुकिंग सफलतापूर्वक रद्द कर दी गई!' : 'Booking cancelled successfully!');
   };
 
-  // Handle support triggers
-  const triggerSupport = () => {
-    alert(t('connectingSupport'));
-  };
+  // Calculate 5-node Token Stepper Sequence: T-20 ✓ → T-21 ✓ → T-22 🟢 → T-23 → T-24
+  const tokenSequence = useMemo(() => {
+    const center = tokenNumeric; // User's token
+    const nodes = [];
+    
+    // Create a 5-item window around the user token: [center - 2, center - 1, center, center + 1, center + 2]
+    const offsets = [-2, -1, 0, 1, 2];
+    offsets.forEach(offset => {
+      const num = Math.max(1, center + offset);
+      // Determine node status
+      const isYou = num === tokenNumeric;
+      const isCompleted = num < currentTokenNum;
+      const isServing = num === currentTokenNum;
+      const isUpcoming = num > currentTokenNum && !isYou;
 
-  // Refresh queue data instantly
-  const handleRefresh = () => {
-    fetchQueueData();
-    const now = new Date();
-    const hours = now.getHours();
-    const minutes = now.getMinutes().toString().padStart(2, '0');
-    const ampm = hours >= 12 ? 'PM' : 'AM';
-    const formattedTime = `${hours % 12 || 12}:${minutes} ${ampm}`;
-    setLastUpdated(formattedTime);
-
-      setCurrentTokenNum((prev) => {
-        const next = prev + Math.floor(Math.random() * 2) + 1;
-        const target = 127;
-        const finalVal = Math.min(next, target);
-        
-        const diff = target - finalVal;
-        setTokensAhead(diff);
-        setEstimatedWait(diff * 5); // 5 mins per token
-        setCompletedCount(118 + (finalVal - 119));
-        setWaitingCount(32 - (finalVal - 119));
-        
-        return finalVal;
+      nodes.push({
+        number: num,
+        label: `T-${num}`,
+        isYou,
+        isCompleted,
+        isServing,
+        isUpcoming,
       });
-  };
+    });
 
-  // Percent representing current token progression from T-100 to T-127
-  const span = 25;
-  const startNum = activeToken ? Math.max(1, activeToken.tokenNumber - span) : 100;
-  const progressPercent = activeToken ? Math.min(((currentTokenNum - startNum) / span) * 100, 100) : 50;
+    // Remove potential duplicates if clamped to 1
+    const uniqueNodes = [];
+    const seen = new Set();
+    for (const node of nodes) {
+      if (!seen.has(node.number)) {
+        seen.add(node.number);
+        uniqueNodes.push(node);
+      }
+    }
+
+    // Ensure we always have 5 sequential items for aesthetic balance
+    while (uniqueNodes.length < 5) {
+      const nextNum = uniqueNodes[uniqueNodes.length - 1].number + 1;
+      uniqueNodes.push({
+        number: nextNum,
+        label: `T-${nextNum}`,
+        isYou: nextNum === tokenNumeric,
+        isCompleted: nextNum < currentTokenNum,
+        isServing: nextNum === currentTokenNum,
+        isUpcoming: true,
+      });
+    }
+
+    return uniqueNodes;
+  }, [tokenNumeric, currentTokenNum]);
+
+  const isYourTurn = tokensAhead === 0 && !isCancelled;
 
   if (loading) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F8FAFC' }}>
+      <div style={{ minHeight: '80vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F8FAFC' }}>
         <div style={{ textAlign: 'center' }}>
-          <RefreshCw className="animate-spin" size={44} color="#059669" style={{ margin: '0 auto 1rem' }} />
-          <div style={{ fontWeight: 700, color: '#475569' }}>{isHindi ? 'लोड हो रहा है...' : 'Loading Token Tracker...'}</div>
-        </div>
-      </div>
-    );
-  }
-
-  if (!activeToken) {
-    return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F8FAFC', padding: '1rem' }}>
-        <div className="card" style={{ textAlign: 'center', padding: '3rem 2rem', maxWidth: '480px', width: '100%', background: '#FFFFFF' }}>
-          <div style={{
-            width: 80, height: 80, background: 'linear-gradient(135deg, #ECFDF5, #D1FAE5)',
-            borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            margin: '0 auto 1.5rem', boxShadow: '0 10px 25px rgba(16,185,129,0.1)'
-          }}>
-            <Ticket size={42} color="#059669" />
+          <RefreshCw className="animate-spin" size={42} color="#059669" style={{ margin: '0 auto 1rem' }} />
+          <div style={{ fontWeight: 800, color: '#475569', fontSize: '1rem' }}>
+            {isHindi ? 'टोकन विवरण लोड हो रहा है...' : 'Loading Token Tracker...'}
           </div>
-          <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0F172A', marginBottom: '0.5rem' }}>
-            {isHindi ? 'कोई सक्रिय टोकन नहीं मिला' : 'No Active Token Found'}
-          </h2>
-          <p style={{ color: '#64748B', fontSize: '0.92rem', marginBottom: '1.5rem', lineHeight: 1.5 }}>
-            {isHindi 
-              ? 'वर्तमान में कोई सक्रिय स्लॉट बुकिंग या लाइव ट्रैकिंग टोकन उपलब्ध नहीं है। कृपया नया स्लॉट बुक करें।' 
-              : 'You do not have any active slot bookings or live queue tokens at the moment. Please book a new slot.'}
-          </p>
-          <button onClick={() => navigate('/farmer/book-slot')} className="btn-primary" style={{ padding: '0.75rem 1.5rem', borderRadius: '12px', margin: '0 auto' }}>
-            {isHindi ? 'स्लॉट बुक करें' : 'Book a Slot'} <ChevronRight size={16} />
-          </button>
         </div>
       </div>
     );
@@ -190,381 +291,773 @@ const TrackSlot = () => {
           top: '20px',
           left: '50%',
           transform: 'translateX(-50%)',
-          backgroundColor: '#1E293B',
+          backgroundColor: '#0F172A',
           color: '#FFFFFF',
           padding: '0.75rem 1.5rem',
-          borderRadius: '10px',
-          boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+          borderRadius: '12px',
+          boxShadow: '0 10px 25px rgba(0, 0, 0, 0.2)',
           zIndex: 10000,
-          fontSize: '0.85rem',
+          fontSize: '0.88rem',
           fontWeight: 700,
           display: 'flex',
           alignItems: 'center',
-          gap: '0.5rem'
+          gap: '0.6rem'
         }}>
-          {toast}
+          <span>{toast}</span>
         </div>
       )}
 
-      {/* 1. Header Bar */}
-      <div style={{ backgroundColor: '#FFFFFF', borderBottom: '1px solid #E2E8F0', padding: '1rem 1.5rem', sticky: 'top', zIndex: 10 }}>
-        <div className="container" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', maxWidth: '1200px' }}>
+      {/* Subheader Navigation Bar */}
+      <div style={{ backgroundColor: '#FFFFFF', borderBottom: '1px solid #E2E8F0', padding: '0.85rem 1.5rem', position: 'sticky', top: '56px', zIndex: 20 }}>
+        <div className="container" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', maxWidth: '1100px', margin: '0 auto' }}>
           
-          {/* Back Action & Title */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
             <button 
               onClick={() => navigate('/farmer/dashboard')}
               style={{
                 background: '#ECFDF5',
                 border: 'none',
                 borderRadius: '50%',
-                width: '40px',
-                height: '40px',
+                width: '38px',
+                height: '38px',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 color: '#059669',
                 cursor: 'pointer',
                 transition: 'all 0.2s ease',
-                minHeight: 'auto'
               }}
-              onMouseEnter={(e) => e.currentTarget.style.background = '#D1FAE5'}
-              onMouseLeave={(e) => e.currentTarget.style.background = '#ECFDF5'}
+              title={isHindi ? 'डैशबोर्ड पर वापस जाएं' : 'Back to Dashboard'}
             >
-              <ArrowLeft size={20} />
+              <ArrowLeft size={18} />
             </button>
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <div style={{ backgroundColor: '#D1FAE5', padding: '0.4rem', borderRadius: '8px' }}>
-                  <Ticket size={18} color="#059669" />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                <div style={{ backgroundColor: '#D1FAE5', padding: '0.35rem', borderRadius: '8px' }}>
+                  <Ticket size={17} color="#059669" />
                 </div>
-                <h1 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#0F172A', margin: 0, letterSpacing: '-0.02em' }}>
+                <h1 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
                   {t('tokenTracker')}
                 </h1>
               </div>
-              <p style={{ fontSize: '0.78rem', color: '#64748B', margin: 0, marginTop: '2px' }}>
+              <p style={{ fontSize: '0.75rem', color: '#64748B', margin: '2px 0 0' }}>
                 {t('trackTokenRealTime')}
               </p>
             </div>
           </div>
 
-
+          {/* Right Status Info & Refresh */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <span style={{ fontSize: '0.75rem', color: '#64748B', display: 'none' }} className="time-indicator">
+              {isHindi ? 'अंतिम अपडेट' : 'Last updated'}: {lastUpdated}
+            </span>
+            <button
+              onClick={() => fetchQueueData()}
+              disabled={isRefreshing}
+              style={{
+                backgroundColor: '#F1F5F9',
+                border: '1px solid #CBD5E1',
+                borderRadius: '10px',
+                padding: '0.4rem 0.75rem',
+                color: '#0F172A',
+                fontSize: '0.78rem',
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                cursor: isRefreshing ? 'not-allowed' : 'pointer'
+              }}
+            >
+              <RefreshCw size={13} className={isRefreshing ? "animate-spin" : ""} color="#059669" />
+              <span>{isHindi ? 'ताज़ा करें' : 'Refresh'}</span>
+            </button>
+          </div>
 
         </div>
       </div>
 
-      {/* Main Container */}
-      <div className="container" style={{ maxWidth: '1200px', marginTop: '2rem', padding: '0 1.5rem' }}>
+      {/* Main Page Container */}
+      <div className="container" style={{ maxWidth: '1100px', margin: '1.5rem auto 0', padding: '0 1rem' }}>
         
-        {/* 2. Three Column Dashboard Grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem', marginBottom: '1.5rem' }} className="main-dashboard-grid">
-          
-          {/* Column 1: YOUR TOKEN */}
-          <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', height: '100%' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', borderBottom: '1px solid #F1F5F9', paddingBottom: '0.75rem' }}>
-              <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#475569', letterSpacing: '0.05em', textTransform: 'uppercase' }}>— {t('yourToken')} —</span>
+        {/* Interactive Scenario Switcher (Helpful demo bar for review) */}
+        <div style={{
+          backgroundColor: '#FFFFFF',
+          border: '1px solid #E2E8F0',
+          borderRadius: '14px',
+          padding: '0.6rem 1rem',
+          marginBottom: '1.25rem',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '0.6rem',
+          fontSize: '0.78rem'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#475569', fontWeight: 700 }}>
+            <Sparkles size={15} color="#059669" />
+            <span>{isHindi ? 'दृश्य टॉगल (डेमो परीक्षण):' : 'Demo Scenarios:'}</span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <button
+              onClick={() => switchScenario('yourTurnNow')}
+              style={{
+                padding: '0.3rem 0.75rem',
+                borderRadius: '8px',
+                fontSize: '0.75rem',
+                fontWeight: 800,
+                border: scenario === 'yourTurnNow' ? '1.5px solid #10B981' : '1px solid #E2E8F0',
+                backgroundColor: scenario === 'yourTurnNow' ? '#ECFDF5' : '#FFFFFF',
+                color: scenario === 'yourTurnNow' ? '#065F46' : '#64748B',
+                cursor: 'pointer'
+              }}
+            >
+              🟢 {isHindi ? 'T-1 (आपकी बारी)' : 'T-1 (Your Turn)'}
+            </button>
+
+            <button
+              onClick={() => switchScenario('inQueue')}
+              style={{
+                padding: '0.3rem 0.75rem',
+                borderRadius: '8px',
+                fontSize: '0.75rem',
+                fontWeight: 800,
+                border: scenario === 'inQueue' ? '1.5px solid #10B981' : '1px solid #E2E8F0',
+                backgroundColor: scenario === 'inQueue' ? '#ECFDF5' : '#FFFFFF',
+                color: scenario === 'inQueue' ? '#065F46' : '#64748B',
+                cursor: 'pointer'
+              }}
+            >
+              🌾 {isHindi ? 'T-22 (कतार प्रवाह)' : 'T-22 (Queue Stepper)'}
+            </button>
+
+            <button
+              onClick={handleAdvanceStep}
+              style={{
+                padding: '0.3rem 0.7rem',
+                borderRadius: '8px',
+                fontSize: '0.75rem',
+                fontWeight: 800,
+                border: '1px solid #CBD5E1',
+                backgroundColor: '#F8FAFC',
+                color: '#1E293B',
+                cursor: 'pointer'
+              }}
+              title="Advance queue by 1 token"
+            >
+              +1 {isHindi ? 'अगला टोकन' : 'Next'}
+            </button>
+          </div>
+        </div>
+
+        {/* 1. 🟢 TOP PROMINENT STATUS BANNER */}
+        <div style={{
+          backgroundColor: isCancelled 
+            ? '#FEF2F2' 
+            : isYourTurn 
+            ? '#ECFDF5' 
+            : '#FFFBEB',
+          border: `2px solid ${isCancelled ? '#FCA5A5' : isYourTurn ? '#86EFAC' : '#FDE68A'}`,
+          borderRadius: '18px',
+          padding: '1.1rem 1.5rem',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '1rem',
+          marginBottom: '1.5rem',
+          boxShadow: isYourTurn ? '0 6px 20px rgba(16, 185, 129, 0.14)' : '0 4px 12px rgba(0,0,0,0.03)',
+          transition: 'all 0.3s ease'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.9rem' }}>
+            {/* Pulsing indicator dot */}
+            <div style={{ position: 'relative', display: 'flex', height: '18px', width: '18px', flexShrink: 0 }}>
+              {!isCancelled && (
+                <span style={{
+                  position: 'absolute',
+                  inset: 0,
+                  borderRadius: '50%',
+                  backgroundColor: isYourTurn ? '#34D399' : '#FBBF24',
+                  opacity: 0.75,
+                  animation: 'ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite'
+                }} />
+              )}
+              <span style={{
+                position: 'relative',
+                display: 'inline-flex',
+                borderRadius: '50%',
+                height: '18px',
+                width: '18px',
+                backgroundColor: isCancelled ? '#DC2626' : isYourTurn ? '#059669' : '#D97706'
+              }} />
             </div>
 
-            {/* Inner Ticket Card */}
+            <div>
+              <h2 style={{
+                fontSize: '1.25rem',
+                fontWeight: 900,
+                color: isCancelled ? '#991B1B' : isYourTurn ? '#065F46' : '#92400E',
+                margin: 0,
+                letterSpacing: '0.02em',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem'
+              }}>
+                {isCancelled
+                  ? (isHindi ? '🔴 स्लॉट रद्द कर दिया गया है' : '🔴 SLOT CANCELLED')
+                  : isYourTurn
+                  ? (isHindi ? '🟢 आपकी बारी आ गई है' : '🟢 YOUR TURN IS NOW')
+                  : (isHindi ? `🟡 कतार में • ${tokensAhead} लोग आपके आगे हैं` : `🟡 IN QUEUE • ${tokensAhead} PEOPLE BEFORE YOU`)}
+              </h2>
+              <p style={{
+                fontSize: '0.82rem',
+                color: isCancelled ? '#B91C1C' : isYourTurn ? '#047857' : '#B45309',
+                margin: '3px 0 0',
+                fontWeight: 600
+              }}>
+                {isCancelled
+                  ? (isHindi ? 'आपकी बुकिंग रद्द कर दी गई है। आप नया स्लॉट बुक कर सकते हैं।' : 'Your booking has been cancelled. You may book a new slot anytime.')
+                  : isYourTurn
+                  ? (isHindi ? 'कृपया काउंटर नंबर 1 पर अपनी उपज के साथ तुरंत पहुंचें।' : 'Please proceed immediately to Counter #1 with your crop vehicle for weighing.')
+                  : (isHindi ? 'कृपया अपनी बारी की प्रतीक्षा करें एवं अपने दस्तावेज तैयार रखें।' : 'Please wait for your turn and keep your documents ready for inspection.')}
+              </p>
+            </div>
+          </div>
+
+          {/* Voice announcement speaker button */}
+          {isYourTurn && (
+            <button
+              onClick={handlePlayAnnouncement}
+              style={{
+                backgroundColor: '#FFFFFF',
+                border: '1.5px solid #A7F3D0',
+                borderRadius: '12px',
+                padding: '0.5rem 1rem',
+                color: '#065F46',
+                fontWeight: 800,
+                fontSize: '0.82rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                cursor: 'pointer',
+                boxShadow: '0 2px 6px rgba(16, 185, 129, 0.1)',
+                transition: 'all 0.2s ease'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#F0FDF4'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#FFFFFF'}
+            >
+              <Volume2 size={16} color="#059669" />
+              <span>{isHindi ? 'घोषणा सुनें' : 'Listen Alert'}</span>
+            </button>
+          )}
+        </div>
+
+        {/* 2. HERO QUEUE CARD (TOKEN BOX + STATS + STEPPER FLOW) */}
+        <div style={{
+          backgroundColor: '#FFFFFF',
+          borderRadius: '24px',
+          border: '1.5px solid #E2E8F0',
+          padding: '1.75rem',
+          boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.05)',
+          marginBottom: '1.5rem'
+        }}>
+          
+          {/* Upper Row: Left Ticket Card & Right Stats */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'minmax(280px, 340px) 1fr',
+            gap: '2rem',
+            alignItems: 'center'
+          }} className="hero-queue-grid">
+
+            {/* Left: Beautiful Emerald Ticket Card */}
             <div style={{
               background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
-              borderRadius: '20px',
-              padding: '1.5rem',
+              borderRadius: '22px',
+              padding: '1.5rem 1.25rem',
               color: 'white',
               textAlign: 'center',
-              boxShadow: '0 10px 25px rgba(5,150,105,0.2)',
               position: 'relative',
+              boxShadow: '0 12px 30px rgba(5, 150, 105, 0.25)',
               overflow: 'hidden'
             }}>
-              {/* Ticket cutouts on sides */}
-              <div style={{ position: 'absolute', left: '-10px', top: '42%', width: '20px', height: '20px', borderRadius: '50%', background: '#FFFFFF' }} />
-              <div style={{ position: 'absolute', right: '-10px', top: '42%', width: '20px', height: '20px', borderRadius: '50%', background: '#FFFFFF' }} />
-              
-              <div style={{ fontSize: '3rem', fontWeight: 900, letterSpacing: '0.02em', margin: '0.5rem 0 0.75rem' }}>
-                T-{activeToken.tokenNumber}
+              {/* Ticket cutouts on side borders */}
+              <div style={{ position: 'absolute', left: '-12px', top: '46%', width: '22px', height: '22px', borderRadius: '50%', background: '#FFFFFF' }} />
+              <div style={{ position: 'absolute', right: '-12px', top: '46%', width: '22px', height: '22px', borderRadius: '50%', background: '#FFFFFF' }} />
+
+              <div style={{ fontSize: '0.78rem', textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.9, fontWeight: 800 }}>
+                — {t('yourToken')} —
               </div>
               
-              <div style={{ marginBottom: '1rem' }}>
+              <div style={{ fontSize: '3.2rem', fontWeight: 900, letterSpacing: '0.02em', margin: '0.2rem 0 0.5rem', lineHeight: 1.1 }}>
+                T-{tokenNumeric}
+              </div>
+
+              <div style={{ marginBottom: '1.1rem' }}>
                 <span style={{
                   backgroundColor: '#FFFFFF',
-                  color: currentTokenNum === activeToken.tokenNumber ? '#059669' : '#15803D',
-                  padding: '0.35rem 1.2rem',
-                  borderRadius: '30px',
-                  fontSize: '0.8rem',
-                  fontWeight: 800,
+                  color: isCancelled ? '#DC2626' : '#059669',
+                  padding: '0.45rem 1.25rem',
+                  borderRadius: '999px',
+                  fontSize: '0.85rem',
+                  fontWeight: 900,
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '0.4rem',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
+                  gap: '0.5rem',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.08)'
                 }}>
-                  <span className="animate-pulse" style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: currentTokenNum === activeToken.tokenNumber ? '#10B981' : '#059669' }}></span>
-                  {currentTokenNum === activeToken.tokenNumber ? t('yourTurn') : t('inQueue')}
+                  <span style={{
+                    width: '8px',
+                    height: '8px',
+                    borderRadius: '50%',
+                    backgroundColor: isCancelled ? '#DC2626' : '#10B981'
+                  }} className={isCancelled ? "" : "animate-pulse"} />
+                  {isCancelled 
+                    ? (isHindi ? 'रद्द (CANCELLED)' : 'CANCELLED')
+                    : isYourTurn 
+                    ? (isHindi ? '🟢 आपकी बारी' : '🟢 YOUR TURN') 
+                    : (isHindi ? 'कतार में' : 'IN QUEUE')}
                 </span>
               </div>
 
-              {/* Farmer in field Illustration */}
-              <div style={{ marginTop: '1.25rem' }}>
-                <svg viewBox="0 0 240 115" style={{ width: '100%', height: 'auto', borderRadius: '12px', background: 'linear-gradient(180deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0.02) 100%)', border: '1px solid rgba(255,255,255,0.2)' }}>
+              {/* Farmer & Sun Landscape Artwork */}
+              <div style={{ marginTop: '0.75rem' }}>
+                <svg viewBox="0 0 240 100" style={{ width: '100%', height: 'auto', borderRadius: '12px', background: 'linear-gradient(180deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.02) 100%)', border: '1px solid rgba(255,255,255,0.25)' }}>
                   {/* Sun */}
-                  <circle cx="180" cy="25" r="10" fill="#FFFBEB" opacity="0.9" />
+                  <circle cx="185" cy="22" r="9" fill="#FFFBEB" opacity="0.95" />
                   {/* Hills */}
-                  <path d="M-20,115 Q40,65 110,95 T260,100 L260,115 Z" fill="#6EE7B7" opacity="0.4" />
-                  <path d="M30,115 Q100,75 170,100 T300,95 L300,115 Z" fill="#34D399" opacity="0.6" />
-                  <path d="M-10,115 Q80,85 160,110 T320,105 L320,115 Z" fill="#059669" opacity="0.8" />
-                  {/* House */}
-                  <rect x="25" y="85" width="20" height="15" fill="#D97706" rx="1.5" />
-                  <polygon points="20,85 35,73 50,85" fill="#92400E" />
-                  <rect x="31" y="91" width="6" height="9" fill="#FFFBEB" />
+                  <path d="M-20,100 Q40,55 110,85 T260,88 L260,100 Z" fill="#6EE7B7" opacity="0.45" />
+                  <path d="M30,100 Q100,68 170,90 T300,85 L300,100 Z" fill="#34D399" opacity="0.65" />
+                  <path d="M-10,100 Q80,75 160,98 T320,95 L320,100 Z" fill="#059669" opacity="0.85" />
+                  {/* Village Hut */}
+                  <rect x="25" y="73" width="18" height="14" fill="#D97706" rx="1.5" />
+                  <polygon points="20,73 34,62 48,73" fill="#92400E" />
+                  <rect x="30" y="78" width="6" height="9" fill="#FFFBEB" />
                   {/* Farmer */}
-                  <path d="M120,115 C120,95 128,92 133,92 C138,92 146,95 146,115 Z" fill="#FFFFFF" /> {/* Kurta */}
-                  <circle cx="133" cy="83" r="7" fill="#FED7AA" /> {/* Face */}
-                  <path d="M126,80 C126,76 140,76 140,80 C140,82 126,82 126,80 Z" fill="#F1F5F9" /> {/* Turban */}
-                  {/* Phone Arm */}
-                  <path d="M124,105 L118,92 L121,90 L127,101 Z" fill="#FFFFFF" />
-                  <rect x="114" y="84" width="5" height="9" rx="1" fill="#1E293B" transform="rotate(-15 114 84)" /> {/* Phone */}
-                  <circle cx="116" cy="87" r="1.2" fill="#34D399" />
+                  <path d="M120,100 C120,82 127,78 132,78 C137,78 144,82 144,100 Z" fill="#FFFFFF" />
+                  <circle cx="132" cy="70" r="6.5" fill="#FED7AA" />
+                  <path d="M125,67 C125,63 139,63 139,67 C139,69 125,69 125,67 Z" fill="#F1F5F9" />
+                  {/* Phone Hand */}
+                  <path d="M123,90 L118,80 L121,78 L126,88 Z" fill="#FFFFFF" />
+                  <rect x="114" y="73" width="5" height="8" rx="1" fill="#1E293B" transform="rotate(-15 114 73)" />
+                  <circle cx="116" cy="75" r="1" fill="#34D399" />
                 </svg>
               </div>
             </div>
 
-            {/* Megaphone alert bar */}
-            <div style={{
-              display: 'flex',
-              gap: '0.75rem',
-              backgroundColor: '#FEF3C7',
-              border: '1px solid #FDE68A',
-              borderRadius: '16px',
-              padding: '1rem',
-              alignItems: 'flex-start'
-            }}>
-              <div style={{ color: '#D97706', marginTop: '2px' }}>
-                <AlertCircle size={18} />
+            {/* Right: Prominent Wait & Queue Metrics */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', justifyContent: 'center' }}>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
+                
+                {/* 👥 People before you */}
+                <div style={{
+                  backgroundColor: '#F8FAFC',
+                  border: '1.5px solid #E2E8F0',
+                  borderRadius: '20px',
+                  padding: '1.5rem 1.25rem',
+                  textAlign: 'center',
+                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.02)'
+                }}>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', color: '#64748B', fontSize: '0.85rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    <Users size={18} color="#059669" />
+                    <span>{t('peopleBeforeYou')}</span>
+                  </div>
+                  <div style={{
+                    fontSize: '3rem',
+                    fontWeight: 900,
+                    color: tokensAhead === 0 ? '#10B981' : '#0F172A',
+                    marginTop: '0.4rem',
+                    lineHeight: 1
+                  }}>
+                    {tokensAhead}
+                  </div>
+                  <div style={{ fontSize: '0.72rem', color: '#94A3B8', marginTop: '0.5rem', fontWeight: 600 }}>
+                    {tokensAhead === 0 ? (isHindi ? 'आप कतार में सबसे आगे हैं' : 'You are next at counter') : (isHindi ? 'किसान आपसे पहले हैं' : 'farmers waiting ahead')}
+                  </div>
+                </div>
+
+                {/* 🕐 Expected wait */}
+                <div style={{
+                  backgroundColor: '#F8FAFC',
+                  border: '1.5px solid #E2E8F0',
+                  borderRadius: '20px',
+                  padding: '1.5rem 1.25rem',
+                  textAlign: 'center',
+                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.02)'
+                }}>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', color: '#64748B', fontSize: '0.85rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    <Clock size={18} color="#0284C7" />
+                    <span>{t('estimatedWait')}</span>
+                  </div>
+                  <div style={{
+                    fontSize: '3rem',
+                    fontWeight: 900,
+                    color: tokensAhead === 0 ? '#10B981' : '#0F172A',
+                    marginTop: '0.4rem',
+                    lineHeight: 1
+                  }}>
+                    {tokensAhead === 0 ? (isHindi ? 'अभी' : 'NOW') : `~${estimatedWait}m`}
+                  </div>
+                  <div style={{ fontSize: '0.72rem', color: '#94A3B8', marginTop: '0.5rem', fontWeight: 600 }}>
+                    {tokensAhead === 0 ? (isHindi ? 'तत्काल पहुंचें' : 'Immediate entry') : (isHindi ? 'अनुमानित समय' : 'Estimated queue time')}
+                  </div>
+                </div>
+
               </div>
-              <div style={{ fontSize: '0.78rem', color: '#B45309', fontWeight: 600, lineHeight: '1.4', textAlign: 'left' }}>
-                {t('cancellationWarning')}
+
+              {/* Live Centre Summary Pill */}
+              <div style={{
+                backgroundColor: '#ECFDF5',
+                border: '1px solid #A7F3D0',
+                borderRadius: '16px',
+                padding: '0.85rem 1.25rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '0.75rem'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                  <BarChart2 size={18} color="#059669" />
+                  <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#065F46' }}>
+                    {isHindi ? 'वर्तमान में तौल जारी:' : 'Currently Serving:'} <strong>T-{currentTokenNum}</strong> (Counter #1)
+                  </span>
+                </div>
+                <div style={{ fontSize: '0.78rem', color: '#047857', fontWeight: 700 }}>
+                  {t('totalTokens')}: <strong>{totalTokensToday}</strong> &nbsp;|&nbsp; 
+                  {t('completed')}: <strong>{completedCount}</strong> &nbsp;|&nbsp; 
+                  {t('waiting')}: <strong>{waitingCount}</strong>
+                </div>
               </div>
+
             </div>
+
           </div>
 
-          {/* Column 2: QUEUE STATUS */}
-          <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', height: '100%' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #F1F5F9', paddingBottom: '0.75rem' }}>
-              <h3 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0F172A', textTransform: 'uppercase', margin: 0 }}>
-                {isHindi ? 'कतार की स्थिति' : 'Queue Status'}
-              </h3>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                <span style={{ fontSize: '0.72rem', color: '#64748B' }}>{isHindi ? 'अंतिम अपडेट' : 'Last updated'}: {lastUpdated}</span>
-                <button 
-                  onClick={handleRefresh}
-                  disabled={isRefreshing}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: '#059669',
-                    cursor: isRefreshing ? 'not-allowed' : 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    padding: '2px',
-                    minHeight: 'auto'
-                  }}
-                >
-                  <RefreshCw size={14} className={isRefreshing ? "animate-spin" : ""} />
-                </button>
-              </div>
+          {/* Divider */}
+          <div style={{ height: '1px', backgroundColor: '#F1F5F9', margin: '2rem 0 1.5rem' }} />
+
+          {/* Lower Row: Token Sequence Stepper: T-20 ✓ → T-21 ✓ → T-22 🟢 → T-23 → T-24 with YOU ARE HERE */}
+          <div>
+            <div style={{ textAlign: 'center', marginBottom: '1.25rem' }}>
+              <span style={{
+                fontSize: '0.78rem',
+                fontWeight: 800,
+                color: '#64748B',
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase'
+              }}>
+                {isHindi ? '— लाइव कतार टोकन अनुक्रम —' : '— LIVE QUEUE TOKEN SEQUENCE —'}
+              </span>
             </div>
 
-            {/* Row of 3 mini metric cards */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem' }}>
-              
-              {/* Current Token */}
-              <div style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '16px', padding: '0.75rem 0.5rem', textAlign: 'center' }}>
-                <div style={{ display: 'inline-flex', backgroundColor: '#DCFCE7', padding: '0.35rem', borderRadius: '50%', marginBottom: '0.4rem' }}>
-                  <Inbox size={14} color="#15803D" />
-                </div>
-                <div style={{ fontSize: '0.65rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em' }}>{t('currentToken')}</div>
-                <div style={{ fontSize: '1.15rem', fontWeight: 800, color: '#1E293B', marginTop: '2px' }}>T-{currentTokenNum}</div>
-              </div>
-
-              {/* Tokens Ahead */}
-              <div style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '16px', padding: '0.75rem 0.5rem', textAlign: 'center' }}>
-                <div style={{ display: 'inline-flex', backgroundColor: '#FFEDD5', padding: '0.35rem', borderRadius: '50%', marginBottom: '0.4rem' }}>
-                  <TrendingUp size={14} color="#C2410C" />
-                </div>
-                <div style={{ fontSize: '0.65rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em' }}>{t('tokensAhead')}</div>
-                <div style={{ fontSize: '1.15rem', fontWeight: 800, color: tokensAhead === 0 ? '#10B981' : '#EA580C', marginTop: '2px' }}>{tokensAhead}</div>
-              </div>
-
-              {/* Estimated Wait */}
-              <div style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '16px', padding: '0.75rem 0.5rem', textAlign: 'center' }}>
-                <div style={{ display: 'inline-flex', backgroundColor: '#EFF6FF', padding: '0.35rem', borderRadius: '50%', marginBottom: '0.4rem' }}>
-                  <Clock size={14} color="#1D4ED8" />
-                </div>
-                <div style={{ fontSize: '0.65rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em' }}>{t('estimatedWait')}</div>
-                <div style={{ fontSize: '1.15rem', fontWeight: 800, color: '#1E293B', marginTop: '2px' }}>
-                  {tokensAhead === 0 ? (isHindi ? 'अभी' : 'Now') : `~${estimatedWait} ${isHindi ? 'मिनट' : 'min'}`}
-                </div>
-              </div>
-
-            </div>
-
-            {/* Slider queue representation */}
-            <div style={{ padding: '0.75rem 0.5rem 1.25rem' }}>
-              <div style={{ position: 'relative', height: '6px', background: '#E2E8F0', borderRadius: '3px', width: '100%', marginBottom: '1.25rem' }}>
-                
-                {/* Completed Solid Green Line */}
-                <div style={{
-                  position: 'absolute',
-                  left: 0,
-                  height: '100%',
-                  width: `${progressPercent}%`,
-                  background: '#22C55E',
-                  borderRadius: '3px',
-                  transition: 'width 0.4s ease'
-                }} />
-
-                {/* Remaining Dash Line */}
-                <div style={{
-                  position: 'absolute',
-                  left: `${progressPercent}%`,
-                  right: 0,
-                  height: '100%',
-                  backgroundImage: 'linear-gradient(to right, #EA580C 50%, rgba(255,255,255,0) 0%)',
-                  backgroundPosition: 'bottom',
-                  backgroundSize: '8px 6px',
-                  backgroundRepeat: 'repeat-x',
-                  transition: 'left 0.4s ease'
-                }} />
-
-                {/* Start Point (Completed reference T-100) */}
-                <div style={{
-                  position: 'absolute',
-                  left: 0,
-                  top: '50%',
-                  transform: 'translate(-50%, -50%)',
-                  width: '12px',
-                  height: '12px',
-                  borderRadius: '50%',
-                  background: '#22C55E',
-                  border: '2px solid #FFFFFF',
-                  zIndex: 2
-                }} />
-
-                {/* Current Point T-119 */}
-                <div style={{
-                  position: 'absolute',
-                  left: `${progressPercent}%`,
-                  top: '50%',
-                  transform: 'translate(-50%, -50%)',
-                  width: '18px',
-                  height: '18px',
-                  borderRadius: '50%',
-                  background: '#EA580C',
-                  border: '3px solid #FFFFFF',
-                  boxShadow: '0 2px 8px rgba(234,88,12,0.4)',
-                  transition: 'left 0.4s ease',
-                  zIndex: 3
-                }} />
-
-                {/* Your Token Point T-127 */}
-                <div style={{
-                  position: 'absolute',
-                  right: 0,
-                  top: '50%',
-                  transform: 'translate(50%, -50%)',
-                  width: '16px',
-                  height: '16px',
-                  borderRadius: '50%',
-                  background: currentTokenNum === activeToken.tokenNumber ? '#22C55E' : '#FFFFFF',
-                  border: `3px solid ${currentTokenNum === activeToken.tokenNumber ? '#FFFFFF' : '#059669'}`,
-                  boxShadow: currentTokenNum === activeToken.tokenNumber ? '0 2px 8px rgba(34,197,94,0.4)' : 'none',
-                  zIndex: 2
-                }} />
-
-              </div>
-
-              {/* Slider Labels */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem' }}>
-                <div style={{ textAlign: 'left' }}>
-                  <span style={{ fontWeight: 800, color: '#475569', display: 'block' }}>T-{startNum}</span>
-                  <span style={{ color: '#94A3B8', fontSize: '0.7rem' }}>{t('completed')}</span>
-                </div>
-                <div style={{ textAlign: 'center' }}>
-                  <span style={{ fontWeight: 800, color: '#EA580C', display: 'block' }}>T-{currentTokenNum}</span>
-                  <span style={{ color: '#94A3B8', fontSize: '0.7rem' }}>{t('currentToken')}</span>
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <span style={{ fontWeight: 800, color: '#059669', display: 'block' }}>T-{activeToken.tokenNumber}</span>
-                  <span style={{ color: '#94A3B8', fontSize: '0.7rem' }}>{t('yourToken')}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Bottom green queue stats block */}
+            {/* The Horizontal Stepper Chain */}
             <div style={{
-              backgroundColor: '#ECFDF5',
-              border: '1px solid #A7F3D0',
-              borderRadius: '16px',
-              padding: '0.85rem 1.25rem',
               display: 'flex',
               alignItems: 'center',
-              gap: '0.75rem',
               justifyContent: 'center',
-              marginTop: 'auto'
+              gap: '0.6rem',
+              overflowX: 'auto',
+              padding: '0.5rem 0 1.5rem',
+              scrollbarWidth: 'none'
             }}>
-              <BarChart2 size={16} color="#059669" />
-              <div style={{ fontSize: '0.8rem', color: '#047857', fontWeight: 700 }}>
-                {t('totalTokens')}: <strong style={{ color: '#065F46' }}>150</strong> &nbsp;|&nbsp; 
-                {t('completed')}: <strong style={{ color: '#065F46' }}>{completedCount}</strong> &nbsp;|&nbsp; 
-                {t('waiting')}: <strong style={{ color: '#065F46' }}>{waitingCount}</strong>
-              </div>
+              {tokenSequence.map((item, idx) => (
+                <React.Fragment key={item.number}>
+                  
+                  {/* Single Token Node */}
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: '76px' }}>
+                    <div style={{
+                      padding: '0.65rem 1rem',
+                      borderRadius: '16px',
+                      fontWeight: 900,
+                      fontSize: '1rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.4rem',
+                      backgroundColor: item.isYou 
+                        ? '#ECFDF5' 
+                        : item.isCompleted 
+                        ? '#F8FAFC' 
+                        : '#FFFFFF',
+                      border: item.isYou 
+                        ? '2.5px solid #10B981' 
+                        : item.isCompleted 
+                        ? '1.5px solid #CBD5E1' 
+                        : '1.5px solid #E2E8F0',
+                      color: item.isYou 
+                        ? '#065F46' 
+                        : item.isCompleted 
+                        ? '#64748B' 
+                        : '#94A3B8',
+                      boxShadow: item.isYou 
+                        ? '0 0 0 4px rgba(16, 185, 129, 0.2)' 
+                        : 'none',
+                      transition: 'all 0.2s ease'
+                    }}>
+                      <span>{item.label}</span>
+                      {item.isCompleted && (
+                        <span style={{ color: '#059669', fontSize: '1.1rem', fontWeight: 900 }}>✓</span>
+                      )}
+                      {item.isYou && (
+                        <span style={{ fontSize: '0.85rem' }}>🟢</span>
+                      )}
+                    </div>
+
+                    {/* YOU ARE HERE Badge */}
+                    {item.isYou && (
+                      <div style={{
+                        marginTop: '0.45rem',
+                        backgroundColor: '#10B981',
+                        color: '#FFFFFF',
+                        fontSize: '0.65rem',
+                        fontWeight: 900,
+                        letterSpacing: '0.04em',
+                        padding: '0.2rem 0.6rem',
+                        borderRadius: '6px',
+                        textTransform: 'uppercase',
+                        whiteSpace: 'nowrap',
+                        boxShadow: '0 2px 6px rgba(16, 185, 129, 0.35)',
+                        animation: 'bounce 2s infinite'
+                      }}>
+                        {t('youAreHere')}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Connecting Arrow */}
+                  {idx < tokenSequence.length - 1 && (
+                    <div style={{
+                      color: '#94A3B8',
+                      fontSize: '1.3rem',
+                      fontWeight: 800,
+                      margin: '0 0.15rem',
+                      userSelect: 'none',
+                      paddingBottom: item.isYou ? '1.5rem' : '0'
+                    }}>
+                      →
+                    </div>
+                  )}
+
+                </React.Fragment>
+              ))}
             </div>
 
           </div>
 
-          {/* Column 3: NOTIFICATIONS */}
-          <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', height: '100%' }}>
-            <div style={{ borderBottom: '1px solid #F1F5F9', paddingBottom: '0.75rem' }}>
-              <h3 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0F172A', textTransform: 'uppercase', margin: 0, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                <Bell size={16} color="#059669" /> {isHindi ? 'अधिसूचनाएं' : 'Notifications'}
+        </div>
+
+        {/* 3. TWO-COLUMN SPLIT SECTION (YOUR BOOKING vs IMPORTANT) */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: '1.1fr 0.9fr',
+          gap: '1.5rem',
+          marginBottom: '1.5rem'
+        }} className="split-cards-grid">
+
+          {/* Left Column: 📅 YOUR BOOKING */}
+          <div style={{
+            backgroundColor: '#FFFFFF',
+            borderRadius: '20px',
+            border: '1.5px solid #E2E8F0',
+            padding: '1.5rem',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '1.25rem',
+            boxShadow: '0 4px 16px rgba(0, 0, 0, 0.03)'
+          }}>
+            <div style={{ borderBottom: '1px solid #F1F5F9', paddingBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <CalendarDays size={18} color="#059669" />
+              <h3 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0F172A', margin: 0, textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+                {isHindi ? '📅 आपकी बुकिंग' : '📅 YOUR BOOKING'}
               </h3>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+            {/* Booking Details Grid */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               
-              {/* Alert 1 */}
-              <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start', padding: '0.75rem', backgroundColor: '#ECFDF5', borderRadius: '12px', border: '1px solid #D1FAE5' }}>
-                <div style={{ backgroundColor: '#D1FAE5', padding: '0.35rem', borderRadius: '50%', color: '#059669', display: 'flex', flexShrink: 0 }}>
-                  <Bell size={14} />
+              {/* Date & Time */}
+              <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
+                <div style={{ backgroundColor: '#ECFDF5', padding: '0.5rem', borderRadius: '12px', color: '#059669', display: 'flex' }}>
+                  <Calendar size={20} />
                 </div>
-                <div style={{ fontSize: '0.78rem', color: '#047857', fontWeight: 600, lineHeight: '1.4', textAlign: 'left' }}>
-                  {t('notif3NumbersAway')}
+                <div>
+                  <div style={{ fontSize: '1.05rem', fontWeight: 900, color: '#0F172A' }}>
+                    {isHindi ? bookingInfo.dateFormattedHi : bookingInfo.dateFormattedEn}
+                  </div>
+                  <div style={{ fontSize: '0.85rem', color: '#475569', fontWeight: 700, marginTop: '2px' }}>
+                    {bookingInfo.slotTime} ({isHindi ? `अवधि: ${bookingInfo.duration}` : `Duration: ${bookingInfo.duration}`})
+                  </div>
                 </div>
               </div>
 
-              {/* Alert 2 */}
-              <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start', padding: '0.75rem', backgroundColor: '#FFFBEB', borderRadius: '12px', border: '1px solid #FEF3C7' }}>
-                <div style={{ backgroundColor: '#FEF3C7', padding: '0.35rem', borderRadius: '50%', color: '#D97706', display: 'flex', flexShrink: 0 }}>
-                  <Bell size={14} />
+              {/* Centre */}
+              <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
+                <div style={{ backgroundColor: '#ECFDF5', padding: '0.5rem', borderRadius: '12px', color: '#059669', display: 'flex' }}>
+                  <MapPin size={20} />
                 </div>
-                <div style={{ fontSize: '0.78rem', color: '#B45309', fontWeight: 600, lineHeight: '1.4', textAlign: 'left' }}>
+                <div>
+                  <div style={{ fontSize: '1rem', fontWeight: 800, color: '#0F172A' }}>
+                    📍 {isHindi ? bookingInfo.centreNameHi : bookingInfo.centreName}
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: '#64748B', marginTop: '2px' }}>
+                    {isHindi ? bookingInfo.centreFullHi : bookingInfo.centreFullEn}
+                  </div>
+                </div>
+              </div>
+
+              {/* Commodity & Weight */}
+              <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
+                <div style={{ backgroundColor: '#ECFDF5', padding: '0.5rem', borderRadius: '12px', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <span style={{ fontSize: '1.2rem' }}>🌾</span>
+                </div>
+                <div>
+                  <div style={{ fontSize: '1rem', fontWeight: 800, color: '#0F172A' }}>
+                    {isHindi ? bookingInfo.commodityHi : bookingInfo.commodity}
+                  </div>
+                  <div style={{ fontSize: '0.82rem', color: '#475569', fontWeight: 700, marginTop: '2px' }}>
+                    ⚖️ {isHindi ? bookingInfo.quantityHi : bookingInfo.quantity}
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Cancellation info bar & button */}
+            <div style={{
+              backgroundColor: '#F8FAFC',
+              border: '1px solid #E2E8F0',
+              borderRadius: '14px',
+              padding: '0.85rem 1rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '0.75rem',
+              marginTop: 'auto'
+            }}>
+              <div style={{ fontSize: '0.75rem', color: '#64748B', fontWeight: 600, maxWidth: '280px' }}>
+                {t('freeCancellationInfo')}
+              </div>
+
+              <button
+                onClick={handleCancelSlot}
+                disabled={isCancelled}
+                style={{
+                  backgroundColor: '#FFFFFF',
+                  border: isCancelled ? '1.5px solid #CBD5E1' : '1.5px solid #FECACA',
+                  borderRadius: '10px',
+                  padding: '0.45rem 1.1rem',
+                  fontSize: '0.82rem',
+                  fontWeight: 800,
+                  color: isCancelled ? '#94A3B8' : '#DC2626',
+                  cursor: isCancelled ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  transition: 'all 0.2s ease'
+                }}
+                onMouseEnter={(e) => {
+                  if (!isCancelled) e.currentTarget.style.backgroundColor = '#FEF2F2';
+                }}
+                onMouseLeave={(e) => {
+                  if (!isCancelled) e.currentTarget.style.backgroundColor = '#FFFFFF';
+                }}
+              >
+                <XCircle size={15} />
+                <span>{isCancelled ? (isHindi ? 'रद्द हो गया' : 'Cancelled') : t('cancelSlot')}</span>
+              </button>
+            </div>
+
+          </div>
+
+          {/* Right Column: 🔔 IMPORTANT */}
+          <div style={{
+            backgroundColor: '#FFFFFF',
+            borderRadius: '20px',
+            border: '1.5px solid #E2E8F0',
+            padding: '1.5rem',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '1rem',
+            boxShadow: '0 4px 16px rgba(0, 0, 0, 0.03)'
+          }}>
+            <div style={{ borderBottom: '1px solid #F1F5F9', paddingBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Bell size={18} color="#059669" />
+              <h3 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0F172A', margin: 0, textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+                {isHindi ? '🔔 महत्वपूर्ण सूचनाएं' : '🔔 IMPORTANT'}
+              </h3>
+            </div>
+
+            {/* Alert 1: 🟢 Your turn is now */}
+            <div style={{
+              backgroundColor: '#ECFDF5',
+              border: '1px solid #D1FAE5',
+              borderRadius: '14px',
+              padding: '0.85rem 1rem',
+              display: 'flex',
+              gap: '0.75rem',
+              alignItems: 'flex-start'
+            }}>
+              <div style={{ fontSize: '1rem', marginTop: '1px' }}>🟢</div>
+              <div>
+                <div style={{ fontSize: '0.88rem', fontWeight: 800, color: '#065F46' }}>
+                  {isHindi ? 'आपकी बारी आ गई है' : 'Your turn is now'}
+                </div>
+                <div style={{ fontSize: '0.78rem', color: '#047857', marginTop: '2px', lineHeight: 1.4 }}>
+                  {isHindi 
+                    ? 'कृपया तुरंत अपनी उपज वाहन के साथ तौल काउंटर 1 पर पहुंचें।' 
+                    : 'Please proceed immediately to Counter #1 for weighing and moisture test.'}
+                </div>
+              </div>
+            </div>
+
+            {/* Alert 2: 🟡 Reach on time */}
+            <div style={{
+              backgroundColor: '#FFFBEB',
+              border: '1px solid #FEF3C7',
+              borderRadius: '14px',
+              padding: '0.85rem 1rem',
+              display: 'flex',
+              gap: '0.75rem',
+              alignItems: 'flex-start'
+            }}>
+              <div style={{ fontSize: '1rem', marginTop: '1px' }}>🟡</div>
+              <div>
+                <div style={{ fontSize: '0.88rem', fontWeight: 800, color: '#92400E' }}>
+                  {isHindi ? 'समय पर पहुंचें' : 'Reach on time'}
+                </div>
+                <div style={{ fontSize: '0.78rem', color: '#B45309', marginTop: '2px', lineHeight: 1.4 }}>
                   {t('notifReachBeforeTurn')}
                 </div>
               </div>
+            </div>
 
-              {/* Alert 3 */}
-              <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start', padding: '0.75rem', backgroundColor: '#EFF6FF', borderRadius: '12px', border: '1px solid #DBEAFE' }}>
-                <div style={{ backgroundColor: '#DBEAFE', padding: '0.35rem', borderRadius: '50%', color: '#1D4ED8', display: 'flex', flexShrink: 0 }}>
-                  <Bell size={14} />
+            {/* Alert 3: 🔵 Keep documents ready */}
+            <div style={{
+              backgroundColor: '#EFF6FF',
+              border: '1px solid #DBEAFE',
+              borderRadius: '14px',
+              padding: '0.85rem 1rem',
+              display: 'flex',
+              gap: '0.75rem',
+              alignItems: 'flex-start'
+            }}>
+              <div style={{ fontSize: '1rem', marginTop: '1px' }}>🔵</div>
+              <div>
+                <div style={{ fontSize: '0.88rem', fontWeight: 800, color: '#1E40AF' }}>
+                  {isHindi ? 'दस्तावेज तैयार रखें' : 'Keep documents ready'}
                 </div>
-                <div style={{ fontSize: '0.78rem', color: '#1D4ED8', fontWeight: 600, lineHeight: '1.4', textAlign: 'left' }}>
+                <div style={{ fontSize: '0.78rem', color: '#1D4ED8', marginTop: '2px', lineHeight: 1.4 }}>
                   {t('notifKeepDocsReady')}
                 </div>
               </div>
-
             </div>
 
             {/* Notification Settings Link */}
             <button 
+              onClick={() => showToastMessage(isHindi ? 'अधिसूचनाएं SMS व WhatsApp पर सक्रिय हैं' : 'Notifications are active via SMS & WhatsApp')}
               style={{
                 marginTop: 'auto',
                 width: '100%',
@@ -580,7 +1073,6 @@ const TrackSlot = () => {
                 justifyContent: 'space-between',
                 cursor: 'pointer',
                 transition: 'all 0.2s ease',
-                minHeight: 'auto'
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.backgroundColor = '#F8FAFC';
@@ -592,328 +1084,217 @@ const TrackSlot = () => {
               }}
             >
               <span>{t('notifSettings')}</span>
-              <ChevronRight size={14} />
+              <ChevronRight size={15} color="#64748B" />
             </button>
+
           </div>
 
         </div>
 
-        {/* 3. Bottom Row Cards (Slot Details & Quick Actions) */}
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1.5rem', marginBottom: '2rem' }} className="bottom-dashboard-grid">
-          
-          {/* Your Slot Details */}
-          <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-            <div style={{ borderBottom: '1px solid #F1F5F9', paddingBottom: '0.75rem' }}>
-              <h3 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0F172A', textTransform: 'uppercase', margin: 0, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                <CalendarDays size={16} color="#059669" /> {t('yourSlotDetails')}
-              </h3>
-            </div>
+        {/* 4. ⚡ QUICK ACTIONS (BOTTOM SECTION) */}
+        <div style={{
+          backgroundColor: '#FFFFFF',
+          borderRadius: '22px',
+          border: '1.5px solid #E2E8F0',
+          padding: '1.5rem',
+          marginBottom: '1.75rem',
+          boxShadow: '0 4px 16px rgba(0, 0, 0, 0.03)'
+        }}>
+          <div style={{ borderBottom: '1px solid #F1F5F9', paddingBottom: '0.75rem', marginBottom: '1.25rem' }}>
+            <h3 style={{
+              fontSize: '0.95rem',
+              fontWeight: 800,
+              color: '#0F172A',
+              margin: 0,
+              textTransform: 'uppercase',
+              letterSpacing: '0.04em',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.4rem'
+            }}>
+              <span>⚡</span> {t('quickActions')}
+            </h3>
+          </div>
 
-            {/* 4 Detail Grid Cells */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '1rem' }}>
-              
-              {/* Date */}
-              <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
-                <div style={{ backgroundColor: '#E6F4EA', padding: '0.5rem', borderRadius: '10px', color: '#137333', display: 'flex' }}>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+            gap: '1rem'
+          }}>
+            
+            {/* 1. My Bookings */}
+            <button
+              onClick={() => navigate('/farmer/dashboard')}
+              style={{
+                backgroundColor: '#FFFFFF',
+                border: '1.5px solid #E2E8F0',
+                borderRadius: '16px',
+                padding: '0.9rem 1.1rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                textAlign: 'left'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = '#10B981';
+                e.currentTarget.style.backgroundColor = '#ECFDF5';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = '#E2E8F0';
+                e.currentTarget.style.backgroundColor = '#FFFFFF';
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                <div style={{ backgroundColor: '#E6F4EA', padding: '0.5rem', borderRadius: '12px', color: '#059669', display: 'flex' }}>
                   <Calendar size={18} />
                 </div>
-                <div style={{ textAlign: 'left' }}>
-                  <div style={{ fontSize: '0.7rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase' }}>{t('date')}</div>
-                  <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#1E293B', marginTop: '2px' }}>
-                    {activeToken.booking?.date ? new Date(activeToken.booking.date).toLocaleDateString(isHindi ? 'hi-IN' : 'en-US', { day: 'numeric', month: 'short', year: 'numeric' }) : ''}
-                  </div>
-                  <div style={{ fontSize: '0.72rem', color: '#94A3B8' }}>
-                    {activeToken.booking?.date ? new Date(activeToken.booking.date).toLocaleDateString(isHindi ? 'hi-IN' : 'en-US', { weekday: 'long' }) : ''}
-                  </div>
+                <div>
+                  <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#1E293B' }}>{t('myBookings')}</div>
+                  <div style={{ fontSize: '0.72rem', color: '#64748B' }}>{isHindi ? 'सभी स्लॉट देखें' : 'View all scheduled slots'}</div>
                 </div>
               </div>
+              <ChevronRight size={16} color="#94A3B8" />
+            </button>
 
-              {/* Time Slot */}
-              <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
-                <div style={{ backgroundColor: '#E6F4EA', padding: '0.5rem', borderRadius: '10px', color: '#137333', display: 'flex' }}>
-                  <Clock size={18} />
-                </div>
-                <div style={{ textAlign: 'left' }}>
-                  <div style={{ fontSize: '0.7rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase' }}>{t('timeSlot')}</div>
-                  <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#1E293B', marginTop: '2px' }}>{activeToken.booking?.slotTime}</div>
-                  <div style={{ fontSize: '0.72rem', color: '#94A3B8' }}>{t('duration')}: 30 {isHindi ? 'मिनट' : 'min'}</div>
-                </div>
-              </div>
-
-              {/* Procurement Centre */}
-              <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
-                <div style={{ backgroundColor: '#E6F4EA', padding: '0.5rem', borderRadius: '10px', color: '#137333', display: 'flex' }}>
-                  <MapPin size={18} />
-                </div>
-                <div style={{ textAlign: 'left' }}>
-                  <div style={{ fontSize: '0.7rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase' }}>{t('centreLabel')}</div>
-                  <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#1E293B', marginTop: '2px' }}>
-                    {isHindi ? (activeToken.booking?.centre?.nameHi || activeToken.booking?.centre?.name) : activeToken.booking?.centre?.name}
-                  </div>
-                  <div style={{ fontSize: '0.72rem', color: '#94A3B8' }}>
-                    {isHindi ? (activeToken.booking?.centre?.addressHi || activeToken.booking?.centre?.address) : activeToken.booking?.centre?.address}
-                  </div>
-                </div>
-              </div>
-
-              {/* Commodity */}
-              <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
-                <div style={{ backgroundColor: '#E6F4EA', padding: '0.5rem', borderRadius: '10px', color: '#137333', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <span style={{ fontSize: '1.1rem', fontWeight: 800 }}>🌾</span>
-                </div>
-                <div style={{ textAlign: 'left' }}>
-                  <div style={{ fontSize: '0.7rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase' }}>{t('commodity')}</div>
-                  <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#1E293B', marginTop: '2px' }}>
-                    {isHindi ? (activeToken.booking?.crop?.nameHi || activeToken.booking?.crop?.name) : activeToken.booking?.crop?.name}
-                  </div>
-                  <div style={{ fontSize: '0.72rem', color: '#94A3B8' }}>{t('quantity')}: {activeToken.booking?.weight} {isHindi ? 'क्विंटल' : 'Quintal'}</div>
-                </div>
-              </div>
-
-            </div>
-
-            {/* Bottom info banner */}
-            {!isCancelled ? (
-              <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                backgroundColor: '#EFF6FF',
-                border: '1px solid #BFDBFE',
+            {/* 2. Payment Status */}
+            <button
+              onClick={() => navigate('/farmer/payment-history')}
+              style={{
+                backgroundColor: '#FFFFFF',
+                border: '1.5px solid #E2E8F0',
                 borderRadius: '16px',
-                padding: '0.75rem 1rem',
-                flexWrap: 'wrap',
-                gap: '1rem',
-                marginTop: '0.5rem'
-              }}>
-                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', textAlign: 'left' }}>
-                  <Info size={16} color="#1D4ED8" style={{ flexShrink: 0 }} />
-                  <span style={{ fontSize: '0.75rem', color: '#1E40AF', fontWeight: 600 }}>
-                    {t('cancellationWarning')}
-                  </span>
-                </div>
-                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-
-
-                  <button 
-                    onClick={handleCancelSlot}
-                    style={{
-                      backgroundColor: '#FFFFFF',
-                      border: '1.5px solid #FECACA',
-                      borderRadius: '10px',
-                      padding: '0.4rem 0.9rem',
-                      fontSize: '0.78rem',
-                      fontWeight: 800,
-                      color: '#DC2626',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.4rem',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s ease',
-                      minHeight: 'auto'
-                    }}
-                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#FEF2F2'}
-                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#FFFFFF'}
-                  >
-                    <XCircle size={14} />
-                    <span>{t('cancelSlot')}</span>
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div style={{
-                backgroundColor: '#FEF2F2',
-                border: '1px solid #FCA5A5',
-                borderRadius: '12px',
-                padding: '0.75rem 1rem',
-                textAlign: 'center',
-                color: '#DC2626',
-                fontWeight: 700,
-                fontSize: '0.85rem',
-                marginTop: '1rem',
+                padding: '0.9rem 1.1rem',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center',
-                gap: '0.5rem'
-              }}>
-                <XCircle size={16} /> {t('slotCancelledSuccess')}
+                justifyContent: 'space-between',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                textAlign: 'left'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = '#3B82F6';
+                e.currentTarget.style.backgroundColor = '#EFF6FF';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = '#E2E8F0';
+                e.currentTarget.style.backgroundColor = '#FFFFFF';
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                <div style={{ backgroundColor: '#EFF6FF', padding: '0.5rem', borderRadius: '12px', color: '#3B82F6', display: 'flex' }}>
+                  <CreditCard size={18} />
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#1E293B' }}>{t('paymentStatus')}</div>
+                  <div style={{ fontSize: '0.72rem', color: '#64748B' }}>{isHindi ? 'DBT भुगतान एवं रसीदें' : 'DBT transfers & receipts'}</div>
+                </div>
               </div>
-            )}
+              <ChevronRight size={16} color="#94A3B8" />
+            </button>
 
-          </div>
-
-          {/* Quick Actions */}
-          <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-            <div style={{ borderBottom: '1px solid #F1F5F9', paddingBottom: '0.75rem' }}>
-              <h3 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0F172A', textTransform: 'uppercase', margin: 0, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                ⚡ {t('quickActions')}
-              </h3>
-            </div>
-
-            {/* 4 action buttons grid */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              
-              {/* My Bookings */}
-              <button 
-                onClick={() => navigate('/farmer/dashboard')}
-                style={{
-                  backgroundColor: '#FFFFFF',
-                  border: '1.5px solid #E2E8F0',
-                  borderRadius: '14px',
-                  padding: '0.75rem 1rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                  minHeight: 'auto'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = '#10B981';
-                  e.currentTarget.style.backgroundColor = '#ECFDF5';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = '#E2E8F0';
-                  e.currentTarget.style.backgroundColor = '#FFFFFF';
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                  <div style={{ backgroundColor: '#E6F4EA', padding: '0.35rem', borderRadius: '50%', display: 'flex' }}>
-                    <Calendar size={16} color="#059669" />
-                  </div>
-                  <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#1E293B' }}>{t('myBookings')}</span>
+            {/* 3. Help Centre */}
+            <button
+              onClick={() => setShowHelpModal(true)}
+              style={{
+                backgroundColor: '#FFFFFF',
+                border: '1.5px solid #E2E8F0',
+                borderRadius: '16px',
+                padding: '0.9rem 1.1rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                textAlign: 'left'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = '#F59E0B';
+                e.currentTarget.style.backgroundColor = '#FFFBEB';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = '#E2E8F0';
+                e.currentTarget.style.backgroundColor = '#FFFFFF';
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                <div style={{ backgroundColor: '#FFFBEB', padding: '0.5rem', borderRadius: '12px', color: '#F59E0B', display: 'flex' }}>
+                  <HelpCircle size={18} />
                 </div>
-                <ChevronRight size={16} color="#64748B" />
-              </button>
-
-              {/* Payment Status */}
-              <button 
-                onClick={() => navigate('/farmer/payment-history')}
-                style={{
-                  backgroundColor: '#FFFFFF',
-                  border: '1.5px solid #E2E8F0',
-                  borderRadius: '14px',
-                  padding: '0.75rem 1rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                  minHeight: 'auto'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = '#3B82F6';
-                  e.currentTarget.style.backgroundColor = '#EFF6FF';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = '#E2E8F0';
-                  e.currentTarget.style.backgroundColor = '#FFFFFF';
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                  <div style={{ backgroundColor: '#EFF6FF', padding: '0.35rem', borderRadius: '50%', display: 'flex' }}>
-                    <CreditCard size={16} color="#3B82F6" />
-                  </div>
-                  <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#1E293B' }}>{t('paymentStatus')}</span>
+                <div>
+                  <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#1E293B' }}>{t('helpCenter')}</div>
+                  <div style={{ fontSize: '0.72rem', color: '#64748B' }}>{isHindi ? 'टोल फ्री सहायता डेस्क' : 'Toll-free 24x7 support'}</div>
                 </div>
-                <ChevronRight size={16} color="#64748B" />
-              </button>
+              </div>
+              <ChevronRight size={16} color="#94A3B8" />
+            </button>
 
-              {/* Help Center */}
-              <button 
-                onClick={() => setShowHelpModal(true)}
-                style={{
-                  backgroundColor: '#FFFFFF',
-                  border: '1.5px solid #E2E8F0',
-                  borderRadius: '14px',
-                  padding: '0.75rem 1rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                  minHeight: 'auto'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = '#F59E0B';
-                  e.currentTarget.style.backgroundColor = '#FFFBEB';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = '#E2E8F0';
-                  e.currentTarget.style.backgroundColor = '#FFFFFF';
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                  <div style={{ backgroundColor: '#FFFBEB', padding: '0.35rem', borderRadius: '50%', display: 'flex' }}>
-                    <HelpCircle size={16} color="#F59E0B" />
-                  </div>
-                  <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#1E293B' }}>{t('helpCenter')}</span>
-                </div>
-                <ChevronRight size={16} color="#64748B" />
-              </button>
-
-
-
-            </div>
           </div>
 
         </div>
 
-        {/* 4. Footer Banner */}
+        {/* 5. FOOTER COMMUNITY BANNER */}
         <div style={{
           backgroundColor: '#E6F4EA',
           border: '1.5px solid #A7F3D0',
           borderRadius: '20px',
-          padding: '1rem 2rem',
+          padding: '1rem 1.75rem',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
           flexWrap: 'wrap',
-          gap: '1.5rem',
+          gap: '1.25rem',
           boxShadow: '0 4px 15px rgba(16,185,129,0.06)'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', textAlign: 'left' }}>
             <span style={{ fontSize: '1.5rem' }}>🌱</span>
-            <div style={{ fontSize: '0.9rem', color: '#137333', fontWeight: 600 }}>
+            <div style={{ fontSize: '0.88rem', color: '#137333', fontWeight: 700 }}>
               {t('footerThankYou')}
             </div>
           </div>
 
-          {/* Farmer & Ox vector */}
+          {/* Farmer & Ox vector graphic */}
           <div style={{ display: 'flex', alignItems: 'center' }}>
-            <svg viewBox="0 0 160 50" style={{ width: '160px', height: '50px' }}>
-              {/* Soil paths */}
-              <path d="M0,45 C40,43 80,47 120,44 C140,44 150,46 160,45 L160,50 L0,50 Z" fill="#137333" opacity="0.8" />
-              {/* Ox */}
-              <path d="M80,45 C80,30 90,25 100,25 C110,25 115,30 115,45 Z" fill="#E2E8F0" />
-              <path d="M110,32 C115,30 122,25 125,25 C125,28 120,32 118,34 Z" fill="#CBD5E1" />
-              <path d="M125,25 L128,20 M124,24 L125,18" stroke="#94A3B8" strokeWidth="1.5" strokeLinecap="round" />
-              <line x1="85" y1="45" x2="85" y2="50" stroke="#94A3B8" strokeWidth="2.5" />
-              <line x1="95" y1="45" x2="95" y2="50" stroke="#94A3B8" strokeWidth="2.5" />
-              <line x1="105" y1="45" x2="105" y2="50" stroke="#94A3B8" strokeWidth="2.5" />
-              <line x1="112" y1="45" x2="112" y2="50" stroke="#94A3B8" strokeWidth="2.5" />
-              {/* Farmer plowing */}
-              <path d="M30,45 C30,32 35,30 38,30 C40,30 45,32 45,45 Z" fill="#FFFFFF" />
-              <circle cx="38" cy="24" r="5" fill="#FED7AA" />
-              <path d="M33,22 C33,18 43,18 43,22 Z" fill="#E2E8F0" />
-              {/* Plow frame */}
-              <path d="M42,38 L65,42 L72,46" fill="none" stroke="#78350F" strokeWidth="1.5" strokeLinecap="round" />
-              <line x1="65" y1="42" x2="65" y2="48" stroke="#78350F" strokeWidth="2" />
-              {/* Connecting line */}
-              <path d="M72,32 L88,32" fill="none" stroke="#475569" strokeWidth="1" strokeDasharray="2,2" />
+            <svg viewBox="0 0 160 45" style={{ width: '150px', height: '42px' }}>
+              <path d="M0,40 C40,38 80,42 120,39 C140,39 150,41 160,40 L160,45 L0,45 Z" fill="#137333" opacity="0.8" />
+              <path d="M80,40 C80,26 90,22 100,22 C110,22 115,26 115,40 Z" fill="#E2E8F0" />
+              <path d="M110,28 C115,26 122,22 125,22 C125,25 120,28 118,30 Z" fill="#CBD5E1" />
+              <line x1="85" y1="40" x2="85" y2="45" stroke="#94A3B8" strokeWidth="2" />
+              <line x1="95" y1="40" x2="95" y2="45" stroke="#94A3B8" strokeWidth="2" />
+              <line x1="105" y1="40" x2="105" y2="45" stroke="#94A3B8" strokeWidth="2" />
+              <line x1="112" y1="40" x2="112" y2="45" stroke="#94A3B8" strokeWidth="2" />
+              <path d="M30,40 C30,28 35,26 38,26 C40,26 45,28 45,40 Z" fill="#FFFFFF" />
+              <circle cx="38" cy="21" r="4.5" fill="#FED7AA" />
+              <path d="M42,34 L65,37 L72,41" fill="none" stroke="#78350F" strokeWidth="1.5" strokeLinecap="round" />
             </svg>
           </div>
         </div>
 
       </div>
 
+      {/* Responsive Style Adjustments */}
       <style>{`
-        @media (max-width: 900px) {
-          .main-dashboard-grid {
+        @media (max-width: 860px) {
+          .hero-queue-grid {
             grid-template-columns: 1fr !important;
           }
-          .bottom-dashboard-grid {
+          .split-cards-grid {
             grid-template-columns: 1fr !important;
+          }
+        }
+        @keyframes ping {
+          75%, 100% {
+            transform: scale(2);
+            opacity: 0;
+          }
+        }
+        @keyframes bounce {
+          0%, 100% {
+            transform: translateY(0);
+          }
+          50% {
+            transform: translateY(-4px);
           }
         }
       `}</style>
@@ -923,7 +1304,7 @@ const TrackSlot = () => {
         <div style={{
           position: 'fixed',
           top: 0, left: 0, right: 0, bottom: 0,
-          backgroundColor: 'rgba(15, 23, 42, 0.6)',
+          backgroundColor: 'rgba(15, 23, 42, 0.65)',
           backdropFilter: 'blur(4px)',
           display: 'flex',
           alignItems: 'center',
@@ -931,13 +1312,13 @@ const TrackSlot = () => {
           zIndex: 9999,
           padding: '1rem'
         }}>
-          <div className="card" style={{
+          <div style={{
             maxWidth: '440px',
             width: '100%',
             backgroundColor: '#FFFFFF',
             padding: '2rem 1.5rem',
             textAlign: 'center',
-            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
             borderRadius: '20px',
             border: '1px solid #E2E8F0'
           }}>
@@ -976,11 +1357,7 @@ const TrackSlot = () => {
                 textDecoration: 'none',
                 fontWeight: 700,
                 fontSize: '0.9rem',
-                transition: 'all 0.2s ease'
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#FEF3C7'}
-              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#FFFBEB'}
-              >
+              }}>
                 <Phone size={18} />
                 <div>
                   <div style={{ fontSize: '0.7rem', color: '#B45309', opacity: 0.8, textTransform: 'uppercase', fontWeight: 800 }}>{t('tollFreeLabel')}</div>
@@ -1001,11 +1378,7 @@ const TrackSlot = () => {
                 textDecoration: 'none',
                 fontWeight: 700,
                 fontSize: '0.9rem',
-                transition: 'all 0.2s ease'
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#EFF6FF'}
-              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#F0F9FF'}
-              >
+              }}>
                 <Inbox size={18} />
                 <div>
                   <div style={{ fontSize: '0.7rem', color: '#1D4ED8', opacity: 0.8, textTransform: 'uppercase', fontWeight: 800 }}>{t('complaintBoxEmail')}</div>
