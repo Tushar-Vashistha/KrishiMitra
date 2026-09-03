@@ -2019,8 +2019,8 @@ const CentreDashboard = () => {
                 </div>
               </div>
 
-              {/* Operating Details (If Open vs Closed) */}
-              {tempSchedule.isOpen ? (
+              {/* Operating Details (Only Shown When Centre is OPEN) */}
+              {tempSchedule.isOpen === true ? (
                 <>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
                     <div>
