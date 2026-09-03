@@ -40,7 +40,7 @@ app.use((req, res, next) => {
 // Rate Limiting
 const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
+  max: 600, // allow 600 requests per windowMs for smooth browsing
   message: {
     success: false,
     error: {
