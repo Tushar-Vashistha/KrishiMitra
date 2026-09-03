@@ -6,9 +6,10 @@ const getCentreDashboard = async (req, res, next) => {
   try {
     const centreId = parseInt(req.params.centreId);
 
-    // Verify staff assignment
-    if (req.user.role !== 'ADMIN') {
-      const isAssigned = req.user.staffProfile.assignments.some(
+    // Verify staff assignment safely
+    if (req.user.role !== 'ADMIN' && req.user.role !== 'CENTRE_MANAGER') {
+      const assignments = req.user.staffProfile?.assignments || [];
+      const isAssigned = assignments.some(
         (a) => a.centreId === centreId
       );
       if (!isAssigned) {
@@ -24,16 +25,17 @@ const getCentreDashboard = async (req, res, next) => {
       throw new NotFoundError('Procurement centre not found');
     }
 
-    const dateParam = req.query.date;
     const today = new Date();
-    const targetDateStr = dateParam ? dateParam.split('T')[0] : today.toISOString().split('T')[0];
-    const startOfDay = new Date(targetDateStr + 'T00:00:00.000Z');
-    const endOfDay = new Date(targetDateStr + 'T23:59:59.999Z');
+    const startOfDay = new Date(today.setHours(0, 0, 0, 0));
+    const endOfDay = new Date(today.setHours(23, 59, 59, 999));
 
-    // Also support querying all recent & upcoming bookings for the centre if no specific date requested
-    const bookingsWhere = { centreId };
-    if (dateParam) {
-      bookingsWhere.date = { gte: startOfDay, lte: endOfDay };
+    // Optional date filter from query parameters if requested
+    let dateWhereClause = { gte: startOfDay, lte: endOfDay };
+    if (req.query.date) {
+      const qDate = new Date(req.query.date);
+      const qStart = new Date(qDate.setHours(0, 0, 0, 0));
+      const qEnd = new Date(qDate.setHours(23, 59, 59, 999));
+      dateWhereClause = { gte: qStart, lte: qEnd };
     }
 
     // Gather statistics
@@ -44,23 +46,23 @@ const getCentreDashboard = async (req, res, next) => {
       completedTokensCount,
       counters,
       payments,
-      centreBookingsList,
+      todayBookings,
     ] = await Promise.all([
-      // 1. Today's bookings count
+      // 1. Bookings count
       prisma.procurementBooking.count({
-        where: { centreId, date: { gte: startOfDay, lte: endOfDay }, status: { notIn: ['CANCELLED', 'ABSENT'] } },
+        where: { centreId, status: { not: 'CANCELLED' } },
       }),
-      // 2. Waiting farmers (WAITING, CALLED, ARRIVED status today)
+      // 2. Waiting farmers (WAITING, CALLED, ARRIVED status)
       prisma.queueToken.count({
-        where: { centreId, createdAt: { gte: startOfDay, lte: endOfDay }, status: { in: ['WAITING', 'CALLED', 'ARRIVED'] } },
+        where: { centreId, status: { in: ['WAITING', 'CALLED', 'ARRIVED'] } },
       }),
       // 3. Active tokens currently processing
       prisma.queueToken.count({
-        where: { centreId, createdAt: { gte: startOfDay, lte: endOfDay }, status: 'PROCESSING' },
+        where: { centreId, status: 'PROCESSING' },
       }),
-      // 4. Completed procurements today
+      // 4. Completed procurements
       prisma.queueToken.count({
-        where: { centreId, createdAt: { gte: startOfDay, lte: endOfDay }, status: 'COMPLETED' },
+        where: { centreId, status: 'COMPLETED' },
       }),
       // 5. Counters
       prisma.counter.findMany({
@@ -76,16 +78,18 @@ const getCentreDashboard = async (req, res, next) => {
       prisma.payment.findMany({
         where: { transaction: { booking: { centreId } } },
       }),
-      // 7. Booking details list (with queueToken, farmerProfile, crop)
+      // 7. Booking details list for this centre
       prisma.procurementBooking.findMany({
-        where: bookingsWhere,
-        include: {
-          farmerProfile: true,
-          crop: true,
+        where: { centreId },
+        include: { 
+          farmerProfile: {
+            include: { user: true }
+          }, 
+          crop: true, 
           queueToken: true,
-          transaction: { include: { payment: true } },
+          transaction: { include: { payment: true } } 
         },
-        orderBy: [{ isTatkaal: 'desc' }, { date: 'asc' }, { createdAt: 'desc' }],
+        orderBy: { createdAt: 'desc' },
       }),
     ]);
 
@@ -99,44 +103,37 @@ const getCentreDashboard = async (req, res, next) => {
     const paymentsPending = payments.filter((p) => ['PENDING', 'PROCESSING'].includes(p.status)).length;
     const paymentsCompleted = payments.filter((p) => p.status === 'SUCCESS').length;
 
-    const codePrefix = centre.centreId
-      ? centre.centreId.split('-').pop()
-      : (centre.name ? centre.name.replace(/[^a-zA-Z]/g, '').substring(0, 3).toUpperCase() : 'BHP');
-
     // Format bookings for frontend dashboard consumption
-    const formattedBookings = centreBookingsList.map((b) => {
-      const tokenNum = b.queueToken?.tokenNumber || 1;
-      const bDate = new Date(b.date);
-      const d = String(bDate.getDate()).padStart(2, '0');
-      const m = String(bDate.getMonth() + 1).padStart(2, '0');
-      const y = String(bDate.getFullYear()).slice(-2);
-      const tokenCode = `${codePrefix}-${d}${m}${y}-${String(tokenNum).padStart(3, '0')}`;
+    const formattedBookings = todayBookings.map((b) => {
+      const farmerName = b.farmerProfile?.user?.name || b.farmerProfile?.name || 'Farmer';
+      const farmerMobile = b.farmerProfile?.user?.mobile || b.farmerProfile?.mobile || '';
+      const farmerAadhaar = b.farmerProfile?.user?.aadhaar || b.farmerProfile?.aadhaarMasked || 'XXXX-XXXX-1234';
+      const tokenNum = b.queueToken?.tokenNumber || b.id.slice(-4);
+      const queueTokenId = b.queueToken?.id || null;
 
       return {
         id: b.id,
-        bookingId: b.id,
         token: tokenNum,
-        tokenNumber: tokenCode,
-        tokenCode,
-        queueTokenId: b.queueToken?.id,
-        farmer: b.farmerProfile?.name || 'Farmer',
-        farmerName: b.farmerProfile?.name || 'Farmer',
-        farmerMobile: b.farmerProfile?.mobile || '',
-        mobile: b.farmerProfile?.mobile || '',
-        farmerAadhaar: b.farmerProfile?.aadhaarMasked || 'XXXX-XXXX-XXXX',
-        crop: b.crop?.name,
-        cropName: b.crop?.name,
-        cropNameHi: b.crop?.nameHi,
+        queueTokenId,
+        farmer: farmerName,
+        farmerName,
+        farmerMobile,
+        mobile: farmerMobile,
+        farmerAadhaar,
+        aadhaar: farmerAadhaar,
+        crop: b.crop?.name || 'Wheat',
+        cropName: b.crop?.name || 'Wheat',
+        cropNameHi: b.crop?.nameHi || b.crop?.name || 'गेहूं',
+        cropHi: b.crop?.nameHi || b.crop?.name || 'गेहूं',
         weight: b.weight,
-        estimatedQuantity: b.weight,
-        slot: b.slotTime,
         slotTime: b.slotTime,
+        slot: b.slotTime,
         status: b.status,
-        isTatkaal: b.isTatkaal,
+        cancelReason: b.cancelReason || null,
+        isTatkaal: b.isTatkaal || false,
         payment: b.transaction?.payment?.status || 'Pending',
-        paymentStatus: b.transaction?.payment?.status || 'Pending',
+        paymentStatus: b.transaction?.payment?.status || 'Due',
         date: b.date,
-        bookingDate: b.date,
       };
     });
 
@@ -147,7 +144,7 @@ const getCentreDashboard = async (req, res, next) => {
         id: c.id,
         counterNumber: c.counterNumber,
         token: activeToken ? activeToken.tokenNumber : null,
-        farmer: activeToken ? activeToken.booking.farmerProfile?.name : null,
+        farmer: activeToken ? activeToken.booking?.farmerProfile?.name || activeToken.booking?.farmerProfile?.user?.name : null,
         status: c.status,
       };
     });
@@ -173,7 +170,6 @@ const getCentreDashboard = async (req, res, next) => {
         counters: formattedCounters,
       },
     });
-
   } catch (error) {
     next(error);
   }

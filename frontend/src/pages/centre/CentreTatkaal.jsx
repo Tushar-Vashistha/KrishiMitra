@@ -37,7 +37,14 @@ const CentreTatkaal = () => {
 
   const handleOpenAllocate = (slot) => {
     setSelectedSlotForAllocation(slot);
-    setAllocForm(prev => ({ ...prev, slotId: slot.id }));
+    setAllocForm({
+      farmerName: slot.assignedTo ? slot.assignedTo.split(' (')[0] : '',
+      mobile: (slot.mobile || '').replace(/\D/g, '').slice(0, 10),
+      crop: slot.crop || 'Wheat',
+      weight: slot.weight ? slot.weight.toString() : '20',
+      reasonType: slot.isBlacklistedFarmer ? 'blacklisted_quota' : 'late_arrival',
+      slotId: slot.id
+    });
     setShowAllocateModal(true);
   };
 
@@ -376,9 +383,10 @@ const CentreTatkaal = () => {
                 <input
                   type="tel"
                   value={allocForm.mobile}
-                  onChange={e => setAllocForm({ ...allocForm, mobile: e.target.value })}
+                  onChange={e => setAllocForm({ ...allocForm, mobile: e.target.value.replace(/\D/g, '').slice(0, 10) })}
                   placeholder="9876543210"
                   className="input-field"
+                  maxLength={10}
                   pattern="[0-9]{10}"
                   required
                 />

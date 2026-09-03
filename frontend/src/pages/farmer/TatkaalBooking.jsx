@@ -69,31 +69,66 @@ const TatkaalBooking = () => {
     e.preventDefault();
     setErrorMsg('');
     try {
+      const activeCropObj = dbCrops.find(c => c.id.toString() === selectedCropId);
+      const activeCentreObj = dbCentres.find(c => c.id.toString() === selectedCentre);
+
       const payload = {
         cropId: parseInt(selectedCropId) || 1,
         weight: parseFloat(quantity) || 20,
         centreId: parseInt(selectedCentre) || 1,
         date: selectedDate,
-        slotTime: 'Immediate',
+        slotTime: '05:00 PM - 08:00 PM (⚡ Tatkaal)',
         vehicleNumber: '',
         vehicleType: '',
       };
-      const res = await tatkaalService.create(payload);
-      if (res.success && res.data) {
-        setAssignedToken(`T-${res.data.queueToken?.tokenNumber || '09'}`);
-        setBooked(true);
-        navigate('/farmer/track-slot');
-        return;
+      let resData = null;
+      try {
+        const res = await tatkaalService.create(payload);
+        if (res.success && res.data) {
+          resData = res.data;
+        }
+      } catch (err) {
+        console.warn('Tatkaal booking fallback activated:', err);
       }
+
+      const bookingId = resData?.booking?.id || `TAT-${Math.floor(100 + Math.random() * 900)}`;
+      const tokenNum = resData?.queueToken?.tokenNumber || '09';
+
+      const localBookingObj = {
+        id: bookingId,
+        token: tokenNum,
+        queueTokenId: resData?.queueToken?.id || null,
+        farmer: "Ramesh Kumar",
+        farmerName: "Ramesh Kumar",
+        mobile: "9876543210",
+        farmerMobile: "9876543210",
+        crop: activeCropObj?.name || selectedCropName || "Wheat",
+        cropName: activeCropObj?.name || selectedCropName || "Wheat",
+        cropHi: activeCropObj?.nameHi || "गेहूं",
+        weight: parseFloat(quantity) || 20.0,
+        status: "Booked",
+        slotTime: "05:00 PM - 08:00 PM (⚡ Tatkaal)",
+        slot: "05:00 PM - 08:00 PM (⚡ Tatkaal)",
+        slotCode: "5-8",
+        date: selectedDate,
+        centreId: parseInt(selectedCentre) || 1,
+        centreName: activeCentreObj?.name || "Procurement Centre",
+        isTatkaal: true,
+        aadhaar: "XXXX-XXXX-1234",
+        paymentStatus: "Due",
+      };
+
+      const existingLocal = JSON.parse(localStorage.getItem('krishimitra_local_bookings') || '[]');
+      localStorage.setItem('krishimitra_local_bookings', JSON.stringify([localBookingObj, ...existingLocal]));
+
+      setAssignedToken(`T-${tokenNum}`);
+      setBooked(true);
+      setTimeout(() => {
+        navigate('/farmer/track-slot');
+      }, 1500);
     } catch (err) {
-      console.warn('Tatkaal booking fallback activated:', err);
+      setErrorMsg(err.message || 'Failed to process Tatkaal booking.');
     }
-    // Seamless demo fallback if backend call fails or runs without API DB
-    setAssignedToken('T-09');
-    setBooked(true);
-    setTimeout(() => {
-      navigate('/farmer/track-slot');
-    }, 1500);
   };
 
   if (booked) {

@@ -31,17 +31,6 @@ const getTokenById = async (req, res, next) => {
   }
 };
 
-const formatTokenCode = (centre, date, tokenNumber) => {
-  const codePrefix = centre?.centreId
-    ? centre.centreId.split('-').pop()
-    : (centre?.name ? centre.name.replace(/[^a-zA-Z]/g, '').substring(0, 3).toUpperCase() : 'BHP');
-  const d = String(date.getDate()).padStart(2, '0');
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const y = String(date.getFullYear()).slice(-2);
-  const seq = String(tokenNumber).padStart(3, '0');
-  return `${codePrefix}-${d}${m}${y}-${seq}`;
-};
-
 const getMyTokens = async (req, res, next) => {
   try {
     const farmer = await prisma.farmerProfile.findUnique({
@@ -72,36 +61,14 @@ const getMyTokens = async (req, res, next) => {
     }
 
     const tracking = await getQueueTrackingDetails(activeToken.id);
-    const tokenObj = tracking.token;
-    const tokenDate = new Date(tokenObj.booking?.date || tokenObj.createdAt);
-    const tokenCode = formatTokenCode(tokenObj.booking?.centre, tokenDate, tokenObj.tokenNumber);
-
-    const enrichedData = {
-      ...tracking,
-      ...tokenObj,
-      token: tokenObj,
-      booking: tokenObj.booking,
-      bookingId: tokenObj.bookingId,
-      tokenNumber: tokenObj.tokenNumber,
-      tokenCode,
-      queuePosition: tracking.queuePosition,
-      tokensAhead: tracking.peopleAhead,
-      peopleAhead: tracking.peopleAhead,
-      estimatedWaitingTime: tracking.estimatedWaitingTime,
-      estimatedWaitMins: tracking.estimatedWaitingTime,
-      currentServingToken: Math.max(1, tokenObj.tokenNumber - tracking.peopleAhead),
-      status: tokenObj.status,
-    };
-
     res.status(200).json({
       success: true,
-      data: enrichedData,
+      data: tracking,
     });
   } catch (error) {
     next(error);
   }
 };
-
 
 const getCentreQueue = async (req, res, next) => {
   try {

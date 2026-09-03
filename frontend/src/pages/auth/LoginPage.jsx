@@ -63,28 +63,14 @@ const LoginPage = () => {
   const handleQuickDemoLogin = async (demoMobile) => {
     setError('');
     const targetRole = demoMobile === '9876543210' ? 'farmer' : 'centre';
-    try {
-      const res = await authService.login(demoMobile, 'password123');
-      if (res.success && res.data) {
-        login(targetRole, res.data);
-      } else {
-        login(targetRole, {
-          mobile: demoMobile,
-          name: targetRole === 'farmer' ? mockUser.farmer.name : mockUser.centre.managerName,
-          farmerId: demoMobile,
-          role: targetRole,
-        });
-      }
-    } catch (err) {
-      console.warn('Backend login fallback to local profile:', err);
-      login(targetRole, {
-        mobile: demoMobile,
-        name: targetRole === 'farmer' ? mockUser.farmer.name : mockUser.centre.managerName,
-        farmerId: demoMobile,
-        role: targetRole,
-      });
-    }
+    login(targetRole, {
+      mobile: demoMobile,
+      name: targetRole === 'farmer' ? mockUser.farmer.name : mockUser.centre.managerName,
+      farmerId: demoMobile,
+      role: targetRole,
+    });
     navigate(targetRole === 'farmer' ? '/farmer/dashboard' : '/centre/dashboard', { replace: true });
+    authService.login(demoMobile, 'password123').catch(() => {});
   };
 
   const handleVerify = async () => {
@@ -96,30 +82,17 @@ const LoginPage = () => {
     }
     setError('');
     const targetRole = role === 'farmer' ? 'farmer' : 'centre';
-    try {
-      await authService.verifyOTP(cleanMobile, code);
-      const res = await authService.login(cleanMobile, 'password123');
-      if (res.success && res.data) {
-        login(targetRole, res.data);
-      } else {
-        login(targetRole, {
-          mobile: cleanMobile,
-          name: role === 'farmer' ? mockUser.farmer.name : mockUser.centre.managerName,
-          farmerId: cleanMobile,
-          role: targetRole,
-        });
-      }
-    } catch (err) {
-      login(targetRole, {
-        mobile: cleanMobile,
-        name: role === 'farmer' ? mockUser.farmer.name : mockUser.centre.managerName,
-        farmerId: cleanMobile,
-        role: targetRole,
-      });
-    }
+    login(targetRole, {
+      mobile: cleanMobile,
+      name: role === 'farmer' ? mockUser.farmer.name : mockUser.centre.managerName,
+      farmerId: cleanMobile,
+      role: targetRole,
+    });
     navigate(targetRole === 'farmer' ? '/farmer/dashboard' : '/centre/dashboard', { replace: true });
+    authService.verifyOTP(cleanMobile, code).then(() => {
+      authService.login(cleanMobile, 'password123').catch(() => {});
+    }).catch(() => {});
   };
-
 
   return (
     <div style={{

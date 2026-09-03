@@ -133,56 +133,79 @@ const CentreDashboard = () => {
   };
 
   const fetchDashboardData = async () => {
-    if (!user) return;
-    const centreId = user.centreId || user.staffProfile?.assignments?.[0]?.centreId || 4;
+    const targetCentreId = user?.centreId || user?.centreCode || 1;
     try {
-      const res = await centreService.getDashboard(centreId);
+      const res = await centreService.getDashboard(targetCentreId);
+      let list = [];
       if (res.success && res.data) {
-        const rawList = res.data.todayBookings || res.data.bookings || [];
-        const backendBookings = rawList.map(b => {
-          let statusText = "Booked";
-          const st = (b.status || '').toUpperCase();
-          if (st === "ARRIVED") statusText = "Arrived";
-          else if (st === "PROCESSING" || st === "WEIGHING") statusText = "Processing";
-          else if (st === "COMPLETED" || st === "PROCURED") statusText = "Procured";
-          else if (st === "CANCELLED" || st === "NO_SHOW" || st === "ABSENT") statusText = "Cancelled";
-          
-          return {
-            id: b.id,
-            bookingId: b.id,
-            token: b.tokenNumber || b.tokenCode || (b.queueToken?.tokenNumber ? `T-${b.queueToken.tokenNumber}` : (b.token || '00')),
-            tokenNumber: b.tokenNumber || b.tokenCode,
-            queueTokenId: b.queueToken?.id || b.queueTokenId,
-            farmer: b.farmerName || b.farmer || 'Farmer',
-            mobile: b.farmerMobile || b.mobile || '',
-            crop: b.cropName || b.crop || 'Wheat',
-            cropHi: b.cropNameHi || b.cropHi || b.cropName || 'गेहूं',
-            weight: b.weight || b.estimatedQuantity || 0,
-            status: statusText,
-            rawStatus: b.status,
-            slotTime: b.slotTime || b.slot || '07:00 AM - 10:00 AM',
-            isTatkaal: b.isTatkaal || false,
-            aadhaar: b.farmerAadhaar || "XXXX-XXXX-XXXX",
-            slotCode: (b.slotTime || '').includes("07:") ? "7-10" : (b.slotTime || '').includes("10:") ? "10-1" : ((b.slotTime || '').includes("14:") || (b.slotTime || '').includes("02:")) ? "2-5" : "5-8"
-          };
-        });
-        setBookings(backendBookings);
+        const rawBookings = res.data.todayBookings || res.data.bookings || [];
+        if (Array.isArray(rawBookings)) {
+          list = rawBookings.map(b => {
+            let statusText = "Booked";
+            if (b.status === "ARRIVED" || b.status === "Arrived") statusText = "Arrived";
+            else if (b.status === "PROCESSING" || b.status === "Processing") statusText = "Processing";
+            else if (b.status === "COMPLETED" || b.status === "Procured") statusText = "Procured";
+            else if (b.status === "CANCELLED" || b.status === "NO_SHOW" || b.status === "Cancelled") statusText = "Cancelled";
+            else if (b.status === "BOOKED" || b.status === "Booked") statusText = "Booked";
+            
+            const slotStr = b.slotTime || b.slot || "07:00 AM - 10:00 AM";
+            const slotCode = slotStr.includes("07:") || slotStr.includes("7-10") ? "7-10" : 
+                             slotStr.includes("10:") || slotStr.includes("10-1") ? "10-1" : 
+                             slotStr.includes("14:") || slotStr.includes("02:") || slotStr.includes("2-5") ? "2-5" : "5-8";
+
+            return {
+              id: b.id,
+              token: b.token || b.queueToken?.tokenNumber || '00',
+              queueTokenId: b.queueTokenId || b.queueToken?.id,
+              farmer: b.farmer || b.farmerName || b.farmerProfile?.name || 'Kisan',
+              mobile: b.mobile || b.farmerMobile || '—',
+              crop: b.crop || b.cropName || 'Wheat',
+              cropHi: b.cropHi || b.cropNameHi || b.crop || 'गेहूं',
+              weight: b.weight || 25,
+              status: statusText,
+              slotTime: slotStr,
+              isTatkaal: b.isTatkaal || false,
+              aadhaar: b.aadhaar || b.farmerAadhaar || "XXXX-XXXX-1234",
+              slotCode: slotCode
+            };
+          });
+        }
       }
+
+      // Merge locally created bookings (e.g. from farmer booking page)
+      const localBookings = JSON.parse(localStorage.getItem('krishimitra_local_bookings') || '[]');
+      if (localBookings.length > 0) {
+        localBookings.forEach(lb => {
+          if (!list.some(existing => existing.id === lb.id)) {
+            list.unshift(lb);
+          }
+        });
+      }
+
+      // Fallback to default demo mock bookings if empty
+      if (list.length === 0 && mockBookings?.centre) {
+        list = mockBookings.centre.map(b => ({
+          ...b,
+          cropHi: b.crop === 'Wheat' ? 'गेहूं' : b.crop === 'Paddy' ? 'धान' : b.crop,
+        }));
+      }
+
+      setBookings(list);
     } catch (err) {
       console.error("Failed to fetch dashboard data:", err);
+      const localBookings = JSON.parse(localStorage.getItem('krishimitra_local_bookings') || '[]');
+      if (localBookings.length > 0) {
+        setBookings(localBookings);
+      } else if (mockBookings?.centre) {
+        setBookings(mockBookings.centre);
+      }
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    if (user) {
-      fetchDashboardData();
-      const interval = setInterval(fetchDashboardData, 6000);
-      return () => clearInterval(interval);
-    } else {
-      setLoading(false);
-    }
+    fetchDashboardData();
   }, [user]);
 
   // EXACTLY 4 SLOTS: Slot 4 (5:00 PM - 8:00 PM) IS the Tatkaal Slot
@@ -251,53 +274,40 @@ const CentreDashboard = () => {
   };
 
   // Action: Mark Farmer Absent / Cancel
-  const handleMarkAbsent = async (bookingId, reason = "Farmer absent / No-show") => {
+  const handleMarkAbsent = (bookingId, reason = "Farmer absent / No-show") => {
     const booking = bookings.find(b => b.id === bookingId);
     if (booking) {
       setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, status: 'Cancelled', paymentStatus: 'Cancelled' } : b));
       showToast(isHindi ? `टोकन #${booking.token} को अनुपस्थित (Absent) चिह्नित किया गया!` : `Farmer token #${booking.token} marked as Absent!`);
-      try {
-        await bookingService.updateStatus(bookingId, 'NO_SHOW');
-      } catch (err) {
-        if (booking.queueTokenId) {
-          queueService.noShow(booking.queueTokenId).catch(console.error);
-        }
+      if (booking.queueTokenId) {
+        queueService.noShow(booking.queueTokenId).catch(console.error);
       }
     }
   };
 
   // Action: Mark Farmer Arrived
-  const handleMarkArrived = async (bookingId) => {
+  const handleMarkArrived = (bookingId) => {
     const booking = bookings.find(b => b.id === bookingId);
     if (booking) {
       setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, status: 'Arrived' } : b));
       showToast(isHindi ? `टोकन #${booking.token} की उपस्थिति (Arrived) दर्ज कर ली गई है!` : `Farmer token #${booking.token} marked as Arrived!`);
-      try {
-        await bookingService.updateStatus(bookingId, 'ARRIVED');
-      } catch (err) {
-        if (booking.queueTokenId) {
-          queueService.arrive(booking.queueTokenId).catch(console.error);
-        }
+      if (booking.queueTokenId) {
+        queueService.arrive(booking.queueTokenId).catch(console.error);
       }
     }
   };
 
   // Action: Mark Farmer Processing (Weighbridge / Quality Lab)
-  const handleMarkProcessing = async (bookingId) => {
+  const handleMarkProcessing = (bookingId) => {
     const booking = bookings.find(b => b.id === bookingId);
     if (booking) {
       setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, status: 'Processing' } : b));
       showToast(isHindi ? `टोकन #${booking.token} तौल व गुणवत्ता जांच (Processing) में भेजा गया!` : `Farmer token #${booking.token} marked as Processing!`);
-      try {
-        await bookingService.updateStatus(bookingId, 'PROCESSING');
-      } catch (err) {
-        if (booking.queueTokenId) {
-          queueService.start(booking.queueTokenId, 1).catch(console.error);
-        }
+      if (booking.queueTokenId) {
+        queueService.start(booking.queueTokenId, 1).catch(console.error);
       }
     }
   };
-
 
   // Action: Mark Procurement Completed
   const handleMarkProcured = (bookingId) => {
@@ -439,8 +449,30 @@ const CentreDashboard = () => {
   // Action: Save Tomorrow Schedule
   const handleSaveTomorrowSchedule = (e) => {
     if (e) e.preventDefault();
-    setTomorrowSchedule(tempSchedule);
-    localStorage.setItem("krishimitra_tomorrow_schedule", JSON.stringify(tempSchedule));
+    const finalSchedule = {
+      ...tempSchedule,
+      slotCapacity: tempSchedule.isOpen ? (tempSchedule.slotCapacity || 25) : 0,
+      announcement: tempSchedule.announcement || (tempSchedule.isOpen
+        ? (isHindi ? "कल केंद्र सामान्य रूप से खुला रहेगा।" : "Centre will operate normally tomorrow.")
+        : (isHindi ? "कल केंद्र बंद रहेगा।" : "Centre will remain closed tomorrow."))
+    };
+
+    setTomorrowSchedule(finalSchedule);
+    localStorage.setItem("krishimitra_tomorrow_schedule", JSON.stringify(finalSchedule));
+
+    if (!finalSchedule.isOpen) {
+      pushFarmerNotification({
+        title: isHindi ? "🚨 सूचना: कल केंद्र बंद रहेगा" : "🚨 Notice: Centre Closed Tomorrow",
+        titleEn: "🚨 Notice: Centre Closed Tomorrow",
+        message: finalSchedule.announcement,
+        messageEn: finalSchedule.announcement,
+        centreName: user?.name || "Govt. Procurement Centre",
+        type: "system",
+        status: "Notice",
+        link: "/farmer/dashboard"
+      });
+    }
+
     setShowTomorrowModal(false);
     showToast(isHindi ? "कल के संचालन का शेड्यूल सफलतापूर्वक अपडेट हो गया!" : "Tomorrow operating schedule saved successfully!");
   };
@@ -1929,7 +1961,11 @@ const CentreDashboard = () => {
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
                   <button
                     type="button"
-                    onClick={() => setTempSchedule(s => ({ ...s, isOpen: true }))}
+                    onClick={() => setTempSchedule(s => ({
+                      ...s,
+                      isOpen: true,
+                      slotCapacity: s.slotCapacity || 25
+                    }))}
                     style={{
                       background: tempSchedule.isOpen ? "#ECFDF5" : "#F8FAFC",
                       border: tempSchedule.isOpen ? "2px solid #059669" : "1px solid #E2E8F0",
@@ -1950,7 +1986,12 @@ const CentreDashboard = () => {
 
                   <button
                     type="button"
-                    onClick={() => setTempSchedule(s => ({ ...s, isOpen: false }))}
+                    onClick={() => setTempSchedule(s => ({
+                      ...s,
+                      isOpen: false,
+                      slotCapacity: 0,
+                      announcement: s.announcement || (isHindi ? "कल केंद्र रखरखाव/अवकाश के कारण बंद रहेगा।" : "Centre will remain closed tomorrow due to maintenance/holiday.")
+                    }))}
                     style={{
                       background: !tempSchedule.isOpen ? "#FEF2F2" : "#F8FAFC",
                       border: !tempSchedule.isOpen ? "2px solid #DC2626" : "1px solid #E2E8F0",
@@ -1971,50 +2012,72 @@ const CentreDashboard = () => {
                 </div>
               </div>
 
-              {/* Operating Timings (If Open) */}
-              {tempSchedule.isOpen && (
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+              {/* Operating Details (If Open vs Closed) */}
+              {tempSchedule.isOpen ? (
+                <>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+                    <div>
+                      <label style={{ display: "block", fontWeight: 700, color: "#1E293B", marginBottom: "0.35rem", fontSize: "0.85rem" }}>
+                        {isHindi ? "खुलने का समय" : "Opening Time"}
+                      </label>
+                      <input
+                        type="text"
+                        value={tempSchedule.openTime}
+                        onChange={e => setTempSchedule({ ...tempSchedule, openTime: e.target.value })}
+                        className="input-field"
+                        placeholder="07:00 AM"
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: "block", fontWeight: 700, color: "#1E293B", marginBottom: "0.35rem", fontSize: "0.85rem" }}>
+                        {isHindi ? "बंद होने का समय" : "Closing Time"}
+                      </label>
+                      <input
+                        type="text"
+                        value={tempSchedule.closeTime}
+                        onChange={e => setTempSchedule({ ...tempSchedule, closeTime: e.target.value })}
+                        className="input-field"
+                        placeholder="08:00 PM"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Slot Capacity per slot */}
                   <div>
                     <label style={{ display: "block", fontWeight: 700, color: "#1E293B", marginBottom: "0.35rem", fontSize: "0.85rem" }}>
-                      {isHindi ? "खुलने का समय" : "Opening Time"}
+                      {isHindi ? "प्रति स्लॉट वाहन/किसान क्षमता" : "Vehicle Quota Per Slot"}
                     </label>
                     <input
-                      type="text"
-                      value={tempSchedule.openTime}
-                      onChange={e => setTempSchedule({ ...tempSchedule, openTime: e.target.value })}
+                      type="number"
+                      value={tempSchedule.slotCapacity}
+                      onChange={e => setTempSchedule({ ...tempSchedule, slotCapacity: Math.max(1, Number(e.target.value)) })}
                       className="input-field"
-                      placeholder="07:00 AM"
+                      min="1"
+                      max="100"
                     />
                   </div>
-                  <div>
-                    <label style={{ display: "block", fontWeight: 700, color: "#1E293B", marginBottom: "0.35rem", fontSize: "0.85rem" }}>
-                      {isHindi ? "बंद होने का समय" : "Closing Time"}
-                    </label>
-                    <input
-                      type="text"
-                      value={tempSchedule.closeTime}
-                      onChange={e => setTempSchedule({ ...tempSchedule, closeTime: e.target.value })}
-                      className="input-field"
-                      placeholder="08:00 PM"
-                    />
-                  </div>
+                </>
+              ) : (
+                <div style={{
+                  background: "#FEF2F2",
+                  border: "1px dashed #FCA5A5",
+                  borderRadius: "12px",
+                  padding: "0.9rem 1rem",
+                  color: "#991B1B",
+                  fontSize: "0.85rem",
+                  fontWeight: 600,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.6rem"
+                }}>
+                  <AlertCircle size={20} color="#DC2626" style={{ flexShrink: 0 }} />
+                  <span>
+                    {isHindi
+                      ? "कल के लिए केंद्र को 'बंद' के रूप में चिह्नित किया जा रहा है। स्लॉट कोटा स्वचालित रूप से 0 रहेगा।"
+                      : "Centre is marked CLOSED for tomorrow. Vehicle quota and slot bookings will automatically be suspended (0)."}
+                  </span>
                 </div>
               )}
-
-              {/* Slot Capacity per slot */}
-              <div>
-                <label style={{ display: "block", fontWeight: 700, color: "#1E293B", marginBottom: "0.35rem", fontSize: "0.85rem" }}>
-                  {isHindi ? "प्रति स्लॉट वाहन/किसान क्षमता" : "Vehicle Quota Per Slot"}
-                </label>
-                <input
-                  type="number"
-                  value={tempSchedule.slotCapacity}
-                  onChange={e => setTempSchedule({ ...tempSchedule, slotCapacity: Number(e.target.value) })}
-                  className="input-field"
-                  min="5"
-                  max="100"
-                />
-              </div>
 
               {/* Announcement / Broadcast for Farmers */}
               <div>
@@ -2026,7 +2089,9 @@ const CentreDashboard = () => {
                   onChange={e => setTempSchedule({ ...tempSchedule, announcement: e.target.value })}
                   className="input-field"
                   rows={3}
-                  placeholder="e.g. Centre operates normally across all 4 slots. 5 to 8 PM is reserved for Tatkaal quota."
+                  placeholder={tempSchedule.isOpen
+                    ? "e.g. Centre operates normally across all slots."
+                    : "e.g. Centre is closed tomorrow for maintenance. No tokens issued."}
                 />
               </div>
 

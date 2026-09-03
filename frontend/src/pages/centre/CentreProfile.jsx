@@ -294,7 +294,7 @@ const CentreProfile = () => {
               </div>
               <div>
                 <label className="input-label">Mobile Number</label>
-                <input type="tel" value={formData.mobile} onChange={e => setFormData({ ...formData, mobile: e.target.value })} className="input-field" maxLength={10} />
+                <input type="tel" value={formData.mobile} onChange={e => setFormData({ ...formData, mobile: e.target.value.replace(/\D/g, '').slice(0, 10) })} className="input-field" maxLength={10} />
               </div>
               <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem' }}>
                 <button type="button" onClick={() => setShowEditModal(false)} className="btn-outline" style={{ flex: 1, justifyContent: 'center' }}>Cancel</button>
