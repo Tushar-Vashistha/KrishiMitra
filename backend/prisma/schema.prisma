@@ -111,6 +111,10 @@ model FarmerProfile {
   cropRegistrations   FarmerCropRegistration[]
   bookings            ProcurementBooking[]
   trustScoreHistory   TrustScoreHistory[]
+
+  @@index([mobile])
+  @@index([status])
+  @@index([district])
 }
 
 model FarmerVerificationHistory {
@@ -174,6 +178,9 @@ model ProcurementCentre {
   tokens           QueueToken[]
   prices           CropPrice[]
   slotConfigs      SlotConfig[]
+
+  @@index([district])
+  @@index([state])
 }
 
 model Counter {
@@ -198,6 +205,10 @@ model StaffAssignment {
   counter        Counter?          @relation(fields: [counterId], references: [id])
   assignedAt     DateTime          @default(now())
   active         Boolean           @default(true)
+
+  @@index([staffProfileId])
+  @@index([centreId])
+  @@index([active])
 }
 
 model Crop {
@@ -283,6 +294,12 @@ model ProcurementBooking {
   updatedAt       DateTime                @updatedAt
   queueToken      QueueToken?
   transaction     ProcurementTransaction?
+
+  @@index([farmerProfileId])
+  @@index([centreId])
+  @@index([date])
+  @@index([status])
+  @@index([centreId, date, status])
 }
 
 model QueueToken {
@@ -303,6 +320,12 @@ model QueueToken {
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
   statusHistory       TokenStatusHistory[]
+
+  @@index([centreId])
+  @@index([bookingId])
+  @@index([status])
+  @@index([counterId])
+  @@index([centreId, status])
 }
 
 model TokenStatusHistory {
@@ -359,6 +382,10 @@ model CropPrice {
   marketPrice   Float
   effectiveDate DateTime
   createdAt     DateTime           @default(now())
+
+  @@index([cropId])
+  @@index([centreId])
+  @@index([effectiveDate])
 }
 
 model QualityInspection {
@@ -397,6 +424,9 @@ model Notification {
   type      String
   isRead    Boolean  @default(false)
   createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([userId, isRead])
 }
 
 model AuditLog {
@@ -408,4 +438,7 @@ model AuditLog {
   entityId  String?
   metadata  String?
   timestamp DateTime @default(now())
+
+  @@index([userId])
+  @@index([timestamp])
 }

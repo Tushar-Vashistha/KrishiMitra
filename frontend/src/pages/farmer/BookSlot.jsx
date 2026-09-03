@@ -77,6 +77,7 @@ const BookSlot = () => {
   const [selectedDate, setSelectedDate] = useState(getTomorrowDate());
   const [selectedSlot, setSelectedSlot] = useState(mockSlots[0]?.id || 'S1');
   const [booked, setBooked] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
   // 1. Fetch crops & centres on load (with fallback)
@@ -143,11 +144,13 @@ const BookSlot = () => {
 
   const handleBooking = async (e) => {
     e.preventDefault();
+    if (submitting) return;
     setErrorMsg('');
     if (!selectedSlot) {
       setErrorMsg('Please select a time slot.');
       return;
     }
+    setSubmitting(true);
     try {
       const activeSlotObj = slots.find(s => s.id === selectedSlot);
       const activeCropObj = dbCrops.find(c => c.id.toString() === selectedCropId);
@@ -507,6 +510,7 @@ const BookSlot = () => {
           <button
             type="submit"
             className="btn-primary"
+            disabled={submitting}
             style={{
               width: '100%',
               minHeight: '52px',
@@ -518,7 +522,8 @@ const BookSlot = () => {
               padding: '1rem',
               fontSize: '1.1rem',
               fontWeight: '800',
-              cursor: 'pointer',
+              cursor: submitting ? 'not-allowed' : 'pointer',
+              opacity: submitting ? 0.7 : 1,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -527,7 +532,9 @@ const BookSlot = () => {
               boxSizing: 'border-box',
             }}
           >
-            <span style={{ color: '#FFFFFF', fontWeight: '800' }}>{t('confirmAndGenerateToken')}</span>
+            <span style={{ color: '#FFFFFF', fontWeight: '800' }}>
+              {submitting ? (isHindi ? 'बुकिंग जनरेट हो रही है...' : 'Generating Booking Token...') : t('confirmAndGenerateToken')}
+            </span>
             <ChevronRight size={20} color="#FFFFFF" style={{ flexShrink: 0 }} />
           </button>
         </form>

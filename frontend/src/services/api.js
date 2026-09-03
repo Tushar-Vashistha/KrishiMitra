@@ -1,7 +1,19 @@
 const rawBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1';
 const API_BASE_URL = rawBaseUrl.replace(/\/+$/, '');
 
+const clientCache = new Map();
+
 async function request(endpoint, options = {}) {
+  const isGet = !options.method || options.method === 'GET';
+  const cacheKey = endpoint;
+  
+  if (isGet && !options.skipCache) {
+    const cached = clientCache.get(cacheKey);
+    if (cached && Date.now() < cached.expiry) {
+      return cached.data;
+    }
+  }
+
   const savedUser = localStorage.getItem('krishimitra_user');
   let token = null;
   if (savedUser) {
@@ -49,6 +61,15 @@ async function request(endpoint, options = {}) {
       error.status = response.status;
       error.response = data;
       throw error;
+    }
+
+    if (isGet) {
+      // Short cache TTL (15 seconds) to prevent immediate duplicate page calls while ensuring freshness
+      const ttl = endpoint.includes('/crops') || endpoint.includes('/market/rates') ? 60000 : 10000;
+      clientCache.set(cacheKey, { data, expiry: Date.now() + ttl });
+    } else {
+      // Invalidate GET cache on mutation POST/PUT/PATCH/DELETE
+      clientCache.clear();
     }
 
     return data;

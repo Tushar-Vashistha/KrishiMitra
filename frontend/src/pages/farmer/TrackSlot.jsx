@@ -1055,38 +1055,6 @@ const TrackSlot = () => {
               </div>
             </div>
 
-            {/* Notification Settings Link */}
-            <button 
-              onClick={() => showToastMessage(isHindi ? 'अधिसूचनाएं SMS व WhatsApp पर सक्रिय हैं' : 'Notifications are active via SMS & WhatsApp')}
-              style={{
-                marginTop: 'auto',
-                width: '100%',
-                backgroundColor: '#FFFFFF',
-                border: '1px solid #E2E8F0',
-                borderRadius: '12px',
-                padding: '0.75rem 1rem',
-                fontSize: '0.8rem',
-                fontWeight: 700,
-                color: '#475569',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = '#F8FAFC';
-                e.currentTarget.style.borderColor = '#CBD5E1';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = '#FFFFFF';
-                e.currentTarget.style.borderColor = '#E2E8F0';
-              }}
-            >
-              <span>{t('notifSettings')}</span>
-              <ChevronRight size={15} color="#64748B" />
-            </button>
-
           </div>
 
         </div>

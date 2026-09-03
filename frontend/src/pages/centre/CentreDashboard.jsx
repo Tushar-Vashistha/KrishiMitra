@@ -195,14 +195,17 @@ const CentreDashboard = () => {
         }));
       }
 
-      setBookings(list);
+      setBookings(prev => {
+        if (JSON.stringify(prev) === JSON.stringify(list)) return prev;
+        return list;
+      });
     } catch (err) {
       console.error("Failed to fetch dashboard data:", err);
       const localBookings = JSON.parse(localStorage.getItem('krishimitra_local_bookings') || '[]');
       if (localBookings.length > 0) {
-        setBookings(localBookings);
+        setBookings(prev => JSON.stringify(prev) === JSON.stringify(localBookings) ? prev : localBookings);
       } else if (mockBookings?.centre) {
-        setBookings(mockBookings.centre);
+        setBookings(prev => JSON.stringify(prev) === JSON.stringify(mockBookings.centre) ? prev : mockBookings.centre);
       }
     } finally {
       setLoading(false);
@@ -211,7 +214,7 @@ const CentreDashboard = () => {
 
   useEffect(() => {
     fetchDashboardData();
-    const interval = setInterval(fetchDashboardData, 6000);
+    const interval = setInterval(fetchDashboardData, 15000);
     return () => clearInterval(interval);
   }, [user]);
 

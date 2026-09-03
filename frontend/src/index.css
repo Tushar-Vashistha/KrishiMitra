@@ -480,3 +480,26 @@ button:active, .btn:active {
     grid-template-columns: repeat(4, 1fr);
   }
 }
+
+/* Instant tactile click feedback across all interactive controls */
+button, .btn, a, input[type="submit"], input[type="button"], [role="button"] {
+  will-change: transform;
+}
+
+button:active, .btn:active, a:active, [role="button"]:active {
+  transform: scale(0.975) translateY(0) !important;
+}
+
+/* Skeleton shimmer loading placeholder */
+@keyframes skeletonShimmer {
+  0% { background-position: -200px 0; }
+  100% { background-position: calc(200px + 100%) 0; }
+}
+
+.skeleton {
+  background: linear-gradient(90deg, #F1F5F9 0%, #E2E8F0 50%, #F1F5F9 100%);
+  background-size: 200px 100%;
+  animation: skeletonShimmer 1.5s infinite ease-in-out;
+  border-radius: 8px;
+}
+

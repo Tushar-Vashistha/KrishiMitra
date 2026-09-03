@@ -2,14 +2,25 @@ const prisma = require('../config/db');
 const { calculateDistance } = require('../utils/helpers');
 const { NotFoundError, BadRequestError } = require('../utils/errors');
 const { logAction } = require('../services/audit.service');
+const memoryCache = require('../utils/cache');
 
 const getAllCentres = async (req, res, next) => {
   try {
+    const cachedCentres = memoryCache.get('all_centres');
+    if (cachedCentres) {
+      return res.status(200).json({
+        success: true,
+        data: cachedCentres,
+      });
+    }
+
     const centres = await prisma.procurementCentre.findMany({
       include: {
         slotConfigs: true,
       },
     });
+
+    memoryCache.set('all_centres', centres, 120); // 2 minutes cache
     res.status(200).json({
       success: true,
       data: centres,

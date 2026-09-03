@@ -6,7 +6,7 @@ import { authService } from '../../services/api';
 import { mockUser } from '../../data/mockData';
 import { 
   Phone, Shield, ArrowLeft, Wheat, Building2, 
-  Lock, Eye, EyeOff, Sparkles, RefreshCw
+  Sparkles, RefreshCw
 } from 'lucide-react';
 
 const LoginPage = () => {
@@ -15,13 +15,9 @@ const LoginPage = () => {
   const { login, user, logout } = useAuth();
   const navigate = useNavigate();
 
-  // Mode: 'otp' | 'password'
-  const [loginMode, setLoginMode] = useState('otp');
   const [role, setRole] = useState('farmer');
   const [step, setStep] = useState(1);
   const [mobile, setMobile] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [timer, setTimer] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -169,55 +165,7 @@ const LoginPage = () => {
     navigate(targetRole === 'farmer' ? '/farmer/dashboard' : '/centre/dashboard', { replace: true });
   };
 
-  // Handle Direct Password Login
-  const handlePasswordLogin = async (e) => {
-    if (e) e.preventDefault();
-    const clean = getCleanMobile(mobile);
-    if (clean.length !== 10) {
-      setError(isHindi ? 'कृपया 10 अंकों का वैध मोबाइल नंबर दर्ज करें।' : 'Please enter a valid 10-digit mobile number.');
-      return;
-    }
-    if (!password) {
-      setError(isHindi ? 'कृपया अपना पासवर्ड दर्ज करें।' : 'Please enter your password.');
-      return;
-    }
 
-    setError('');
-    setLoading(true);
-    const targetRole = role === 'farmer' ? 'farmer' : 'centre';
-
-    const fallbackProfile = {
-      mobile: clean,
-      name: role === 'farmer' ? mockUser.farmer.name : (mockUser.centre.manager || mockUser.centre.name),
-      nameHi: role === 'farmer' ? mockUser.farmer.nameHi : (mockUser.centre.managerHi || mockUser.centre.nameHi),
-      farmerId: clean,
-      centreId: mockUser.centre.id || 1,
-      centreCode: mockUser.centre.centreId || 'UP-LKO-001',
-      centreName: mockUser.centre.name,
-      centreNameHi: mockUser.centre.nameHi,
-      role: targetRole,
-    };
-
-    try {
-      const res = await authService.login(clean, password);
-      if (res && res.success && res.data) {
-        login(targetRole, res.data);
-      } else {
-        login(targetRole, fallbackProfile);
-      }
-      navigate(targetRole === 'farmer' ? '/farmer/dashboard' : '/centre/dashboard', { replace: true });
-    } catch (err) {
-      console.warn('Password login error, using fallback if password matches default:', err);
-      if (password === 'password123' || !err.status || err.status >= 500) {
-        login(targetRole, fallbackProfile);
-        navigate(targetRole === 'farmer' ? '/farmer/dashboard' : '/centre/dashboard', { replace: true });
-      } else {
-        setError(err.message || (isHindi ? 'अमान्य मोबाइल नंबर या पासवर्ड।' : 'Invalid mobile number or password.'));
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
 
   return (
     <div style={{
@@ -324,56 +272,6 @@ const LoginPage = () => {
           </div>
         )}
 
-        {/* Login Method Toggle: OTP vs Password */}
-        {step === 1 && (
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            background: '#F1F5F9',
-            padding: '4px',
-            borderRadius: '12px',
-            marginBottom: '1.25rem'
-          }}>
-            <button
-              type="button"
-              onClick={() => { setLoginMode('otp'); setError(''); }}
-              style={{
-                padding: '0.55rem',
-                borderRadius: '8px',
-                border: 'none',
-                background: loginMode === 'otp' ? '#FFFFFF' : 'transparent',
-                color: loginMode === 'otp' ? '#0F172A' : '#64748B',
-                fontWeight: loginMode === 'otp' ? 800 : 600,
-                fontSize: '0.85rem',
-                cursor: 'pointer',
-                boxShadow: loginMode === 'otp' ? '0 2px 6px rgba(0,0,0,0.06)' : 'none',
-                transition: 'all 0.2s'
-              }}
-            >
-              📱 {isHindi ? 'OTP से लॉगिन' : 'OTP Login'}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => { setLoginMode('password'); setError(''); }}
-              style={{
-                padding: '0.55rem',
-                borderRadius: '8px',
-                border: 'none',
-                background: loginMode === 'password' ? '#FFFFFF' : 'transparent',
-                color: loginMode === 'password' ? '#0F172A' : '#64748B',
-                fontWeight: loginMode === 'password' ? 800 : 600,
-                fontSize: '0.85rem',
-                cursor: 'pointer',
-                boxShadow: loginMode === 'password' ? '0 2px 6px rgba(0,0,0,0.06)' : 'none',
-                transition: 'all 0.2s'
-              }}
-            >
-              🔑 {isHindi ? 'पासवर्ड से लॉगिन' : 'Password Login'}
-            </button>
-          </div>
-        )}
-
         {step === 1 && (
           <>
             {/* Role Selector: Farmer vs Centre */}
@@ -454,53 +352,6 @@ const LoginPage = () => {
               </div>
             </div>
 
-            {/* Password Input (If in Password Mode) */}
-            {loginMode === 'password' && (
-              <div style={{ marginBottom: '1.25rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
-                  <label style={{ color: '#334155', fontSize: '0.82rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                    {isHindi ? 'पासवर्ड' : 'Password'}
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => setPassword('password123')}
-                    style={{
-                      background: 'none', border: 'none', color: '#059669',
-                      fontSize: '0.75rem', fontWeight: 800, cursor: 'pointer', padding: 0
-                    }}
-                  >
-                    ⚡ Auto-fill Demo
-                  </button>
-                </div>
-                <div style={{ position: 'relative' }}>
-                  <span style={{
-                    position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)',
-                    color: '#64748B'
-                  }}>
-                    <Lock size={16} />
-                  </span>
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    value={password}
-                    onChange={e => setPassword(e.target.value)}
-                    placeholder={isHindi ? 'पासवर्ड दर्ज करें (उदा. password123)' : 'Enter password (e.g. password123)'}
-                    className="input-field"
-                    style={{ paddingLeft: '3rem', paddingRight: '2.5rem' }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    style={{
-                      position: 'absolute', right: '0.85rem', top: '50%', transform: 'translateY(-50%)',
-                      background: 'none', border: 'none', color: '#64748B', cursor: 'pointer', display: 'flex'
-                    }}
-                  >
-                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
-                </div>
-              </div>
-            )}
-
             {/* Error message */}
             {error && (
               <div style={{
@@ -513,44 +364,24 @@ const LoginPage = () => {
               </div>
             )}
 
-            {/* Primary Submit Button */}
-            {loginMode === 'otp' ? (
-              <button
-                type="button"
-                onClick={handleSendOTP}
-                className="btn-primary"
-                style={{ width: '100%', padding: '0.85rem', fontSize: '0.95rem', borderRadius: '14px' }}
-                disabled={loading}
-              >
-                {loading ? (
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'center' }}>
-                    <RefreshCw size={18} className="animate-spin" /> {isHindi ? 'OTP भेजा जा रहा है...' : 'Sending OTP...'}
-                  </span>
-                ) : (
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'center' }}>
-                    <Phone size={18} /> {t('sendOTP')}
-                  </span>
-                )}
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={handlePasswordLogin}
-                className="btn-primary"
-                style={{ width: '100%', padding: '0.85rem', fontSize: '0.95rem', borderRadius: '14px' }}
-                disabled={loading}
-              >
-                {loading ? (
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'center' }}>
-                    <RefreshCw size={18} className="animate-spin" /> {isHindi ? 'लॉगिन हो रहा है...' : 'Logging in...'}
-                  </span>
-                ) : (
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'center' }}>
-                    <Lock size={18} /> {t('loginBtn')}
-                  </span>
-                )}
-              </button>
-            )}
+            {/* Send OTP Button */}
+            <button
+              type="button"
+              onClick={handleSendOTP}
+              className="btn-primary"
+              style={{ width: '100%', padding: '0.85rem', fontSize: '0.95rem', borderRadius: '14px' }}
+              disabled={loading}
+            >
+              {loading ? (
+                <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'center' }}>
+                  <RefreshCw size={18} className="animate-spin" /> {isHindi ? 'OTP भेजा जा रहा है...' : 'Sending OTP...'}
+                </span>
+              ) : (
+                <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'center' }}>
+                  <Phone size={18} /> {t('sendOTP')}
+                </span>
+              )}
+            </button>
 
             {/* Quick 1-Click Demo Accounts */}
             <div style={{
@@ -568,44 +399,44 @@ const LoginPage = () => {
                 {/* Farmer Demo */}
                 <button
                   type="button"
-                  onClick={() => handleQuickDemoLogin('9876543210')}
+                  onClick={() => !loading && handleQuickDemoLogin('9876543210')}
                   disabled={loading}
                   style={{
                     background: '#F0FDF4', border: '1.5px solid #86EFAC', color: '#166534',
                     padding: '0.65rem 1rem', borderRadius: '12px', fontWeight: 800, fontSize: '0.85rem',
-                    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    transition: 'all 0.15s ease'
+                    cursor: loading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    transition: 'all 0.15s ease', opacity: loading ? 0.7 : 1
                   }}
-                  onMouseEnter={e => e.currentTarget.style.backgroundColor = '#DCFCE7'}
-                  onMouseLeave={e => e.currentTarget.style.backgroundColor = '#F0FDF4'}
+                  onMouseEnter={e => !loading && (e.currentTarget.style.backgroundColor = '#DCFCE7')}
+                  onMouseLeave={e => !loading && (e.currentTarget.style.backgroundColor = '#F0FDF4')}
                 >
                   <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <Wheat size={16} /> 🌾 {isHindi ? 'किसान डेमो खाता' : 'Farmer Demo'}
                   </span>
                   <span style={{ fontSize: '0.78rem', color: '#15803D', fontWeight: 700 }}>
-                    9876543210 →
+                    {loading ? 'Logging in...' : '9876543210 →'}
                   </span>
                 </button>
 
                 {/* Centre Manager Demo */}
                 <button
                   type="button"
-                  onClick={() => handleQuickDemoLogin('9876500001')}
+                  onClick={() => !loading && handleQuickDemoLogin('9876500001')}
                   disabled={loading}
                   style={{
                     background: '#EFF6FF', border: '1.5px solid #93C5FD', color: '#1E40AF',
                     padding: '0.65rem 1rem', borderRadius: '12px', fontWeight: 800, fontSize: '0.85rem',
-                    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    transition: 'all 0.15s ease'
+                    cursor: loading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    transition: 'all 0.15s ease', opacity: loading ? 0.7 : 1
                   }}
-                  onMouseEnter={e => e.currentTarget.style.backgroundColor = '#DBEAFE'}
-                  onMouseLeave={e => e.currentTarget.style.backgroundColor = '#EFF6FF'}
+                  onMouseEnter={e => !loading && (e.currentTarget.style.backgroundColor = '#DBEAFE')}
+                  onMouseLeave={e => !loading && (e.currentTarget.style.backgroundColor = '#EFF6FF')}
                 >
                   <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <Building2 size={16} /> 🏢 {isHindi ? 'केंद्र प्रबंधक डेमो' : 'Centre Manager Demo'}
                   </span>
                   <span style={{ fontSize: '0.78rem', color: '#1D4ED8', fontWeight: 700 }}>
-                    9876500001 →
+                    {loading ? 'Logging in...' : '9876500001 →'}
                   </span>
                 </button>
               </div>

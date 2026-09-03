@@ -32,7 +32,12 @@ const FarmerDashboard = () => {
 
   const loadDashboardData = async () => {
     try {
-      const statsRes = await farmerService.getStatistics();
+      const [statsRes, bookingsRes, notifRes] = await Promise.all([
+        farmerService.getStatistics().catch(() => ({ success: false })),
+        farmerService.getBookings().catch(() => ({ success: false })),
+        notificationService.getMy().catch(() => ({ success: false })),
+      ]);
+
       if (statsRes.success && statsRes.data) {
         setStats({
           totalBookings: statsRes.data.totalBookings,
@@ -41,7 +46,6 @@ const FarmerDashboard = () => {
         });
       }
 
-      const bookingsRes = await farmerService.getBookings();
       if (bookingsRes.success && bookingsRes.data) {
         const list = bookingsRes.data;
         const active = list.find(b => ['BOOKED', 'ARRIVED', 'CALLED', 'PROCESSING'].includes(b.status));
@@ -70,7 +74,6 @@ const FarmerDashboard = () => {
         setBookingsHistory(mappedHistory);
       }
 
-      const notifRes = await notificationService.getMy();
       if (notifRes.success && notifRes.data) {
         const mappedNotifs = notifRes.data.map(n => ({
           id: n.id.toString(),

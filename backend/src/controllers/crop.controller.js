@@ -1,8 +1,17 @@
 const prisma = require('../config/db');
 const { NotFoundError } = require('../utils/errors');
+const memoryCache = require('../utils/cache');
 
 const getAllCrops = async (req, res, next) => {
   try {
+    const cachedCrops = memoryCache.get('all_crops');
+    if (cachedCrops) {
+      return res.status(200).json({
+        success: true,
+        data: cachedCrops,
+      });
+    }
+
     const crops = await prisma.crop.findMany({
       include: {
         prices: {
@@ -11,6 +20,8 @@ const getAllCrops = async (req, res, next) => {
         },
       },
     });
+
+    memoryCache.set('all_crops', crops, 300); // 5 minutes cache
     res.status(200).json({
       success: true,
       data: crops,
@@ -40,6 +51,14 @@ const getCropById = async (req, res, next) => {
 
 const getMarketRates = async (req, res, next) => {
   try {
+    const cachedRates = memoryCache.get('market_rates');
+    if (cachedRates) {
+      return res.status(200).json({
+        success: true,
+        data: cachedRates,
+      });
+    }
+
     const crops = await prisma.crop.findMany({
       include: {
         prices: {
@@ -78,6 +97,8 @@ const getMarketRates = async (req, res, next) => {
         effectiveDate: latestPrice ? latestPrice.effectiveDate.toISOString().split('T')[0] : null,
       };
     });
+
+    memoryCache.set('market_rates', rates, 180); // 3 minutes cache
 
     res.status(200).json({
       success: true,
