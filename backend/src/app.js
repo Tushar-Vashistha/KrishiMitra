@@ -22,7 +22,7 @@ app.use(compression());
 const corsOrigin = process.env.CORS_ORIGIN || '*';
 app.use(
   cors({
-    origin: corsOrigin === '*' ? true : corsOrigin.split(','),
+    origin: corsOrigin === '*' ? true : corsOrigin.split(',').map(s => s.trim()),
     credentials: true,
   })
 );
