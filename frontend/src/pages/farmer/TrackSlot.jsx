@@ -7,7 +7,7 @@ import {
   Clock, Calendar, Phone, ChevronRight, 
   CalendarDays, Inbox, 
   CreditCard, XCircle,
-  Users, Volume2, Sparkles
+  Users, Volume2
 } from 'lucide-react';
 
 const TrackSlot = () => {
@@ -23,35 +23,13 @@ const TrackSlot = () => {
   const [isCancelled, setIsCancelled] = useState(false);
   const [toast, setToast] = useState(null);
 
-  // Scenario toggle for simulation: 'yourTurnNow' (T-1, 0 ahead) vs 'inQueue' (T-22, 2 ahead)
-  const [scenario, setScenario] = useState('yourTurnNow');
-
   // Token and queue metrics
-  const [tokenNumeric, setTokenNumeric] = useState(1);
+  const [hasActiveBooking, setHasActiveBooking] = useState(false);
+  const [tokenNumeric, setTokenNumeric] = useState(null);
   const [currentTokenNum, setCurrentTokenNum] = useState(1);
   const [tokensAhead, setTokensAhead] = useState(0);
   const [estimatedWait, setEstimatedWait] = useState(0);
-
-  // Booking details matching user wireframe (4 Sep 2026, 7-10 AM, Bhagwanpur Centre, Paddy, 25 Quintal)
-  const [bookingInfo, setBookingInfo] = useState({
-    id: 'BK-2026-001',
-    date: '2026-09-04',
-    dateFormattedEn: '4 Sep 2026',
-    dateFormattedHi: '4 सित 2026',
-    weekdayEn: 'Friday',
-    weekdayHi: 'शुक्रवार',
-    slotTime: '07:00 AM – 10:00 AM',
-    duration: '30 min',
-    centreName: 'Bhagwanpur Centre',
-    centreNameHi: 'भगवानपुर मंडी केंद्र',
-    centreFullEn: 'Bhagwanpur Procurement Centre',
-    centreFullHi: 'भगवानपुर कृषि खरीद केंद्र, लखनऊ',
-    commodity: 'Paddy',
-    commodityHi: 'धान / चावल',
-    quantity: '25 Quintal',
-    quantityHi: '25 क्विंटल',
-    status: 'CONFIRMED'
-  });
+  const [bookingInfo, setBookingInfo] = useState(null);
 
   const showToastMessage = (msg) => {
     setToast(msg);
@@ -140,31 +118,64 @@ const TrackSlot = () => {
       }
 
       if (tokenData && bookingData) {
+        setHasActiveBooking(true);
         const num = tokenData.tokenNumber || 1;
         setTokenNumeric(num);
         const ahead = res?.data?.tokensAhead !== undefined ? res.data.tokensAhead : (res?.data?.peopleAhead !== undefined ? res.data.peopleAhead : 0);
         setTokensAhead(ahead);
         setCurrentTokenNum(res?.data?.currentServingToken || Math.max(1, num - ahead));
-        setEstimatedWait(res?.data?.estimatedWaitMins || (ahead === 0 ? 0 : ahead * 5));
+        setEstimatedWait(res?.data?.estimatedWaitMins || (ahead === 0 ? 0 : ahead * 15));
         setIsCancelled(bookingData.status === 'CANCELLED');
 
-        setBookingInfo(prev => ({
-          ...prev,
-          id: bookingData.id || prev.id,
-          date: bookingData.date || prev.date,
-          slotTime: bookingData.slotTime || prev.slotTime,
+        const bookingDate = bookingData.date ? new Date(bookingData.date) : new Date();
+        const dateEn = !isNaN(bookingDate.getTime()) 
+          ? bookingDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+          : (bookingData.date || 'Today');
+        const monthsHi = ['जन', 'फ़र', 'मार्च', 'अप्रैल', 'मई', 'जून', 'जुल', 'अग', 'सित', 'अक्तू', 'नव', 'दिस'];
+        const dateHi = !isNaN(bookingDate.getTime())
+          ? `${bookingDate.getDate()} ${monthsHi[bookingDate.getMonth()]} ${bookingDate.getFullYear()}`
+          : (bookingData.date || 'आज');
+        const weekdayEn = !isNaN(bookingDate.getTime())
+          ? bookingDate.toLocaleDateString('en-GB', { weekday: 'long' })
+          : '';
+        const weekdayMap = {
+          Monday: 'सोमवार', Tuesday: 'मंगलवार', Wednesday: 'बुधवार', Thursday: 'गुरुवार',
+          Friday: 'शुक्रवार', Saturday: 'शनिवार', Sunday: 'रविवार'
+        };
+
+        setBookingInfo({
+          id: bookingData.id,
+          date: bookingData.date,
+          dateFormattedEn: dateEn,
+          dateFormattedHi: dateHi,
+          weekdayEn,
+          weekdayHi: weekdayMap[weekdayEn] || '',
+          slotTime: bookingData.slotTime || bookingData.slot || '08:00 AM – 10:00 AM',
           duration: `${bookingData.estimatedProcessingTime || 30} min`,
-          centreName: bookingData.centre?.name || prev.centreName,
-          commodity: bookingData.crop?.name || prev.commodity,
-          quantity: `${bookingData.weight || 25} Quintal`,
-        }));
+          centreName: bookingData.centre?.name || bookingData.centreName || 'Procurement Centre',
+          centreNameHi: bookingData.centre?.name || bookingData.centreName || 'कृषि खरीद केंद्र',
+          centreFullEn: bookingData.centre?.address || bookingData.centre?.name || bookingData.centreName || 'Procurement Centre',
+          centreFullHi: bookingData.centre?.address || bookingData.centre?.name || bookingData.centreName || 'कृषि खरीद केंद्र',
+          commodity: bookingData.crop?.name || bookingData.cropName || bookingData.commodity || 'Crop',
+          commodityHi: bookingData.crop?.name || bookingData.cropName || bookingData.commodity || 'फसल',
+          quantity: `${bookingData.weight || 0} Quintal`,
+          quantityHi: `${bookingData.weight || 0} क्विंटल`,
+          status: bookingData.status || 'CONFIRMED'
+        });
+      } else {
+        setHasActiveBooking(false);
+        setBookingInfo(null);
+        setTokenNumeric(null);
       }
 
       const now = new Date();
       const formattedTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       setLastUpdated(formattedTime);
     } catch (err) {
-      console.warn('Backend offline or error, using default mock queue data:', err);
+      console.warn('Backend offline or error, setting no active booking:', err);
+      setHasActiveBooking(false);
+      setBookingInfo(null);
+      setTokenNumeric(null);
     } finally {
       if (!silent) setIsRefreshing(false);
       setLoading(false);
@@ -178,32 +189,6 @@ const TrackSlot = () => {
     }, 15000);
     return () => clearInterval(interval);
   }, []);
-
-  // Quick Scenario Switching for Testing & Demonstration
-  const switchScenario = (mode) => {
-    setScenario(mode);
-    if (mode === 'yourTurnNow') {
-      setTokenNumeric(1);
-      setCurrentTokenNum(1);
-      setTokensAhead(0);
-      setEstimatedWait(0);
-      showToastMessage(isHindi ? 'दृश्य बदला गया: आपकी बारी (T-1)' : 'Scenario: YOUR TURN IS NOW (T-1)');
-    } else {
-      // 'inQueue' scenario matching T-20 ✓ → T-21 ✓ → T-22 🟢 → T-23 → T-24
-      setTokenNumeric(22);
-      setCurrentTokenNum(22);
-      setTokensAhead(0);
-      setEstimatedWait(0);
-      showToastMessage(isHindi ? 'दृश्य बदला गया: टोकन T-22 कतार' : 'Scenario: T-22 Queue Stepper');
-    }
-  };
-
-  // Step advancement simulator
-  const handleAdvanceStep = () => {
-    setCurrentTokenNum(prev => prev + 1);
-    setTokensAhead(prev => Math.max(0, prev - 1));
-    showToastMessage(isHindi ? 'कतार एक टोकन आगे बढ़ी (+1)' : 'Queue advanced (+1 token)');
-  };
 
   // Cancellation Handler
   const handleCancelSlot = async () => {
@@ -221,9 +206,12 @@ const TrackSlot = () => {
     if (!confirmed) return;
 
     try {
-      if (bookingInfo.id) {
+      if (bookingInfo?.id) {
         await bookingService.cancel(bookingInfo.id);
       }
+      const local = JSON.parse(localStorage.getItem('krishimitra_local_bookings') || '[]');
+      const filtered = local.filter(b => b.id !== bookingInfo?.id);
+      localStorage.setItem('krishimitra_local_bookings', JSON.stringify(filtered));
     } catch (e) {
       console.warn('API cancellation error, updating local state:', e);
     }
@@ -234,6 +222,7 @@ const TrackSlot = () => {
 
   // Calculate 5-node Token Stepper Sequence: T-20 ✓ → T-21 ✓ → T-22 🟢 → T-23 → T-24
   const tokenSequence = useMemo(() => {
+    if (!tokenNumeric) return [];
     const center = tokenNumeric; // User's token
     const nodes = [];
     
@@ -283,7 +272,7 @@ const TrackSlot = () => {
     return uniqueNodes;
   }, [tokenNumeric, currentTokenNum]);
 
-  const isYourTurn = tokensAhead === 0 && !isCancelled;
+  const isYourTurn = Boolean(hasActiveBooking && tokensAhead === 0 && !isCancelled);
 
   if (loading) {
     return (
@@ -396,79 +385,69 @@ const TrackSlot = () => {
       {/* Main Page Container */}
       <div className="container" style={{ maxWidth: '1100px', margin: '1.5rem auto 0', padding: '0 1rem' }}>
         
-        {/* Interactive Scenario Switcher (Helpful demo bar for review) */}
-        <div style={{
-          backgroundColor: '#FFFFFF',
-          border: '1px solid #E2E8F0',
-          borderRadius: '14px',
-          padding: '0.6rem 1rem',
-          marginBottom: '1.25rem',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: '0.6rem',
-          fontSize: '0.78rem'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#475569', fontWeight: 700 }}>
-            <Sparkles size={15} color="#059669" />
-            <span>{isHindi ? 'दृश्य टॉगल (डेमो परीक्षण):' : 'Demo Scenarios:'}</span>
-          </div>
+        {!hasActiveBooking || !bookingInfo ? (
+          <div style={{
+            backgroundColor: '#FFFFFF',
+            borderRadius: '24px',
+            border: '1.5px solid #E2E8F0',
+            padding: '3.5rem 1.5rem',
+            textAlign: 'center',
+            boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.04)',
+            marginBottom: '2rem'
+          }}>
+            <div style={{
+              width: '76px',
+              height: '76px',
+              borderRadius: '50%',
+              backgroundColor: '#ECFDF5',
+              color: '#059669',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 1.5rem',
+              border: '2px solid #A7F3D0'
+            }}>
+              <Ticket size={36} />
+            </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-            <button
-              onClick={() => switchScenario('yourTurnNow')}
-              style={{
-                padding: '0.3rem 0.75rem',
-                borderRadius: '8px',
-                fontSize: '0.75rem',
-                fontWeight: 800,
-                border: scenario === 'yourTurnNow' ? '1.5px solid #10B981' : '1px solid #E2E8F0',
-                backgroundColor: scenario === 'yourTurnNow' ? '#ECFDF5' : '#FFFFFF',
-                color: scenario === 'yourTurnNow' ? '#065F46' : '#64748B',
-                cursor: 'pointer'
-              }}
-            >
-              🟢 {isHindi ? 'T-1 (आपकी बारी)' : 'T-1 (Your Turn)'}
-            </button>
+            <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: '#0F172A', marginBottom: '0.5rem' }}>
+              {isHindi ? 'कोई सक्रिय टोकन नहीं मिला' : 'No Active Queue Token Found'}
+            </h2>
 
-            <button
-              onClick={() => switchScenario('inQueue')}
-              style={{
-                padding: '0.3rem 0.75rem',
-                borderRadius: '8px',
-                fontSize: '0.75rem',
-                fontWeight: 800,
-                border: scenario === 'inQueue' ? '1.5px solid #10B981' : '1px solid #E2E8F0',
-                backgroundColor: scenario === 'inQueue' ? '#ECFDF5' : '#FFFFFF',
-                color: scenario === 'inQueue' ? '#065F46' : '#64748B',
-                cursor: 'pointer'
-              }}
-            >
-              🌾 {isHindi ? 'T-22 (कतार प्रवाह)' : 'T-22 (Queue Stepper)'}
-            </button>
+            <p style={{ fontSize: '0.88rem', color: '#64748B', maxWidth: '460px', margin: '0 auto 1.75rem', lineHeight: 1.6 }}>
+              {isHindi
+                ? 'वर्तमान में आपके पास कोई सक्रिय खरीद स्लॉट या कतार टोकन नहीं है। खरीद केंद्र पर समय पर तौल के लिए नया स्लॉट बुक करें।'
+                : 'You currently do not have an active procurement slot or queue token. Book a slot now to track your live queue position and counter status.'}
+            </p>
 
             <button
-              onClick={handleAdvanceStep}
+              onClick={() => navigate('/farmer/book-slot')}
               style={{
-                padding: '0.3rem 0.7rem',
-                borderRadius: '8px',
-                fontSize: '0.75rem',
+                backgroundColor: '#059669',
+                color: '#FFFFFF',
+                border: 'none',
+                borderRadius: '12px',
+                padding: '0.85rem 2rem',
+                fontSize: '0.92rem',
                 fontWeight: 800,
-                border: '1px solid #CBD5E1',
-                backgroundColor: '#F8FAFC',
-                color: '#1E293B',
-                cursor: 'pointer'
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                boxShadow: '0 4px 14px rgba(5, 150, 105, 0.35)',
+                transition: 'all 0.2s ease'
               }}
-              title="Advance queue by 1 token"
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#047857'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#059669'}
             >
-              +1 {isHindi ? 'अगला टोकन' : 'Next'}
+              <span>{isHindi ? 'नया स्लॉट बुक करें' : 'Book a Procurement Slot'}</span>
+              <ChevronRight size={18} />
             </button>
           </div>
-        </div>
-
-        {/* 1. 🟢 TOP PROMINENT STATUS BANNER */}
-        <div style={{
+        ) : (
+          <>
+            {/* 1. 🟢 TOP PROMINENT STATUS BANNER */}
+            <div style={{
           backgroundColor: isCancelled 
             ? '#FEF2F2' 
             : isYourTurn 
@@ -1068,6 +1047,8 @@ const TrackSlot = () => {
           </div>
 
         </div>
+        </>
+        )}
 
         {/* 4. ⚡ QUICK ACTIONS (BOTTOM SECTION) */}
         <div style={{
