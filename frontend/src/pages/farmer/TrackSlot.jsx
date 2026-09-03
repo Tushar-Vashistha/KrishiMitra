@@ -5,9 +5,9 @@ import { queueService, bookingService } from '../../services/api';
 import { 
   ArrowLeft, Bell, HelpCircle, MapPin, Ticket, RefreshCw, 
   Clock, Calendar, Phone, ChevronRight, 
-  CalendarDays, Inbox, AlertCircle, 
-  CreditCard, BarChart2, XCircle, CheckCircle2,
-  Users, Volume2, Sparkles, AlertTriangle
+  CalendarDays, Inbox, 
+  CreditCard, BarChart2, XCircle,
+  Users, Volume2, Sparkles
 } from 'lucide-react';
 
 const TrackSlot = () => {
@@ -33,7 +33,7 @@ const TrackSlot = () => {
   const [estimatedWait, setEstimatedWait] = useState(0);
   const [completedCount, setCompletedCount] = useState(4);
   const [waitingCount, setWaitingCount] = useState(1);
-  const [totalTokensToday, setTotalTokensToday] = useState(150);
+  const [totalTokensToday] = useState(150);
 
   // Booking details matching user wireframe (4 Sep 2026, 7-10 AM, Bhagwanpur Centre, Paddy, 25 Quintal)
   const [bookingInfo, setBookingInfo] = useState({
