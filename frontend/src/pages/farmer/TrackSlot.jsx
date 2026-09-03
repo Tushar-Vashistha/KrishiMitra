@@ -980,77 +980,87 @@ const TrackSlot = () => {
             padding: '1.5rem',
             display: 'flex',
             flexDirection: 'column',
-            gap: '1rem',
             boxShadow: '0 4px 16px rgba(0, 0, 0, 0.03)'
           }}>
-            <div style={{ borderBottom: '1px solid #F1F5F9', paddingBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <div style={{ borderBottom: '1px solid #F1F5F9', paddingBottom: '0.75rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <Bell size={18} color="#059669" />
               <h3 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0F172A', margin: 0, textTransform: 'uppercase', letterSpacing: '0.02em' }}>
                 {isHindi ? '🔔 महत्वपूर्ण सूचनाएं' : '🔔 IMPORTANT'}
               </h3>
             </div>
 
-            {/* Alert 1: 🟢 Your turn is now */}
             <div style={{
-              backgroundColor: '#ECFDF5',
-              border: '1px solid #D1FAE5',
-              borderRadius: '14px',
-              padding: '0.85rem 1rem',
               display: 'flex',
-              gap: '0.75rem',
-              alignItems: 'flex-start'
+              flexDirection: 'column',
+              gap: '0.85rem',
+              flex: 1,
+              justifyContent: 'space-between'
             }}>
-              <div style={{ fontSize: '1rem', marginTop: '1px' }}>🟢</div>
-              <div>
-                <div style={{ fontSize: '0.88rem', fontWeight: 800, color: '#065F46' }}>
-                  {isHindi ? 'आपकी बारी आ गई है' : 'Your turn is now'}
-                </div>
-                <div style={{ fontSize: '0.78rem', color: '#047857', marginTop: '2px', lineHeight: 1.4 }}>
-                  {isHindi 
-                    ? 'कृपया तुरंत अपनी उपज वाहन के साथ तौल काउंटर 1 पर पहुंचें।' 
-                    : 'Please proceed immediately to Counter #1 for weighing and moisture test.'}
+              {/* Alert 1: 🟢 Your turn is now */}
+              <div style={{
+                backgroundColor: '#ECFDF5',
+                border: '1px solid #D1FAE5',
+                borderRadius: '14px',
+                padding: '0.9rem 1rem',
+                display: 'flex',
+                gap: '0.75rem',
+                alignItems: 'flex-start',
+                flex: 1
+              }}>
+                <div style={{ fontSize: '1rem', marginTop: '1px' }}>🟢</div>
+                <div>
+                  <div style={{ fontSize: '0.88rem', fontWeight: 800, color: '#065F46' }}>
+                    {isHindi ? 'आपकी बारी आ गई है' : 'Your turn is now'}
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: '#047857', marginTop: '2px', lineHeight: 1.4 }}>
+                    {isHindi 
+                      ? 'कृपया तुरंत अपनी उपज वाहन के साथ तौल काउंटर 1 पर पहुंचें।' 
+                      : 'Please proceed immediately to Counter #1 for weighing and moisture test.'}
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* Alert 2: 🟡 Reach on time */}
-            <div style={{
-              backgroundColor: '#FFFBEB',
-              border: '1px solid #FEF3C7',
-              borderRadius: '14px',
-              padding: '0.85rem 1rem',
-              display: 'flex',
-              gap: '0.75rem',
-              alignItems: 'flex-start'
-            }}>
-              <div style={{ fontSize: '1rem', marginTop: '1px' }}>🟡</div>
-              <div>
-                <div style={{ fontSize: '0.88rem', fontWeight: 800, color: '#92400E' }}>
-                  {isHindi ? 'समय पर पहुंचें' : 'Reach on time'}
-                </div>
-                <div style={{ fontSize: '0.78rem', color: '#B45309', marginTop: '2px', lineHeight: 1.4 }}>
-                  {t('notifReachBeforeTurn')}
+              {/* Alert 2: 🟡 Reach on time */}
+              <div style={{
+                backgroundColor: '#FFFBEB',
+                border: '1px solid #FEF3C7',
+                borderRadius: '14px',
+                padding: '0.9rem 1rem',
+                display: 'flex',
+                gap: '0.75rem',
+                alignItems: 'flex-start',
+                flex: 1
+              }}>
+                <div style={{ fontSize: '1rem', marginTop: '1px' }}>🟡</div>
+                <div>
+                  <div style={{ fontSize: '0.88rem', fontWeight: 800, color: '#92400E' }}>
+                    {isHindi ? 'समय पर पहुंचें' : 'Reach on time'}
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: '#B45309', marginTop: '2px', lineHeight: 1.4 }}>
+                    {t('notifReachBeforeTurn')}
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* Alert 3: 🔵 Keep documents ready */}
-            <div style={{
-              backgroundColor: '#EFF6FF',
-              border: '1px solid #DBEAFE',
-              borderRadius: '14px',
-              padding: '0.85rem 1rem',
-              display: 'flex',
-              gap: '0.75rem',
-              alignItems: 'flex-start'
-            }}>
-              <div style={{ fontSize: '1rem', marginTop: '1px' }}>🔵</div>
-              <div>
-                <div style={{ fontSize: '0.88rem', fontWeight: 800, color: '#1E40AF' }}>
-                  {isHindi ? 'दस्तावेज तैयार रखें' : 'Keep documents ready'}
-                </div>
-                <div style={{ fontSize: '0.78rem', color: '#1D4ED8', marginTop: '2px', lineHeight: 1.4 }}>
-                  {t('notifKeepDocsReady')}
+              {/* Alert 3: 🔵 Keep documents ready */}
+              <div style={{
+                backgroundColor: '#EFF6FF',
+                border: '1px solid #DBEAFE',
+                borderRadius: '14px',
+                padding: '0.9rem 1rem',
+                display: 'flex',
+                gap: '0.75rem',
+                alignItems: 'flex-start',
+                flex: 1
+              }}>
+                <div style={{ fontSize: '1rem', marginTop: '1px' }}>🔵</div>
+                <div>
+                  <div style={{ fontSize: '0.88rem', fontWeight: 800, color: '#1E40AF' }}>
+                    {isHindi ? 'दस्तावेज तैयार रखें' : 'Keep documents ready'}
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: '#1D4ED8', marginTop: '2px', lineHeight: 1.4 }}>
+                    {t('notifKeepDocsReady')}
+                  </div>
                 </div>
               </div>
             </div>
