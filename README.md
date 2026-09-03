@@ -16,13 +16,13 @@ API Documentation (Swagger): **[https://krishimitra-backend-rbzu.onrender.com/ap
 
 ---
 
-## 🔑 Live Demo Credentials
+## 🔑 Live Demo Credentials (Mobile + OTP)
 
-| Role | Mobile Number | Password |
+| Role | Mobile Number | Demo OTP |
 |---|---|---|
-| **Farmer** | `9876543210` | `password123` |
-| **Centre Manager** | `9876500001` | `password123` |
-| **Admin** | `9999999999` | `password123` |
+| **Farmer** | `9876543210` | `123456` |
+| **Centre Manager** | `9876500001` | `123456` |
+| **Admin** | `9999999999` | `123456` |
 
 ---
 

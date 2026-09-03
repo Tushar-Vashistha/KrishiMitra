@@ -2,7 +2,8 @@ const { z } = require('zod');
 
 const registerFarmerSchema = z.object({
   mobile: z.string().regex(/^[0-9]{10}$/, 'Mobile must be a 10-digit number'),
-  password: z.string().min(6, 'Password must be at least 6 characters long'),
+  password: z.string().optional(),
+  otp: z.string().optional(),
   name: z.string().min(2, 'Name is required'),
   dob: z.union([z.string(), z.date()]).optional().transform((val) => val ? new Date(val) : new Date('1985-01-01')),
   gender: z.string().optional().default('Male'),
@@ -22,7 +23,8 @@ const registerFarmerSchema = z.object({
 
 const registerCentreSchema = z.object({
   mobile: z.string().regex(/^[0-9]{10}$/, 'Mobile must be a 10-digit number'),
-  password: z.string().min(6, 'Password must be at least 6 characters long'),
+  password: z.string().optional(),
+  otp: z.string().optional(),
   name: z.string().min(2, 'Name is required'),
   designation: z.string().min(2, 'Designation is required'),
   centreId: z.string().min(1, 'Centre ID is required'), // e.g. UP-LKO-001
@@ -31,6 +33,7 @@ const registerCentreSchema = z.object({
 
 const loginSchema = z.object({
   mobile: z.string().regex(/^[0-9]{10}$/, 'Mobile must be a 10-digit number'),
+  otp: z.string().optional(),
   password: z.string().optional(),
   role: z.enum(['FARMER', 'CENTRE_MANAGER', 'CENTRE_STAFF']).optional(),
 });

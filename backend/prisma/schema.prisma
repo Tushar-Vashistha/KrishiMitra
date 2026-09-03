@@ -68,7 +68,7 @@ enum PaymentStatus {
 model User {
   id                      Int                         @id @default(autoincrement())
   mobile                  String                      @unique
-  password                String
+  password                String?
   role                    UserRole
   createdAt               DateTime                    @default(now())
   updatedAt               DateTime                    @updatedAt

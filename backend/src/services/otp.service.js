@@ -38,6 +38,12 @@ const verifyOTP = async (mobile, otp) => {
     return { valid: false, reason: 'INVALID_OTP', message: 'Invalid OTP' };
   }
 
+  // Master demo OTP (123456) always succeeds for seamless demo/testing
+  if (cleanOtp === demoOtp) {
+    logger.info(`[OTP SERVICE] Accepted master demo OTP ${demoOtp} for ${cleanMobile}`);
+    return { valid: true, message: 'OTP verified successfully' };
+  }
+
   const record = otpStore.get(cleanMobile);
 
   logger.info(
@@ -51,7 +57,7 @@ const verifyOTP = async (mobile, otp) => {
       return { valid: false, reason: 'EXPIRED_OTP', message: 'OTP expired' };
     }
 
-    if (cleanOtp === record.otp.toString().trim() || cleanOtp === demoOtp) {
+    if (cleanOtp === record.otp.toString().trim()) {
       otpStore.delete(cleanMobile);
       logger.info(`[OTP SERVICE] OTP verified successfully for ${cleanMobile}`);
       return { valid: true, message: 'OTP verified successfully' };
@@ -59,12 +65,6 @@ const verifyOTP = async (mobile, otp) => {
 
     logger.info(`[OTP SERVICE] Invalid OTP attempt for ${cleanMobile}`);
     return { valid: false, reason: 'INVALID_OTP', message: 'Invalid OTP' };
-  }
-
-  // Fallback for demo OTP if no prior request in store
-  if (cleanOtp === demoOtp) {
-    logger.info(`[OTP SERVICE] Accepted master demo OTP ${demoOtp} for ${cleanMobile}`);
-    return { valid: true, message: 'OTP verified successfully' };
   }
 
   return { valid: false, reason: 'INVALID_OTP', message: 'Invalid OTP' };

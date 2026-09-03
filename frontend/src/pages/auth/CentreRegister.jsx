@@ -197,7 +197,7 @@ const CentreRegister = () => {
       const targetRole = isManager ? 'CENTRE_MANAGER' : 'CENTRE_STAFF';
       const payload = {
         mobile: cleanMobile,
-        password: 'password123',
+        otp: '123456',
         name: form.managerName.trim(),
         designation: form.designation.trim(),
         centreId: selectedCentreId,
@@ -213,7 +213,7 @@ const CentreRegister = () => {
                             regErr.status === 409;
         if (isDuplicate) {
           try {
-            const loginRes = await authService.login(cleanMobile, 'password123', targetRole);
+            const loginRes = await authService.login(cleanMobile, '123456', targetRole);
             if (loginRes.success && loginRes.data) {
               login('centre', loginRes.data);
               setSubmitted(true);
@@ -234,7 +234,7 @@ const CentreRegister = () => {
         login('centre', regRes.data);
       } else {
         try {
-          const loginRes = await authService.login(cleanMobile, 'password123', targetRole);
+          const loginRes = await authService.login(cleanMobile, '123456', targetRole);
           if (loginRes.success && loginRes.data) {
             login('centre', loginRes.data);
           } else {

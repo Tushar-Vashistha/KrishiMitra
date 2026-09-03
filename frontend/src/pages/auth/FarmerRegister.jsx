@@ -107,7 +107,7 @@ const FarmerRegister = () => {
       const rawIfsc = form.ifscCode.trim().toUpperCase();
       const payload = {
         mobile: cleanMobile,
-        password: 'password123',
+        otp: cleanOtp,
         name: form.name.trim(),
         dob: '1985-01-01',
         gender: 'Male',
@@ -141,7 +141,7 @@ const FarmerRegister = () => {
       if (regRes?.data?.accessToken) {
         login('farmer', regRes.data);
       } else {
-        const loginRes = await authService.login(cleanMobile, 'password123', 'FARMER');
+        const loginRes = await authService.login(cleanMobile, cleanOtp, 'FARMER');
         if (loginRes.success && loginRes.data) {
           login('farmer', loginRes.data);
         } else {

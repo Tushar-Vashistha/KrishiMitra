@@ -1,5 +1,5 @@
 const prisma = require('../config/db');
-const { hashPassword, comparePassword, generateAccessToken, generateRefreshToken, verifyRefreshToken } = require('../utils/auth');
+const { generateAccessToken, generateRefreshToken, verifyRefreshToken } = require('../utils/auth');
 const { hashSensitive, maskAadhaar, maskBankAccount } = require('../utils/helpers');
 const { logAction } = require('../services/audit.service');
 const { requestOTP, verifyOTP } = require('../services/otp.service');
@@ -13,8 +13,18 @@ const registerFarmer = async (req, res, next) => {
     const aadhaarHash = hashSensitive(aadhaarRaw);
     const accountNumberRaw = data.accountNumber ? data.accountNumber.toString() : '9876543210';
     const accountNumberHash = hashSensitive(accountNumberRaw);
-    const hashedPassword = await hashPassword(data.password || 'password123');
     const dobDate = data.dob ? new Date(data.dob) : new Date('1985-01-01');
+
+    // If OTP is provided during registration, verify it
+    if (data.otp) {
+      const verification = await verifyOTP(cleanMobile, data.otp);
+      if (!verification.valid) {
+        if (verification.reason === 'EXPIRED_OTP') {
+          throw new BadRequestError('OTP expired');
+        }
+        throw new BadRequestError('Invalid OTP');
+      }
+    }
 
     // Check if user already exists
     const existingUser = await prisma.user.findUnique({
@@ -28,7 +38,7 @@ const registerFarmer = async (req, res, next) => {
       const user = await tx.user.create({
         data: {
           mobile: cleanMobile,
-          password: hashedPassword,
+          password: null,
           role: 'FARMER',
         },
       });
@@ -100,7 +110,17 @@ const registerCentre = async (req, res, next) => {
     const data = req.body;
     const cleanMobile = data.mobile ? data.mobile.toString().replace(/\D/g, '').slice(-10) : '';
     const centreCode = data.centreId || 'UP-LKO-' + Math.floor(100 + Math.random() * 900);
-    const hashedPassword = await hashPassword(data.password || 'password123');
+
+    // If OTP is provided during registration, verify it
+    if (data.otp) {
+      const verification = await verifyOTP(cleanMobile, data.otp);
+      if (!verification.valid) {
+        if (verification.reason === 'EXPIRED_OTP') {
+          throw new BadRequestError('OTP expired');
+        }
+        throw new BadRequestError('Invalid OTP');
+      }
+    }
 
     const result = await prisma.$transaction(async (tx) => {
       // 1. Create or update ProcurementCentre
@@ -169,14 +189,14 @@ const registerCentre = async (req, res, next) => {
         user = await tx.user.create({
           data: {
             mobile: cleanMobile,
-            password: hashedPassword,
+            password: null,
             role: userRole,
           },
         });
       } else {
         user = await tx.user.update({
           where: { id: user.id },
-          data: { password: hashedPassword, role: userRole },
+          data: { role: userRole },
         });
       }
 
@@ -263,11 +283,22 @@ const registerCentre = async (req, res, next) => {
 
 const login = async (req, res, next) => {
   try {
-    const { mobile, password, role } = req.body;
+    const { mobile, otp, role } = req.body;
     const cleanMobile = mobile ? mobile.toString().replace(/\D/g, '').slice(-10) : '';
 
     if (!cleanMobile || cleanMobile.length !== 10) {
       throw new BadRequestError('Valid 10-digit mobile number is required');
+    }
+
+    // Verify OTP if provided
+    if (otp) {
+      const verification = await verifyOTP(cleanMobile, otp);
+      if (!verification.valid) {
+        if (verification.reason === 'EXPIRED_OTP') {
+          throw new BadRequestError('OTP expired');
+        }
+        throw new BadRequestError('Invalid OTP');
+      }
     }
 
     let user = await prisma.user.findUnique({
@@ -285,17 +316,9 @@ const login = async (req, res, next) => {
       },
     });
 
-    if (user) {
-      if (password && password !== 'password123') {
-        const isMatch = await comparePassword(password, user.password);
-        if (!isMatch) {
-          throw new UnauthorizedError('Invalid mobile or password');
-        }
-      }
-    } else {
+    if (!user) {
       // Auto-provision new user for seamless OTP login
       const userRole = role === 'CENTRE_MANAGER' || role === 'CENTRE_STAFF' ? role : 'FARMER';
-      const hashedPassword = await hashPassword(password || 'password123');
       const randomAadhaar = '99' + Math.floor(100000000 + Math.random() * 899999999).toString();
       const aadhaarHash = hashSensitive(randomAadhaar);
       const accountNumberHash = hashSensitive('987' + cleanMobile.slice(-9));
@@ -304,7 +327,7 @@ const login = async (req, res, next) => {
         const newUser = await tx.user.create({
           data: {
             mobile: cleanMobile,
-            password: hashedPassword,
+            password: null,
             role: userRole,
           },
         });
@@ -363,7 +386,7 @@ const login = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      message: 'Login successful',
+      message: 'Login successful via OTP',
       data: {
         accessToken,
         refreshToken,
@@ -482,9 +505,41 @@ const handleVerifyOTP = async (req, res, next) => {
       throw new BadRequestError('Invalid OTP');
     }
 
+    const user = await prisma.user.findUnique({
+      where: { mobile: cleanMobile },
+      include: {
+        farmerProfile: true,
+        staffProfile: {
+          include: {
+            assignments: {
+              where: { active: true },
+              include: { centre: true },
+            },
+          },
+        },
+      },
+    });
+
+    let authData = null;
+    if (user) {
+      const accessToken = generateAccessToken(user);
+      const refreshToken = generateRefreshToken(user);
+      authData = {
+        accessToken,
+        refreshToken,
+        user: {
+          id: user.id,
+          mobile: user.mobile,
+          role: user.role,
+          profile: user.role === 'FARMER' ? user.farmerProfile : user.staffProfile,
+        },
+      };
+    }
+
     res.status(200).json({
       success: true,
       message: 'OTP verified successfully',
+      data: authData,
     });
   } catch (error) {
     next(error);

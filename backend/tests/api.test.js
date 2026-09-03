@@ -163,21 +163,31 @@ describe('KrishiMitra API Suite', () => {
   });
 
   describe('POST /api/v1/auth/login', () => {
-    it('should fail login with invalid password', async () => {
+    it('should fail login with invalid OTP', async () => {
+      const res = await request(app)
+        .post('/api/v1/auth/login')
+        .send({ mobile: '9876543210', otp: '000000' });
+
+      expect(res.statusCode).toBe(400);
+      expect(res.body.success).toBe(false);
+    });
+
+    it('should login successfully with valid OTP', async () => {
       mockPrisma.user.findUnique.mockResolvedValue({
         id: 1,
         mobile: '9876543210',
-        password: 'invalid_hashed_password',
         role: 'FARMER',
+        farmerProfile: { id: 1, name: 'Test Farmer' },
       });
+      mockPrisma.auditLog.create.mockResolvedValue({});
 
       const res = await request(app)
         .post('/api/v1/auth/login')
-        .send({ mobile: '9876543210', password: 'wrongpassword' });
+        .send({ mobile: '9876543210', otp: '123456' });
 
-      expect(res.statusCode).toBe(401);
-      expect(res.body.success).toBe(false);
-      expect(res.body.error.code).toBe('UNAUTHORIZED');
+      expect(res.statusCode).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.accessToken).toBeDefined();
     });
   });
 

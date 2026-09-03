@@ -56,7 +56,7 @@ const LoginPage = () => {
     };
 
     try {
-      const res = await authService.login(demoMobile, 'password123');
+      const res = await authService.login(demoMobile, '123456');
       if (res && res.success && res.data) {
         login(targetRole, res.data);
       } else {
@@ -147,18 +147,18 @@ const LoginPage = () => {
     };
 
     try {
-      // 1. Verify OTP with backend
-      await authService.verifyOTP(clean, code);
-      // 2. Perform authenticated login
-      const res = await authService.login(clean, 'password123');
+      // Perform authenticated OTP login
+      const res = await authService.login(clean, code, targetRole.toUpperCase());
       if (res && res.success && res.data) {
         login(targetRole, res.data);
       } else {
         login(targetRole, fallbackProfile);
       }
     } catch (err) {
-      console.warn('Backend login fallback on OTP verify:', err);
-      login(targetRole, fallbackProfile);
+      console.warn('Backend login error on OTP verify:', err);
+      setError(err.message || (isHindi ? 'अमान्य OTP अथवा समय सीमा समाप्त।' : 'Invalid or expired OTP.'));
+      setLoading(false);
+      return;
     } finally {
       setLoading(false);
     }
