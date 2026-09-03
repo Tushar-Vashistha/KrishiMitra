@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../hooks/useAuth';
 import { queueService, centreService } from '../../services/api';
-import { mockBookings, mockCounters, mockCancelledSlots } from '../../data/mockData';
 import {
   ArrowLeft, Users, CheckCircle2, Clock, Phone, MapPin, Search,
   AlertCircle, XCircle, ArrowUpRight, Filter, RefreshCw, Zap,

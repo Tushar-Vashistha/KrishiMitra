@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Zap, ArrowRight } from 'lucide-react';
 import { cropService, centreService, tatkaalService } from '../../services/api';
-import { mockCentres, mockCrops } from '../../data/mockData';
 import { useNavigate } from 'react-router-dom';
 
 // Tatkaal Priority Booking Portal with Guaranteed Golden Submit Button
@@ -11,19 +10,19 @@ const TatkaalBooking = () => {
   const { t, i18n } = useTranslation();
   const isHindi = i18n.language === 'hi';
   
-  const [dbCrops, setDbCrops] = useState(mockCrops);
-  const [dbCentres, setDbCentres] = useState(mockCentres);
+  const [dbCrops, setDbCrops] = useState([]);
+  const [dbCentres, setDbCentres] = useState([]);
   
-  const [selectedCropId, setSelectedCropId] = useState(mockCrops[0]?.id?.toString() || '1');
-  const [selectedCropName, setSelectedCropName] = useState(mockCrops[0]?.name || 'Wheat');
-  const [selectedCentre, setSelectedCentre] = useState(mockCentres[0]?.id?.toString() || '1');
+  const [selectedCropId, setSelectedCropId] = useState('1');
+  const [selectedCropName, setSelectedCropName] = useState('Wheat');
+  const [selectedCentre, setSelectedCentre] = useState('1');
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [quantity, setQuantity] = useState('20');
   const [errorMsg, setErrorMsg] = useState('');
   const [booked, setBooked] = useState(false);
-  const [assignedToken, setAssignedToken] = useState('T-09');
+  const [assignedToken, setAssignedToken] = useState('');
 
-  // 1. Fetch crops & centres on load (with automatic mock fallback)
+  // 1. Fetch crops & centres on load
   useEffect(() => {
     const initData = async () => {
       let crops = [];
@@ -31,14 +30,11 @@ const TatkaalBooking = () => {
 
       try {
         const cropsRes = await cropService.getAll();
-        if (cropsRes.success && Array.isArray(cropsRes.data) && cropsRes.data.length > 0) {
+        if (cropsRes.success && Array.isArray(cropsRes.data)) {
           crops = cropsRes.data;
         }
       } catch (err) {
-        console.warn('Backend crops fetch fallback to mock data:', err);
-      }
-      if (crops.length === 0) {
-        crops = mockCrops;
+        console.error('Failed to fetch crops:', err);
       }
       setDbCrops(crops);
       if (crops.length > 0) {
@@ -48,14 +44,11 @@ const TatkaalBooking = () => {
 
       try {
         const centresRes = await centreService.getNearby(26.8467, 80.9462, 100);
-        if (centresRes.success && Array.isArray(centresRes.data) && centresRes.data.length > 0) {
+        if (centresRes.success && Array.isArray(centresRes.data)) {
           centres = centresRes.data;
         }
       } catch (err) {
-        console.warn('Backend centres fetch fallback to mock data:', err);
-      }
-      if (centres.length === 0) {
-        centres = mockCentres;
+        console.error('Failed to fetch centres:', err);
       }
       setDbCentres(centres);
       if (centres.length > 0) {

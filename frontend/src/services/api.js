@@ -163,6 +163,8 @@ export const bookingService = {
 export const tatkaalService = {
   create: (data) => api.post('/tatkaal/bookings', data),
   getAvailability: (centreId, date) => api.get(`/tatkaal/availability?centreId=${centreId}&date=${date}`),
+  getCentreInventory: (centreId) => api.get(`/tatkaal/centre-inventory?centreId=${centreId}`),
+  allocate: (data) => api.post('/tatkaal/allocate', data),
 };
 
 export const queueService = {

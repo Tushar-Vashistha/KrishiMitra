@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { marketService } from '../../services/api';
-import { mockMandiRates } from '../../data/mockData';
 import { TrendingUp, TrendingDown, RefreshCw, Wheat, Search } from 'lucide-react';
 
 import riceCrop from '../../assets/rice_crop.jpg';
@@ -41,56 +40,17 @@ const MandiRates = () => {
       setLoading(true);
     }
 
-    const startTime = Date.now();
-
     try {
       const res = await marketService.getRates();
-      if (res && res.success && Array.isArray(res.data) && res.data.length > 0) {
+      if (res && res.success && Array.isArray(res.data)) {
         setRates(res.data);
-      } else {
-        if (isManual) {
-          const updatedMock = mockMandiRates.map(item => {
-            const delta = (Math.floor(Math.random() * 5) - 2) * 10;
-            const newMarket = Math.max(item.msp, item.market + delta);
-            const newChange = newMarket - item.msp;
-            return {
-              ...item,
-              market: newMarket,
-              change: newChange >= 0 ? `+${newChange}` : `${newChange}`,
-              trend: newChange > 0 ? 'up' : newChange < 0 ? 'down' : 'stable'
-            };
-          });
-          setRates(updatedMock);
-        } else {
-          setRates(mockMandiRates);
-        }
       }
     } catch (err) {
-      console.warn('Failed to fetch market rates, using fallback:', err);
-      if (isManual) {
-        const updatedMock = mockMandiRates.map(item => {
-          const delta = (Math.floor(Math.random() * 5) - 2) * 10;
-          const newMarket = Math.max(item.msp, item.market + delta);
-          const newChange = newMarket - item.msp;
-          return {
-            ...item,
-            market: newMarket,
-            change: newChange >= 0 ? `+${newChange}` : `${newChange}`,
-            trend: newChange > 0 ? 'up' : newChange < 0 ? 'down' : 'stable'
-          };
-        });
-        setRates(updatedMock);
-      } else {
-        setRates(mockMandiRates);
-      }
+      console.error('Failed to fetch market rates:', err);
     } finally {
-      const elapsed = Date.now() - startTime;
-      const remainingDelay = isManual ? Math.max(0, 400 - elapsed) : 0;
-      setTimeout(() => {
-        setLastUpdated(new Date());
-        setLoading(false);
-        setRefreshing(false);
-      }, remainingDelay);
+      setLoading(false);
+      setRefreshing(false);
+      setLastUpdated(new Date());
     }
   }, []);
 

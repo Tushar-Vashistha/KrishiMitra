@@ -1,12 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../hooks/useAuth';
-import { mockTatkaalList, mockCentres } from '../../data/mockData';
+import { tatkaalService } from '../../services/api';
 import {
   ArrowLeft, Zap, ShieldAlert, CheckCircle2, Clock, Plus,
   UserCheck, AlertTriangle, Search, Filter, Sparkles, ChevronRight,
-  MapPin, Phone, Layers
+  MapPin, Phone, Layers, RefreshCw
 } from 'lucide-react';
 
 const CentreTatkaal = () => {
@@ -15,7 +15,9 @@ const CentreTatkaal = () => {
   const { user } = useAuth();
   const isHindi = i18n.language === 'hi';
 
-  const [tatkaalSlots, setTatkaalSlots] = useState(mockTatkaalList);
+  const [tatkaalSlots, setTatkaalSlots] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [showAllocateModal, setShowAllocateModal] = useState(false);
   const [selectedSlotForAllocation, setSelectedSlotForAllocation] = useState(null);
   const [toastMessage, setToastMessage] = useState(null);
@@ -30,6 +32,25 @@ const CentreTatkaal = () => {
     slotId: ''
   });
 
+  const targetCentreId = user?.centreId || user?.centreCode || user?.staffProfile?.assignments?.[0]?.centreId || 1;
+
+  const fetchTatkaalInventory = async () => {
+    try {
+      const res = await tatkaalService.getCentreInventory(targetCentreId);
+      if (res.success && Array.isArray(res.data)) {
+        setTatkaalSlots(res.data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch Tatkaal inventory:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchTatkaalInventory();
+  }, [user]);
+
   const showToast = (msg) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
@@ -40,7 +61,7 @@ const CentreTatkaal = () => {
     setAllocForm({
       farmerName: slot.assignedTo ? slot.assignedTo.split(' (')[0] : '',
       mobile: (slot.mobile || '').replace(/\D/g, '').slice(0, 10),
-      crop: slot.crop || 'Wheat',
+      crop: slot.crop ? slot.crop.split(' / ')[0] : 'Wheat',
       weight: slot.weight ? slot.weight.toString() : '20',
       reasonType: slot.isBlacklistedFarmer ? 'blacklisted_quota' : 'late_arrival',
       slotId: slot.id
@@ -48,27 +69,31 @@ const CentreTatkaal = () => {
     setShowAllocateModal(true);
   };
 
-  const handleAllocateSubmit = (e) => {
+  const handleAllocateSubmit = async (e) => {
     e.preventDefault();
-    setTatkaalSlots(prev => prev.map(s => {
-      if (s.id === (selectedSlotForAllocation?.id || allocForm.slotId)) {
-        return {
-          ...s,
-          status: 'Allocated',
-          assignedTo: `${allocForm.farmerName} (${allocForm.reasonType === 'blacklisted_quota' ? 'Blacklisted Quota' : allocForm.reasonType === 'late_arrival' ? 'Late Arrival' : 'Emergency'})`,
-          mobile: allocForm.mobile,
-          crop: allocForm.crop,
-          weight: parseInt(allocForm.weight) || 20,
-          allocatedAt: 'Just Now',
-          allocatedBy: user?.manager || 'Procurement Officer Anil Verma',
-          isBlacklistedFarmer: allocForm.reasonType === 'blacklisted_quota'
-        };
-      }
-      return s;
-    }));
+    setSubmitting(true);
+    try {
+      const res = await tatkaalService.allocate({
+        slotId: selectedSlotForAllocation?.id || allocForm.slotId,
+        farmerName: allocForm.farmerName,
+        mobile: allocForm.mobile,
+        crop: allocForm.crop,
+        weight: allocForm.weight,
+        reasonType: allocForm.reasonType,
+        centreId: targetCentreId,
+      });
 
-    setShowAllocateModal(false);
-    showToast(isHindi ? `तत्काल टोकन #${selectedSlotForAllocation?.id || allocForm.slotId} सफलतापूर्वक आवंटित किया गया!` : `Tatkaal Token #${selectedSlotForAllocation?.id || allocForm.slotId} allocated successfully!`);
+      if (res.success) {
+        setShowAllocateModal(false);
+        showToast(isHindi ? `तत्काल टोकन #${selectedSlotForAllocation?.id || allocForm.slotId} सफलतापूर्वक आवंटित किया गया!` : `Tatkaal Token #${selectedSlotForAllocation?.id || allocForm.slotId} allocated successfully!`);
+        fetchTatkaalInventory();
+      }
+    } catch (err) {
+      console.error('Failed to allocate Tatkaal slot:', err);
+      showToast(err.message || (isHindi ? 'आवंटन विफल रहा' : 'Allocation failed'));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const availableSlotsCount = tatkaalSlots.filter(s => s.status === 'Available').length;

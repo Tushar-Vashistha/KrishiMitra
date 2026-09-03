@@ -187,14 +187,6 @@ const CentreDashboard = () => {
         });
       }
 
-      // Fallback to default demo mock bookings if empty
-      if (list.length === 0 && mockBookings?.centre) {
-        list = mockBookings.centre.map(b => ({
-          ...b,
-          cropHi: b.crop === 'Wheat' ? 'गेहूं' : b.crop === 'Paddy' ? 'धान' : b.crop,
-        }));
-      }
-
       setBookings(prev => {
         if (JSON.stringify(prev) === JSON.stringify(list)) return prev;
         return list;
@@ -204,8 +196,6 @@ const CentreDashboard = () => {
       const localBookings = JSON.parse(localStorage.getItem('krishimitra_local_bookings') || '[]');
       if (localBookings.length > 0) {
         setBookings(prev => JSON.stringify(prev) === JSON.stringify(localBookings) ? prev : localBookings);
-      } else if (mockBookings?.centre) {
-        setBookings(prev => JSON.stringify(prev) === JSON.stringify(mockBookings.centre) ? prev : mockBookings.centre);
       }
     } finally {
       setLoading(false);

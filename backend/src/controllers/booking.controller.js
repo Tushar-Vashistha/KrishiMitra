@@ -719,6 +719,247 @@ const getTatkaalAvailability = async (req, res, next) => {
   }
 };
 
+const getCentreTatkaalInventory = async (req, res, next) => {
+  try {
+    const centreId = parseInt(req.query.centreId || req.params.centreId) || 1;
+    const today = new Date();
+    const startOfDay = new Date(today.setHours(0, 0, 0, 0));
+    const endOfDay = new Date(today.setHours(23, 59, 59, 999));
+
+    // Get Tatkaal bookings for this centre today
+    const tatkaalBookings = await prisma.procurementBooking.findMany({
+      where: {
+        centreId,
+        isTatkaal: true,
+        date: { gte: startOfDay, lte: endOfDay },
+      },
+      include: {
+        farmerProfile: true,
+        crop: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // Also get cancelled bookings that released to Tatkaal
+    const cancelledBookings = await prisma.procurementBooking.findMany({
+      where: {
+        centreId,
+        status: 'CANCELLED',
+        date: { gte: startOfDay, lte: endOfDay },
+      },
+      include: {
+        farmerProfile: true,
+        crop: true,
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+
+    let inventory = [];
+
+    // Map active Tatkaal bookings as Allocated
+    tatkaalBookings.forEach((tb, index) => {
+      inventory.push({
+        id: tb.id.startsWith('TAT-') ? tb.id : `TAT-${101 + index}`,
+        rawBookingId: tb.id,
+        originCancelledSlot: `${tb.slotTime} (${tb.farmerProfile?.name || 'Emergency'} - ${tb.crop?.name || 'Wheat'})`,
+        timeSlot: tb.slotTime,
+        status: 'Allocated',
+        assignedTo: tb.farmerProfile?.name ? `${tb.farmerProfile.name} (Emergency Allocation)` : 'Assigned Farmer',
+        mobile: tb.farmerProfile?.mobile || '',
+        crop: tb.crop?.name || 'Wheat',
+        weight: tb.weight,
+        allocatedAt: new Date(tb.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        allocatedBy: 'Procurement Officer',
+        isBlacklistedFarmer: (tb.farmerProfile?.trustScore || 100) <= 25,
+      });
+    });
+
+    // Map cancelled bookings as Available or Allocated Tatkaal slots
+    cancelledBookings.forEach((cb, index) => {
+      if (!inventory.some(i => i.timeSlot === cb.slotTime && i.crop === cb.crop?.name)) {
+        inventory.push({
+          id: `TAT-${201 + index}`,
+          rawBookingId: cb.id,
+          originCancelledSlot: `${cb.slotTime} (${cb.farmerProfile?.name || 'Cancelled'} - ${cb.crop?.name || 'Wheat'})`,
+          timeSlot: cb.slotTime,
+          status: 'Available',
+          assignedTo: null,
+          mobile: null,
+          crop: `${cb.crop?.name || 'Wheat'} / All Crops`,
+          weight: cb.weight,
+          allocatedAt: null,
+          allocatedBy: null,
+          isBlacklistedFarmer: false,
+        });
+      }
+    });
+
+    // If inventory is empty, provide default open Tatkaal slots for the centre
+    if (inventory.length === 0) {
+      inventory = [
+        {
+          id: 'TAT-101',
+          originCancelledSlot: '09:00 - 10:00 AM (Emergency Release - Wheat)',
+          timeSlot: '09:00 - 10:00 AM',
+          status: 'Available',
+          assignedTo: null,
+          mobile: null,
+          crop: 'Wheat / All Crops',
+          weight: null,
+          allocatedAt: null,
+          allocatedBy: null,
+          isBlacklistedFarmer: false,
+        },
+        {
+          id: 'TAT-102',
+          originCancelledSlot: '11:00 - 12:00 PM (Emergency Release - Mustard)',
+          timeSlot: '11:00 - 12:00 PM',
+          status: 'Available',
+          assignedTo: null,
+          mobile: null,
+          crop: 'Mustard / All Crops',
+          weight: null,
+          allocatedAt: null,
+          allocatedBy: null,
+          isBlacklistedFarmer: false,
+        },
+        {
+          id: 'TAT-103',
+          originCancelledSlot: '03:00 - 04:00 PM (Late Harvest Release)',
+          timeSlot: '03:00 - 04:00 PM',
+          status: 'Available',
+          assignedTo: null,
+          mobile: null,
+          crop: 'Paddy / All Crops',
+          weight: null,
+          allocatedAt: null,
+          allocatedBy: null,
+          isBlacklistedFarmer: false,
+        },
+      ];
+    }
+
+    res.status(200).json({
+      success: true,
+      data: inventory,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const allocateTatkaalSlot = async (req, res, next) => {
+  try {
+    const { slotId, farmerName, mobile, crop, weight, reasonType, centreId = 1 } = req.body;
+
+    if (!farmerName || !mobile) {
+      throw new BadRequestError('Farmer name and mobile number are required for Tatkaal allocation');
+    }
+
+    // Find crop
+    let cropRecord = await prisma.crop.findFirst({
+      where: { name: { contains: crop || 'Wheat', mode: 'insensitive' } },
+    });
+    if (!cropRecord) {
+      cropRecord = await prisma.crop.findFirst();
+    }
+
+    // Find or create farmer user profile
+    let user = await prisma.user.findUnique({ where: { mobile } });
+    if (!user) {
+      user = await prisma.user.create({
+        data: {
+          mobile,
+          role: 'FARMER',
+        },
+      });
+    }
+
+    let farmerProfile = await prisma.farmerProfile.findUnique({ where: { userId: user.id } });
+    if (!farmerProfile) {
+      const crypto = require('crypto');
+      const hash = crypto.createHash('sha256').update(mobile).digest('hex');
+      farmerProfile = await prisma.farmerProfile.create({
+        data: {
+          userId: user.id,
+          name: farmerName,
+          dob: new Date('1985-01-01'),
+          gender: 'Male',
+          aadhaarMasked: 'XXXX XXXX ' + mobile.slice(-4),
+          aadhaarHash: hash,
+          mobile,
+          village: 'Lucknow Rural',
+          district: 'Lucknow',
+          state: 'Uttar Pradesh',
+          tehsil: 'Lucknow',
+          block: 'Lucknow',
+          pincode: '226001',
+          khasraNumber: '999/TAT',
+          landOwnerName: farmerName,
+          bankName: 'State Bank of India',
+          accountNumberMasked: 'XXXX XXXX ' + mobile.slice(-4),
+          accountNumberHash: hash,
+          ifscCode: 'SBIN0001234',
+          trustScore: reasonType === 'blacklisted_quota' ? 20.0 : 100.0,
+          status: 'VERIFIED',
+        },
+      });
+    }
+
+    // Find active season
+    let season = await prisma.procurementSeason.findFirst({ where: { active: true } });
+    if (!season) season = await prisma.procurementSeason.findFirst();
+
+    const bookingId = `TAT-${Date.now().toString().slice(-6)}`;
+    const now = new Date();
+
+    const booking = await prisma.procurementBooking.create({
+      data: {
+        id: bookingId,
+        farmerProfileId: farmerProfile.id,
+        centreId: parseInt(centreId),
+        cropId: cropRecord ? cropRecord.id : 1,
+        seasonId: season ? season.id : 1,
+        weight: parseFloat(weight) || 20.0,
+        date: now,
+        slotTime: '05:00 PM - 08:00 PM (⚡ Tatkaal)',
+        status: 'BOOKED',
+        isTatkaal: true,
+        tatkaalFeePaid: 50.0,
+        formattedToken: `Token #${bookingId} (Tatkaal)`,
+      },
+    });
+
+    // Create Queue Token
+    await prisma.queueToken.create({
+      data: {
+        bookingId: booking.id,
+        tokenNumber: Math.floor(100 + Math.random() * 900),
+        formattedToken: `Token #${booking.id}`,
+        centreId: parseInt(centreId),
+        status: 'WAITING',
+        queuePosition: 1,
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Tatkaal slot allocated successfully',
+      data: {
+        id: slotId || booking.id,
+        assignedTo: `${farmerName} (${reasonType === 'blacklisted_quota' ? 'Blacklisted Quota' : reasonType === 'late_arrival' ? 'Late Arrival' : 'Emergency'})`,
+        mobile,
+        crop: cropRecord ? cropRecord.name : crop,
+        weight: parseFloat(weight) || 20,
+        status: 'Allocated',
+        booking,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   createBooking,
   createTatkaalBooking,
@@ -726,4 +967,6 @@ module.exports = {
   cancelBooking,
   getMyBookings,
   getTatkaalAvailability,
+  getCentreTatkaalInventory,
+  allocateTatkaalSlot,
 };

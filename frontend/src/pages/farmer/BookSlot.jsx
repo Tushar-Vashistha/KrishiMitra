@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { cropService, centreService, bookingService } from '../../services/api';
-import { mockCentres, mockCrops, mockSlots } from '../../data/mockData';
 import { Calendar, Clock, MapPin, Wheat, CheckCircle2, ChevronRight, AlertCircle, Info, Sparkles, Check, ArrowRight } from 'lucide-react';
 
 import riceCrop from '../../assets/rice_crop.jpg';
@@ -80,17 +79,17 @@ const BookSlot = () => {
     return d.toISOString().split('T')[0];
   };
 
-  const [dbCrops, setDbCrops] = useState(mockCrops);
-  const [dbCentres, setDbCentres] = useState(mockCentres);
-  const [slots, setSlots] = useState(mockSlots);
+  const [dbCrops, setDbCrops] = useState([]);
+  const [dbCentres, setDbCentres] = useState([]);
+  const [slots, setSlots] = useState([]);
   const [processingRates, setProcessingRates] = useState(DEFAULT_PROCESSING_RATES);
   
-  const [selectedCropId, setSelectedCropId] = useState(mockCrops[0]?.id?.toString() || '1');
-  const [selectedCropName, setSelectedCropName] = useState(mockCrops[0]?.name || 'Wheat');
+  const [selectedCropId, setSelectedCropId] = useState('1');
+  const [selectedCropName, setSelectedCropName] = useState('Wheat');
   const [quantity, setQuantity] = useState('25');
-  const [selectedCentre, setSelectedCentre] = useState(mockCentres[0]?.id?.toString() || '1');
+  const [selectedCentre, setSelectedCentre] = useState('1');
   const [selectedDate, setSelectedDate] = useState(getTomorrowDate());
-  const [selectedSlot, setSelectedSlot] = useState(mockSlots[0]?.id || 'S1');
+  const [selectedSlot, setSelectedSlot] = useState('S1');
   const [booked, setBooked] = useState(false);
   const [confirmedBookingData, setConfirmedBookingData] = useState(null);
   const [submitting, setSubmitting] = useState(false);
@@ -114,13 +113,12 @@ const BookSlot = () => {
 
       try {
         const cropsRes = await cropService.getAll();
-        if (cropsRes.success && Array.isArray(cropsRes.data) && cropsRes.data.length > 0) {
+        if (cropsRes.success && Array.isArray(cropsRes.data)) {
           crops = cropsRes.data;
         }
       } catch (err) {
-        console.warn('Backend crops fetch fallback to mock data:', err);
+        console.error('Failed to fetch crops:', err);
       }
-      if (crops.length === 0) crops = mockCrops;
       setDbCrops(crops);
       if (crops.length > 0) {
         setSelectedCropId(crops[0].id.toString());
@@ -138,13 +136,12 @@ const BookSlot = () => {
       
       try {
         const centresRes = await centreService.getNearby(26.8467, 80.9462, 100);
-        if (centresRes.success && Array.isArray(centresRes.data) && centresRes.data.length > 0) {
+        if (centresRes.success && Array.isArray(centresRes.data)) {
           centres = centresRes.data;
         }
       } catch (err) {
-        console.warn('Backend centres fetch fallback to mock data:', err);
+        console.error('Failed to fetch centres:', err);
       }
-      if (centres.length === 0) centres = mockCentres;
       setDbCentres(centres);
       if (centres.length > 0) {
         setSelectedCentre(centres[0].id.toString());

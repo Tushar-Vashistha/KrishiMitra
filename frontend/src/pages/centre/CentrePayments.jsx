@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../hooks/useAuth';
 import { procurementService, paymentService } from '../../services/api';
-import { mockCentreBills } from '../../data/mockData';
 import {
   ArrowLeft, CreditCard, Upload, CheckCircle2, Clock, AlertCircle,
   FileText, Check, Search, Download, Building2, ChevronRight,
