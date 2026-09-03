@@ -133,7 +133,8 @@ const CentreDashboard = () => {
   };
 
   const fetchDashboardData = async () => {
-    const targetCentreId = user?.centreId || user?.centreCode || 1;
+    if (!user) return;
+    const targetCentreId = user?.centreId || user?.centreCode || user?.staffProfile?.assignments?.[0]?.centreId || 1;
     try {
       const res = await centreService.getDashboard(targetCentreId);
       let list = [];
@@ -142,11 +143,12 @@ const CentreDashboard = () => {
         if (Array.isArray(rawBookings)) {
           list = rawBookings.map(b => {
             let statusText = "Booked";
-            if (b.status === "ARRIVED" || b.status === "Arrived") statusText = "Arrived";
-            else if (b.status === "PROCESSING" || b.status === "Processing") statusText = "Processing";
-            else if (b.status === "COMPLETED" || b.status === "Procured") statusText = "Procured";
-            else if (b.status === "CANCELLED" || b.status === "NO_SHOW" || b.status === "Cancelled") statusText = "Cancelled";
-            else if (b.status === "BOOKED" || b.status === "Booked") statusText = "Booked";
+            const st = (b.status || '').toUpperCase();
+            if (st === "ARRIVED") statusText = "Arrived";
+            else if (st === "PROCESSING" || st === "WEIGHING") statusText = "Processing";
+            else if (st === "COMPLETED" || st === "PROCURED") statusText = "Procured";
+            else if (st === "CANCELLED" || st === "NO_SHOW" || st === "ABSENT") statusText = "Cancelled";
+            else if (st === "BOOKED") statusText = "Booked";
             
             const slotStr = b.slotTime || b.slot || "07:00 AM - 10:00 AM";
             const slotCode = slotStr.includes("07:") || slotStr.includes("7-10") ? "7-10" : 
@@ -155,14 +157,17 @@ const CentreDashboard = () => {
 
             return {
               id: b.id,
-              token: b.token || b.queueToken?.tokenNumber || '00',
-              queueTokenId: b.queueTokenId || b.queueToken?.id,
+              bookingId: b.id,
+              token: b.tokenNumber || b.tokenCode || (b.queueToken?.tokenNumber ? `T-${b.queueToken.tokenNumber}` : (b.token || '00')),
+              tokenNumber: b.tokenNumber || b.tokenCode,
+              queueTokenId: b.queueToken?.id || b.queueTokenId,
               farmer: b.farmer || b.farmerName || b.farmerProfile?.name || 'Kisan',
               mobile: b.mobile || b.farmerMobile || '—',
               crop: b.crop || b.cropName || 'Wheat',
               cropHi: b.cropHi || b.cropNameHi || b.crop || 'गेहूं',
-              weight: b.weight || 25,
+              weight: b.weight || b.estimatedQuantity || 25,
               status: statusText,
+              rawStatus: b.status,
               slotTime: slotStr,
               isTatkaal: b.isTatkaal || false,
               aadhaar: b.aadhaar || b.farmerAadhaar || "XXXX-XXXX-1234",
@@ -206,6 +211,8 @@ const CentreDashboard = () => {
 
   useEffect(() => {
     fetchDashboardData();
+    const interval = setInterval(fetchDashboardData, 6000);
+    return () => clearInterval(interval);
   }, [user]);
 
   // EXACTLY 4 SLOTS: Slot 4 (5:00 PM - 8:00 PM) IS the Tatkaal Slot
