@@ -133,31 +133,37 @@ const CentreDashboard = () => {
   };
 
   const fetchDashboardData = async () => {
-    if (!user || !user.centreId) return;
+    if (!user) return;
+    const centreId = user.centreId || user.staffProfile?.assignments?.[0]?.centreId || 4;
     try {
-      const res = await centreService.getDashboard(user.centreId);
+      const res = await centreService.getDashboard(centreId);
       if (res.success && res.data) {
-        const backendBookings = res.data.todayBookings.map(b => {
+        const rawList = res.data.todayBookings || res.data.bookings || [];
+        const backendBookings = rawList.map(b => {
           let statusText = "Booked";
-          if (b.status === "ARRIVED") statusText = "Arrived";
-          else if (b.status === "PROCESSING") statusText = "Processing";
-          else if (b.status === "COMPLETED") statusText = "Procured";
-          else if (b.status === "CANCELLED" || b.status === "NO_SHOW") statusText = "Cancelled";
+          const st = (b.status || '').toUpperCase();
+          if (st === "ARRIVED") statusText = "Arrived";
+          else if (st === "PROCESSING" || st === "WEIGHING") statusText = "Processing";
+          else if (st === "COMPLETED" || st === "PROCURED") statusText = "Procured";
+          else if (st === "CANCELLED" || st === "NO_SHOW" || st === "ABSENT") statusText = "Cancelled";
           
           return {
             id: b.id,
-            token: b.queueToken?.tokenNumber || b.token || '00',
-            queueTokenId: b.queueToken?.id,
-            farmer: b.farmerName,
-            mobile: b.farmerMobile,
-            crop: b.cropName,
-            cropHi: b.cropNameHi || b.cropName,
-            weight: b.weight,
+            bookingId: b.id,
+            token: b.tokenNumber || b.tokenCode || (b.queueToken?.tokenNumber ? `T-${b.queueToken.tokenNumber}` : (b.token || '00')),
+            tokenNumber: b.tokenNumber || b.tokenCode,
+            queueTokenId: b.queueToken?.id || b.queueTokenId,
+            farmer: b.farmerName || b.farmer || 'Farmer',
+            mobile: b.farmerMobile || b.mobile || '',
+            crop: b.cropName || b.crop || 'Wheat',
+            cropHi: b.cropNameHi || b.cropHi || b.cropName || 'गेहूं',
+            weight: b.weight || b.estimatedQuantity || 0,
             status: statusText,
-            slotTime: b.slotTime,
+            rawStatus: b.status,
+            slotTime: b.slotTime || b.slot || '07:00 AM - 10:00 AM',
             isTatkaal: b.isTatkaal || false,
             aadhaar: b.farmerAadhaar || "XXXX-XXXX-XXXX",
-            slotCode: b.slotTime.includes("07:") ? "7-10" : b.slotTime.includes("10:") ? "10-1" : b.slotTime.includes("14:") || b.slotTime.includes("02:") ? "2-5" : "5-8"
+            slotCode: (b.slotTime || '').includes("07:") ? "7-10" : (b.slotTime || '').includes("10:") ? "10-1" : ((b.slotTime || '').includes("14:") || (b.slotTime || '').includes("02:")) ? "2-5" : "5-8"
           };
         });
         setBookings(backendBookings);
@@ -170,8 +176,10 @@ const CentreDashboard = () => {
   };
 
   useEffect(() => {
-    if (user && user.centreId) {
+    if (user) {
       fetchDashboardData();
+      const interval = setInterval(fetchDashboardData, 6000);
+      return () => clearInterval(interval);
     } else {
       setLoading(false);
     }
@@ -243,40 +251,53 @@ const CentreDashboard = () => {
   };
 
   // Action: Mark Farmer Absent / Cancel
-  const handleMarkAbsent = (bookingId, reason = "Farmer absent / No-show") => {
+  const handleMarkAbsent = async (bookingId, reason = "Farmer absent / No-show") => {
     const booking = bookings.find(b => b.id === bookingId);
     if (booking) {
       setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, status: 'Cancelled', paymentStatus: 'Cancelled' } : b));
       showToast(isHindi ? `टोकन #${booking.token} को अनुपस्थित (Absent) चिह्नित किया गया!` : `Farmer token #${booking.token} marked as Absent!`);
-      if (booking.queueTokenId) {
-        queueService.noShow(booking.queueTokenId).catch(console.error);
+      try {
+        await bookingService.updateStatus(bookingId, 'NO_SHOW');
+      } catch (err) {
+        if (booking.queueTokenId) {
+          queueService.noShow(booking.queueTokenId).catch(console.error);
+        }
       }
     }
   };
 
   // Action: Mark Farmer Arrived
-  const handleMarkArrived = (bookingId) => {
+  const handleMarkArrived = async (bookingId) => {
     const booking = bookings.find(b => b.id === bookingId);
     if (booking) {
       setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, status: 'Arrived' } : b));
       showToast(isHindi ? `टोकन #${booking.token} की उपस्थिति (Arrived) दर्ज कर ली गई है!` : `Farmer token #${booking.token} marked as Arrived!`);
-      if (booking.queueTokenId) {
-        queueService.arrive(booking.queueTokenId).catch(console.error);
+      try {
+        await bookingService.updateStatus(bookingId, 'ARRIVED');
+      } catch (err) {
+        if (booking.queueTokenId) {
+          queueService.arrive(booking.queueTokenId).catch(console.error);
+        }
       }
     }
   };
 
   // Action: Mark Farmer Processing (Weighbridge / Quality Lab)
-  const handleMarkProcessing = (bookingId) => {
+  const handleMarkProcessing = async (bookingId) => {
     const booking = bookings.find(b => b.id === bookingId);
     if (booking) {
       setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, status: 'Processing' } : b));
       showToast(isHindi ? `टोकन #${booking.token} तौल व गुणवत्ता जांच (Processing) में भेजा गया!` : `Farmer token #${booking.token} marked as Processing!`);
-      if (booking.queueTokenId) {
-        queueService.start(booking.queueTokenId, 1).catch(console.error);
+      try {
+        await bookingService.updateStatus(bookingId, 'PROCESSING');
+      } catch (err) {
+        if (booking.queueTokenId) {
+          queueService.start(booking.queueTokenId, 1).catch(console.error);
+        }
       }
     }
   };
+
 
   // Action: Mark Procurement Completed
   const handleMarkProcured = (bookingId) => {

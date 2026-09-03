@@ -414,15 +414,20 @@ const FarmerDashboard = () => {
             </div>
             <div style={{ flex: 1 }}>
               <div style={{ fontWeight: 800, fontSize: '0.95rem', color: '#065F46' }}>
-                {isHindi ? `सक्रिय बुकिंग टोकन #${activeBooking.queueToken?.tokenNumber || ''} (${activeBooking.crop?.nameHi || activeBooking.crop?.name})` : `Active Booking Token #${activeBooking.queueToken?.tokenNumber || ''} (${activeBooking.crop?.name})`}
+                {isHindi
+                  ? `सक्रिय बुकिंग टोकन #${activeBooking.tokenNumber || activeBooking.tokenCode || activeBooking.queueToken?.tokenNumber || ''} (${activeBooking.crop?.nameHi || activeBooking.crop?.name})`
+                  : `Active Booking Token #${activeBooking.tokenNumber || activeBooking.tokenCode || activeBooking.queueToken?.tokenNumber || ''} (${activeBooking.crop?.name})`}
               </div>
               <div style={{ fontSize: '0.8rem', color: '#047857', marginTop: '0.1rem' }}>
-                {isHindi ? `${activeBooking.centre?.nameHi || activeBooking.centre?.name} • आज ${activeBooking.slotTime} • ${activeBooking.weight} क्विंटल` : `${activeBooking.centre?.name} • Today ${activeBooking.slotTime} • ${activeBooking.weight} Qtl`}
+                {isHindi
+                  ? `${activeBooking.centre?.nameHi || activeBooking.centre?.name} • ${activeBooking.date ? new Date(activeBooking.date).toLocaleDateString('hi-IN', { day: 'numeric', month: 'short' }) : 'आज'} ${activeBooking.slotTime} • ${activeBooking.weight} क्विंटल`
+                  : `${activeBooking.centre?.name} • ${activeBooking.date ? new Date(activeBooking.date).toLocaleDateString('en-US', { day: 'numeric', month: 'short' }) : 'Today'} ${activeBooking.slotTime} • ${activeBooking.weight} Qtl`}
               </div>
             </div>
             <Link to="/farmer/track-slot" className="btn-primary" style={{ padding: '0.5rem 1.1rem', fontSize: '0.82rem', borderRadius: '10px' }}>
               {isHindi ? 'लाइव ट्रैक करें' : 'Track Live'} <ChevronRight size={14} />
             </Link>
+
           </div>
         </div>
       )}

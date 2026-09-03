@@ -203,13 +203,10 @@ const updateCentreStatus = async (req, res, next) => {
 
 const getNearbyCentres = async (req, res, next) => {
   try {
-    const lat = parseFloat(req.query.latitude);
-    const lng = parseFloat(req.query.longitude);
-    const radius = parseFloat(req.query.radius) || 15; // default to 15 km
+    const lat = parseFloat(req.query.latitude || req.query.lat || 26.8467);
+    const lng = parseFloat(req.query.longitude || req.query.lng || 80.9462);
+    const radius = parseFloat(req.query.radius) || 100; // default to 100 km
 
-    if (isNaN(lat) || isNaN(lng)) {
-      throw new BadRequestError('Latitude and longitude parameters are required');
-    }
 
     const centres = await prisma.procurementCentre.findMany({
       include: {
@@ -269,9 +266,9 @@ const getCentreSlotsAvailability = async (req, res, next) => {
       throw new BadRequestError('Date parameter (YYYY-MM-DD) is required');
     }
 
-    const queryDate = new Date(date);
-    const startOfDay = new Date(queryDate.setHours(0, 0, 0, 0));
-    const endOfDay = new Date(queryDate.setHours(23, 59, 59, 999));
+    const dateStr = date.split('T')[0];
+    const startOfDay = new Date(dateStr + 'T00:00:00.000Z');
+    const endOfDay = new Date(dateStr + 'T23:59:59.999Z');
 
     const centre = await prisma.procurementCentre.findUnique({
       where: { id: centreId },
@@ -293,30 +290,33 @@ const getCentreSlotsAvailability = async (req, res, next) => {
           lte: endOfDay,
         },
         status: {
-          not: 'CANCELLED',
+          notIn: ['CANCELLED', 'ABSENT'],
         },
       },
     });
 
     const defaultSlotConfigs = [
-      { id: 1, slotTime: '07:00 AM - 10:00 AM', capacity: 10 },
-      { id: 2, slotTime: '10:00 AM - 01:00 PM', capacity: 10 },
-      { id: 3, slotTime: '02:00 PM - 05:00 PM', capacity: 10 },
-      { id: 4, slotTime: '05:00 PM - 08:00 PM', capacity: 10 },
+      { id: 1, slotTime: '07:00 AM - 10:00 AM', capacity: 20 },
+      { id: 2, slotTime: '10:00 AM - 01:00 PM', capacity: 25 },
+      { id: 3, slotTime: '02:00 PM - 05:00 PM', capacity: 20 },
+      { id: 4, slotTime: '05:00 PM - 08:00 PM', capacity: 15 },
     ];
 
-    let slotConfigs = (centre.slotConfigs && centre.slotConfigs.length > 0 && !centre.slotConfigs.some(s => s.slotTime.includes('08:00')))
+    const slotConfigs = (centre.slotConfigs && centre.slotConfigs.length > 0)
       ? centre.slotConfigs
       : defaultSlotConfigs;
 
-    const slots = slotConfigs.map((slot) => {
-      const bookedCount = bookings.filter((b) => b.slotTime === slot.slotTime).length;
-      const remainingCount = Math.max(0, slot.capacity - bookedCount);
+    const slots = slotConfigs.map((slot, index) => {
+      const cleanTime = slot.slotTime.split('(')[0].trim();
+      const bookedCount = bookings.filter((b) => b.slotTime.startsWith(cleanTime.substring(0, 5))).length;
+      const capacity = slot.capacity || 20;
+      const remainingCount = Math.max(0, capacity - bookedCount);
 
       return {
-        id: `SLOT-${slot.id}`,
+        id: `SLOT-${slot.id || index + 1}`,
         time: slot.slotTime,
-        capacity: slot.capacity,
+        cleanTime,
+        capacity,
         bookedCount,
         remainingCount,
         available: remainingCount > 0,

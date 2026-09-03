@@ -131,11 +131,12 @@ export const mockCrops = [
 ];
 
 export const mockSlots = [
-  { id: "S1", code: "7-10", time: "07:00 AM - 10:00 AM", maxCapacity: 20, booked: 12, available: true, label: "Slot 1 (07:00 - 10:00 AM)" },
-  { id: "S2", code: "10-1", time: "10:00 AM - 01:00 PM", maxCapacity: 25, booked: 18, available: true, label: "Slot 2 (10:00 AM - 01:00 PM)" },
-  { id: "S3", code: "2-5", time: "02:00 PM - 05:00 PM", maxCapacity: 20, booked: 14, available: true, label: "Slot 3 (02:00 - 05:00 PM)" },
-  { id: "S4", code: "5-8", time: "05:00 PM - 08:00 PM (⚡ Tatkaal)", maxCapacity: 15, booked: 8, available: true, label: "Slot 4: 05:00 - 08:00 PM (⚡ Tatkaal)", isTatkaal: true },
+  { id: "S1", code: "7-10", time: "07:00 AM - 10:00 AM", maxCapacity: 20, capacity: 20, booked: 12, bookedCount: 12, remainingCount: 8, available: true, label: "Slot 1 (07:00 - 10:00 AM)" },
+  { id: "S2", code: "10-1", time: "10:00 AM - 01:00 PM", maxCapacity: 25, capacity: 25, booked: 18, bookedCount: 18, remainingCount: 7, available: true, label: "Slot 2 (10:00 AM - 01:00 PM)" },
+  { id: "S3", code: "2-5", time: "02:00 PM - 05:00 PM", maxCapacity: 20, capacity: 20, booked: 14, bookedCount: 14, remainingCount: 6, available: true, label: "Slot 3 (02:00 - 05:00 PM)" },
+  { id: "S4", code: "5-8", time: "05:00 PM - 08:00 PM (⚡ Tatkaal)", maxCapacity: 15, capacity: 15, booked: 8, bookedCount: 8, remainingCount: 7, available: true, label: "Slot 4: 05:00 - 08:00 PM (⚡ Tatkaal)", isTatkaal: true },
 ];
+
 
 export const mockBookings = {
   farmer: [

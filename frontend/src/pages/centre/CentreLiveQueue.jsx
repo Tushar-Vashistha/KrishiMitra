@@ -42,9 +42,10 @@ const CentreLiveQueue = () => {
   };
 
   const fetchQueueData = async () => {
-    if (!user || !user.centreId) return;
+    if (!user) return;
+    const centreId = user.centreId || user.staffProfile?.assignments?.[0]?.centreId || 4;
     try {
-      const qRes = await queueService.getCentreQueue(user.centreId);
+      const qRes = await queueService.getCentreQueue(centreId);
       let mappedQueue = [];
       if (qRes.success && qRes.data) {
         mappedQueue = qRes.data.map(q => {
@@ -59,8 +60,8 @@ const CentreLiveQueue = () => {
             id: q.booking.id,
             queueTokenId: q.id,
             token: q.tokenNumber,
-            farmer: q.booking.farmerProfile?.user?.name || "Kisan",
-            mobile: q.booking.farmerProfile?.user?.mobile || "—",
+            farmer: q.booking.farmerProfile?.name || q.booking.farmerProfile?.user?.name || "Kisan",
+            mobile: q.booking.farmerProfile?.mobile || q.booking.farmerProfile?.user?.mobile || "—",
             crop: q.booking.crop.name,
             weight: q.booking.weight,
             status: statusText,
@@ -72,18 +73,19 @@ const CentreLiveQueue = () => {
         setBookings(mappedQueue);
       }
 
-      const dRes = await centreService.getDashboard(user.centreId);
+      const dRes = await centreService.getDashboard(centreId);
       if (dRes.success && dRes.data) {
-        const cancelled = dRes.data.todayBookings
-          .filter(b => b.status === "CANCELLED" || b.status === "NO_SHOW")
+        const rawBookings = dRes.data.todayBookings || dRes.data.bookings || [];
+        const cancelled = rawBookings
+          .filter(b => b.status === "CANCELLED" || b.status === "NO_SHOW" || b.status === "ABSENT")
           .map(b => ({
             id: b.id,
-            farmer: b.farmerName,
-            mobile: b.farmerMobile,
-            crop: b.cropName,
+            farmer: b.farmerName || b.farmer,
+            mobile: b.farmerMobile || b.mobile,
+            crop: b.cropName || b.crop,
             weight: b.weight,
             reason: b.cancelReason || "Farmer absent / No-show",
-            slotTime: b.slotTime,
+            slotTime: b.slotTime || b.slot,
             releasedToTatkaal: false,
           }));
         setCancelledList(cancelled);
@@ -115,8 +117,10 @@ const CentreLiveQueue = () => {
   };
 
   useEffect(() => {
-    if (user && user.centreId) {
+    if (user) {
       fetchQueueData();
+      const interval = setInterval(fetchQueueData, 6000);
+      return () => clearInterval(interval);
     } else {
       setLoading(false);
     }
@@ -128,17 +132,13 @@ const CentreLiveQueue = () => {
     if (!booking) return;
     try {
       if (booking.status === 'Booked') {
-        const res = await queueService.arrive(queueTokenId);
-        if (res.success) {
-          showToast(isHindi ? `टोकन #${booking.token} का आगमन दर्ज!` : `Token #${booking.token} marked as Arrived!`);
-          fetchQueueData();
-        }
+        const res = await bookingService.updateStatus(id, 'ARRIVED').catch(() => queueService.arrive(queueTokenId));
+        showToast(isHindi ? `टोकन #${booking.token} का आगमन दर्ज!` : `Token #${booking.token} marked as Arrived!`);
+        fetchQueueData();
       } else if (booking.status === 'Arrived') {
-        const res = await queueService.start(queueTokenId, 1);
-        if (res.success) {
-          showToast(isHindi ? `टोकन #${booking.token} तौल व गुणवत्ता जांच में!` : `Token #${booking.token} processing started!`);
-          fetchQueueData();
-        }
+        const res = await bookingService.updateStatus(id, 'PROCESSING', 1).catch(() => queueService.start(queueTokenId, 1));
+        showToast(isHindi ? `टोकन #${booking.token} तौल व गुणवत्ता जांच में!` : `Token #${booking.token} processing started!`);
+        fetchQueueData();
       } else if (booking.status === 'Processing') {
         showToast(isHindi ? `विधेयक और जे-फॉर्म उत्पन्न करने के लिए मुख्य डैशबोर्ड पर जाएं!` : `Go to main dashboard to generate J-Form & complete procurement!`);
         navigate('/centre/dashboard');
@@ -147,6 +147,7 @@ const CentreLiveQueue = () => {
       alert(err.message || 'Failed to advance token stage.');
     }
   };
+
 
   // Release a cancelled slot directly to Tatkaal
   const handleReleaseToTatkaal = (cancelledId) => {

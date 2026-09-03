@@ -119,7 +119,14 @@ export const bookingService = {
   getMy: () => api.get('/bookings/my'),
   getById: (id) => api.get(`/bookings/${id}`),
   cancel: (id) => api.patch(`/bookings/${id}/cancel`),
+  getAvailability: (centreId, date) => api.get(`/bookings/availability?centreId=${centreId}&date=${date}`),
+  getCentreBookings: (centreId, params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return api.get(`/bookings/centre/${centreId}${query ? '?' + query : ''}`);
+  },
+  updateStatus: (id, status, counterId) => api.patch(`/bookings/${id}/status`, { status, counterId }),
 };
+
 
 export const tatkaalService = {
   create: (data) => api.post('/tatkaal/bookings', data),

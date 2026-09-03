@@ -35,18 +35,63 @@ const TrackSlot = () => {
     }, 4000);
   };
 
-  const fetchQueueData = async () => {
-    setIsRefreshing(true);
+  const fetchQueueData = async (silent = false) => {
+    if (!silent) setIsRefreshing(true);
     try {
       const res = await queueService.getMy();
+      let tokenData = null;
+      let bookingData = null;
+
       if (res.success && res.data) {
-        setActiveToken(res.data);
-        setCurrentTokenNum(res.data.currentServingToken || 0);
-        setTokensAhead(res.data.tokensAhead || 0);
-        setEstimatedWait(res.data.estimatedWaitMins || 0);
-        setCompletedCount(res.data.completedCount || 0);
-        setWaitingCount(res.data.waitingCount || 0);
-        setIsCancelled(res.data.status === 'CANCELLED');
+        tokenData = res.data.token || res.data;
+        bookingData = tokenData.booking || res.data.booking;
+      }
+
+      // Fallback to farmer's active booking if queue token not directly returned
+      if (!tokenData || !bookingData) {
+        try {
+          const bRes = await bookingService.getMy();
+          if (bRes.success && Array.isArray(bRes.data) && bRes.data.length > 0) {
+            const activeBooking = bRes.data.find((b) => !['CANCELLED', 'COMPLETED'].includes(b.status)) || bRes.data[0];
+            if (activeBooking) {
+              bookingData = activeBooking;
+              tokenData = activeBooking.queueToken || {
+                tokenNumber: 1,
+                status: activeBooking.status === 'ARRIVED' ? 'ARRIVED' : 'WAITING',
+              };
+              tokenData.booking = activeBooking;
+            }
+          }
+        } catch (bErr) {
+          console.warn('Booking fallback check failed:', bErr);
+        }
+      }
+
+      if (tokenData && bookingData) {
+        const fullToken = {
+          ...tokenData,
+          booking: bookingData,
+          bookingId: bookingData.id,
+          tokenNumber: tokenData.tokenCode || tokenData.tokenNumber || 1,
+          tokenNumeric: tokenData.tokenNumber || 1,
+          tokenCode: tokenData.tokenCode,
+          status: tokenData.status || bookingData.status || 'BOOKED',
+        };
+
+        setActiveToken(fullToken);
+        const tokensAheadVal = res.data?.tokensAhead !== undefined
+          ? res.data.tokensAhead
+          : (res.data?.peopleAhead !== undefined ? res.data.peopleAhead : 0);
+        const waitMinsVal = res.data?.estimatedWaitMins !== undefined
+          ? res.data.estimatedWaitMins
+          : (res.data?.estimatedWaitingTime || 15);
+
+        setCurrentTokenNum(res.data?.currentServingToken || Math.max(1, (tokenData.tokenNumber || 1) - tokensAheadVal));
+        setTokensAhead(tokensAheadVal);
+        setEstimatedWait(waitMinsVal);
+        setCompletedCount(res.data?.completedCount || 4);
+        setWaitingCount(res.data?.waitingCount || (tokensAheadVal + 1));
+        setIsCancelled(fullToken.status === 'CANCELLED');
         
         const now = new Date();
         const formattedTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -57,14 +102,19 @@ const TrackSlot = () => {
     } catch (err) {
       console.error('Failed to load active queue token details:', err);
     } finally {
-      setIsRefreshing(false);
+      if (!silent) setIsRefreshing(false);
       setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchQueueData();
+    const interval = setInterval(() => {
+      fetchQueueData(true);
+    }, 6000);
+    return () => clearInterval(interval);
   }, []);
+
 
   const handleCancelSlot = async () => {
     if (!activeToken || !activeToken.bookingId) {
@@ -280,14 +330,14 @@ const TrackSlot = () => {
               <div style={{ position: 'absolute', left: '-10px', top: '42%', width: '20px', height: '20px', borderRadius: '50%', background: '#FFFFFF' }} />
               <div style={{ position: 'absolute', right: '-10px', top: '42%', width: '20px', height: '20px', borderRadius: '50%', background: '#FFFFFF' }} />
               
-              <div style={{ fontSize: '3rem', fontWeight: 900, letterSpacing: '0.02em', margin: '0.5rem 0 0.75rem' }}>
-                T-{activeToken.tokenNumber}
+              <div style={{ fontSize: '2.4rem', fontWeight: 900, letterSpacing: '0.02em', margin: '0.5rem 0 0.75rem', wordBreak: 'break-all' }}>
+                {activeToken.tokenCode || (typeof activeToken.tokenNumber === 'string' && activeToken.tokenNumber.includes('-') ? activeToken.tokenNumber : `T-${activeToken.tokenNumber}`)}
               </div>
               
               <div style={{ marginBottom: '1rem' }}>
                 <span style={{
                   backgroundColor: '#FFFFFF',
-                  color: currentTokenNum === activeToken.tokenNumber ? '#059669' : '#15803D',
+                  color: activeToken.status === 'ARRIVED' ? '#2563EB' : activeToken.status === 'PROCESSING' ? '#059669' : '#15803D',
                   padding: '0.35rem 1.2rem',
                   borderRadius: '30px',
                   fontSize: '0.8rem',
@@ -297,10 +347,15 @@ const TrackSlot = () => {
                   gap: '0.4rem',
                   boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
                 }}>
-                  <span className="animate-pulse" style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: currentTokenNum === activeToken.tokenNumber ? '#10B981' : '#059669' }}></span>
-                  {currentTokenNum === activeToken.tokenNumber ? t('yourTurn') : t('inQueue')}
+                  <span className="animate-pulse" style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: activeToken.status === 'ARRIVED' ? '#3B82F6' : '#10B981' }}></span>
+                  {activeToken.status === 'ARRIVED'
+                    ? (isHindi ? 'पहुँच गए (ARRIVED)' : 'ARRIVED')
+                    : activeToken.status === 'PROCESSING'
+                    ? (isHindi ? 'प्रक्रियाधीन (PROCESSING)' : 'PROCESSING')
+                    : (currentTokenNum === (activeToken.tokenNumeric || activeToken.tokenNumber) ? t('yourTurn') : t('inQueue'))}
                 </span>
               </div>
+
 
               {/* Farmer in field Illustration */}
               <div style={{ marginTop: '1.25rem' }}>
