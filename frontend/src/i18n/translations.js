@@ -318,11 +318,9 @@ const translations = {
       farmerName: "Farmer Name",
 
       // Chatbot
-      chatbotTitle: "KrishiMitra AI",
-      chatbotSubtitle: "Ask me anything!",
-      typeMessage: "Type your message...",
-      send: "Send",
-      chatGreeting: "Hello! I'm KrishiMitra AI. How can I help you today? You can ask me about slot booking, payment status, credit score, mandi rates, or anything else!",
+      chatbotTitle: "KrishiMitra Chatbot",
+      chatbotSubtitle: "Quick Answers & Assistance",
+      chatGreeting: "Hello! Welcome to KrishiMitra Chatbot. Please select a question below to get instant information:",
 
       // Footer
       footerTagline: "Empowering farmers with digital procurement solutions",
@@ -618,11 +616,9 @@ const translations = {
       available2: "उपलब्ध",
       bookingId: "बुकिंग आईडी",
       farmerName: "किसान का नाम",
-      chatbotTitle: "कृषिमित्र AI",
-      chatbotSubtitle: "मुझसे कुछ भी पूछें!",
-      typeMessage: "अपना संदेश टाइप करें...",
-      send: "भेजें",
-      chatGreeting: "नमस्ते! मैं कृषिमित्र AI हूं। आज मैं आपकी कैसे मदद कर सकता हूं? आप स्लॉट बुकिंग, भुगतान स्थिति, क्रेडिट स्कोर, मंडी दरों या कोई भी अन्य प्रश्न पूछ सकते हैं!",
+      chatbotTitle: "कृषिमित्र चैटबॉट",
+      chatbotSubtitle: "त्वरित सहायता और मार्गदर्शन",
+      chatGreeting: "नमस्ते! कृषिमित्र चैटबॉट में आपका स्वागत है। त्वरित जानकारी के लिए कृपया नीचे दिए गए प्रश्नों में से चुनें:",
       footerTagline: "डिजिटल खरीद समाधानों के साथ किसानों को सशक्त बनाना",
       quickLinks: "त्वरित लिंक",
       contact: "हमसे संपर्क करें",
