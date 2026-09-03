@@ -1,4 +1,8 @@
-const rawBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1';
+const defaultApiUrl = typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1'
+  ? 'https://krishimitra-backend-rbzu.onrender.com/api/v1'
+  : 'http://localhost:8080/api/v1';
+
+const rawBaseUrl = import.meta.env.VITE_API_BASE_URL || defaultApiUrl;
 const API_BASE_URL = rawBaseUrl.replace(/\/+$/, '');
 
 const clientCache = new Map();
