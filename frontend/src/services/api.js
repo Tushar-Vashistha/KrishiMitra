@@ -93,8 +93,10 @@ export const api = {
 };
 
 export const authService = {
-  requestOTP: (mobile) => api.post('/auth/otp/request', { mobile }),
+  requestOTP: (mobile, farmerId) => api.post('/auth/otp/request', { mobile, farmerId }),
   verifyOTP: (mobile, otp) => api.post('/auth/otp/verify', { mobile, otp }),
+  validateFarmerId: (farmerId) => api.post('/auth/farmer/validate-id', { farmerId }),
+  getDemoFarmerIds: () => api.get('/auth/farmer/demo-ids'),
   login: (mobile, otp, role) => api.post('/auth/login', { mobile, otp, role }),
   registerFarmer: (data) => api.post('/auth/register/farmer', data),
   registerCentre: (data) => api.post('/auth/register/centre', data),
@@ -122,7 +124,13 @@ export const centreService = {
   getNearby: (lat, lng, radius = 15) => api.get(`/centres/nearby?latitude=${lat}&longitude=${lng}&radius=${radius}`),
   getById: (id) => api.get(`/centres/${id}`),
   update: (id, data) => api.put(`/centres/${id}`, data),
-  getSlotsAvailability: (centreId, date) => api.get(`/centres/${centreId}/slots/availability?date=${date}`),
+  getSlotsAvailability: (centreId, date, cropId, quantity, unit) => {
+    let url = `/centres/${centreId}/slots/availability?date=${date}`;
+    if (cropId) url += `&cropId=${encodeURIComponent(cropId)}`;
+    if (quantity) url += `&quantity=${encodeURIComponent(quantity)}`;
+    if (unit) url += `&unit=${encodeURIComponent(unit)}`;
+    return api.get(url);
+  },
   getDashboard: (centreId) => api.get(`/centres/${centreId}/dashboard`),
   getCounters: (centreId) => api.get(`/centres/${centreId}/counters`),
   createCounter: (centreId, counterNumber) => api.post(`/centres/${centreId}/counters`, { counterNumber }),
@@ -134,6 +142,7 @@ export const centreService = {
 export const cropService = {
   getAll: () => api.get('/crops'),
   getById: (id) => api.get(`/crops/${id}`),
+  getProcessingRates: () => api.get('/crops/processing-rates'),
 };
 
 export const marketService = {

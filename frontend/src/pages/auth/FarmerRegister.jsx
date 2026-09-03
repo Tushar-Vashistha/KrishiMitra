@@ -1,180 +1,194 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../hooks/useAuth';
 import { authService } from '../../services/api';
-import { mockUser } from '../../data/mockData';
-import { ChevronRight, ChevronLeft, User, MapPin, Banknote, CheckCircle, Wheat } from 'lucide-react';
-
-const STATES = ["Uttar Pradesh","Madhya Pradesh","Punjab","Haryana","Bihar","Rajasthan","Maharashtra","Gujarat","Andhra Pradesh","Karnataka","Tamil Nadu","West Bengal","Odisha","Chhattisgarh","Jharkhand","Uttarakhand","Himachal Pradesh","Telangana"];
+import {
+  CheckCircle, Shield, ArrowLeft, RefreshCw,
+  Sparkles, Check, AlertCircle, FileText
+} from 'lucide-react';
 
 const FarmerRegister = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const isHindi = i18n.language === 'hi';
   const { login } = useAuth();
   const navigate = useNavigate();
-  const [step, setStep] = useState(1); // 1=Details, 2=OTP Verify
-  const [form, setForm] = useState({
-    name: 'Ramesh Kumar',
-    farmerId: '',
-    mobile: '',
-    state: 'Uttar Pradesh',
-    district: 'Lucknow',
-    tehsil: 'Lucknow',
-    village: 'Bhagwanpur',
-    pincode: '226001',
-    khasraNumber: '101/A',
-    landOwnerName: 'Ramesh Kumar',
-    bankName: 'State Bank of India',
-    accountNumber: '',
-    ifscCode: 'SBIN0001234',
-    otp: '',
-  });
-  const [errors, setErrors] = useState({});
-  const [submitted, setSubmitted] = useState(false);
-  const [receivedOtp, setReceivedOtp] = useState('');
+
+  const [farmerId, setFarmerId] = useState('');
+  const [mobile, setMobile] = useState('');
+  const [otp, setOtp] = useState('');
+  const [step, setStep] = useState(1); // 1 = Enter ID & Mobile, 2 = Enter OTP
+  const [timer, setTimer] = useState(0);
+  const [sendingOtp, setSendingOtp] = useState(false);
+  const [verifying, setVerifying] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [receivedOtp, setReceivedOtp] = useState('123456');
+  const [submitted, setSubmitted] = useState(false);
+  const [farmerPreview, setFarmerPreview] = useState(null);
 
-  const update = (field, val) => setForm(f => ({ ...f, [field]: val }));
-
-  const steps = [
-    { label: t('farmerDetails') || 'Farmer Details', icon: <User size={16} /> },
-    { label: 'OTP Verify', icon: '📱' },
+  // Demo suggestions for easy testing / SIH evaluator presentation
+  const demoFarmerPills = [
+    { id: 'FRM123456', name: 'Ramesh Kumar', location: 'Lucknow, UP' },
+    { id: 'FRM789012', name: 'Suresh Patel', location: 'Varanasi, UP' },
+    { id: 'FRM345678', name: 'Kamla Bai', location: 'Indore, MP' },
   ];
 
-  const handleNext = async () => {
-    const errs = {};
-    if (step === 1) {
-      if (!form.name.trim()) {
-        errs.name = 'Full name is required';
-      }
-      if (!form.farmerId) {
-        errs.farmerId = 'Farmer ID (Aadhaar) is required';
-      } else if (form.farmerId.length !== 12 || !/^\d+$/.test(form.farmerId)) {
-        errs.farmerId = 'Farmer ID must be exactly 12 digits';
-      }
-      
-      if (!form.mobile) {
-        errs.mobile = 'Mobile number is required';
-      } else if (form.mobile.length !== 10 || !/^\d+$/.test(form.mobile)) {
-        errs.mobile = 'Enter valid 10-digit mobile number';
-      }
+  useEffect(() => {
+    if (timer > 0) {
+      const interval = setInterval(() => setTimer(t => t - 1), 1000);
+      return () => clearInterval(interval);
     }
-    setErrors(errs);
-    if (Object.keys(errs).length > 0) return;
+  }, [timer]);
 
+  const cleanMobile = (val) => (val || '').toString().replace(/\D/g, '').slice(-10);
+  const cleanFarmerId = (val) => (val || '').toString().trim().toUpperCase();
+
+  // Validate format and send OTP
+  const handleSendOTP = async () => {
     setErrorMsg('');
-    try {
-      const res = await authService.requestOTP(form.mobile);
-      if (res.success) {
-        setReceivedOtp(res.otp || '123456');
-        setStep(s => s + 1);
-      } else {
-        setErrorMsg(res.message || 'Failed to request OTP');
-      }
-    } catch (err) {
-      setErrorMsg(err.message || 'Failed to request OTP. Is backend running?');
+    const id = cleanFarmerId(farmerId);
+    const mob = cleanMobile(mobile);
+
+    // 1. Farmer ID validation
+    if (!id) {
+      setErrorMsg(isHindi ? 'कृपया किसान आईडी (Farmer ID) दर्ज करें।' : 'Please enter your Farmer ID.');
+      return;
     }
-  };
-
-  const handleSubmit = async () => {
-    const errs = {};
-    const cleanOtp = (form.otp || '').trim();
-    const cleanMobile = (form.mobile || '').replace(/\D/g, '').slice(-10);
-    const cleanFarmerId = (form.farmerId || '').replace(/\D/g, '').slice(-12);
-
-    if (!cleanOtp || cleanOtp.length !== 6) {
-      errs.otp = 'Enter 6-digit OTP';
+    if (id.length < 4 || !/^[A-Z0-9-]+$/.test(id)) {
+      setErrorMsg(isHindi ? 'किसान आईडी नहीं मिली। कृपया एक वैध किसान आईडी दर्ज करें।' : 'Farmer ID not found. Please enter a valid Farmer ID.');
+      return;
     }
-    setErrors(errs);
-    if (Object.keys(errs).length > 0) return;
 
-    setErrorMsg('');
-    setLoading(true);
+    // 2. Mobile validation
+    if (!mob || mob.length !== 10) {
+      setErrorMsg(isHindi ? 'कृपया 10 अंकों का वैध मोबाइल नंबर दर्ज करें।' : 'Please enter a valid 10-digit mobile number.');
+      return;
+    }
+
+    setSendingOtp(true);
+
     try {
-      // 1. Verify OTP with Backend
+      // First, validate Farmer ID against backend registry
       try {
-        await authService.verifyOTP(cleanMobile, cleanOtp);
-      } catch (otpErr) {
-        if (cleanOtp !== '123456' && cleanOtp !== receivedOtp) {
-          setErrorMsg(otpErr.message || 'Invalid or expired OTP');
-          setLoading(false);
-          return;
+        const valRes = await authService.validateFarmerId(id);
+        if (valRes && valRes.data) {
+          setFarmerPreview(valRes.data);
         }
-      }
-
-      // 2. Register Farmer on backend with ALL user details
-      const rawIfsc = form.ifscCode.trim().toUpperCase();
-      const payload = {
-        mobile: cleanMobile,
-        otp: cleanOtp,
-        name: form.name.trim(),
-        dob: '1985-01-01',
-        gender: 'Male',
-        aadhaar: cleanFarmerId || '987654321012',
-        village: form.village.trim() || 'Bhagwanpur',
-        district: form.district.trim() || 'Lucknow',
-        state: form.state || 'Uttar Pradesh',
-        tehsil: form.tehsil.trim() || 'Lucknow',
-        block: form.tehsil.trim() || 'Lucknow',
-        pincode: form.pincode.trim() || '226001',
-        khasraNumber: form.khasraNumber.trim() || '101/A',
-        landOwnerName: form.landOwnerName.trim() || form.name.trim(),
-        bankName: form.bankName.trim() || 'State Bank of India',
-        accountNumber: form.accountNumber.trim() || ('987' + cleanMobile.slice(-9)),
-        ifscCode: rawIfsc || 'SBIN0001234',
-      };
-
-      let regRes;
-      try {
-        regRes = await authService.registerFarmer(payload);
-      } catch (regErr) {
-        const isDuplicate = regErr.message?.toLowerCase().includes('already exists') ||
-                            regErr.message?.toLowerCase().includes('already registered') ||
-                            regErr.status === 409;
-        if (!isDuplicate) {
-          throw regErr;
-        }
-      }
-
-      // 3. Login to get session user state & token
-      if (regRes?.data?.accessToken) {
-        login('farmer', regRes.data);
-      } else {
-        const loginRes = await authService.login(cleanMobile, cleanOtp, 'FARMER');
-        if (loginRes.success && loginRes.data) {
-          login('farmer', loginRes.data);
+      } catch (valErr) {
+        // If Farmer ID not found or invalid format
+        const msg = valErr?.message || '';
+        if (msg.includes('not found') || valErr?.status === 404) {
+          setErrorMsg(isHindi ? 'किसान आईडी नहीं मिली। कृपया एक वैध किसान आईडी दर्ज करें।' : 'Farmer ID not found. Please enter a valid Farmer ID.');
         } else {
-          login('farmer', { mobile: cleanMobile, name: form.name, role: 'farmer' });
+          setErrorMsg(msg || (isHindi ? 'किसान आईडी सत्यापन विफल हुआ।' : 'Farmer ID verification failed.'));
         }
+        setSendingOtp(false);
+        return;
       }
-      setSubmitted(true);
-      setTimeout(() => {
-        navigate('/farmer/dashboard', { replace: true });
-      }, 1000);
+
+      // Request OTP from backend with mobile and farmerId
+      const otpRes = await authService.requestOTP(mob, id);
+      if (otpRes && otpRes.success) {
+        setReceivedOtp(otpRes.otp ? otpRes.otp.toString() : '123456');
+        setStep(2);
+        setTimer(60);
+      } else {
+        setErrorMsg(otpRes?.message || (isHindi ? 'OTP भेजने में विफल।' : 'Failed to send OTP.'));
+      }
     } catch (err) {
-      setErrorMsg(err.message || 'Registration failed. Please check details.');
+      const msg = err?.message || '';
+      if (msg.toLowerCase().includes('not found') || err?.status === 404) {
+        setErrorMsg(isHindi ? 'किसान आईडी नहीं मिली। कृपया एक वैध किसान आईडी दर्ज करें।' : 'Farmer ID not found. Please enter a valid Farmer ID.');
+      } else if (err?.status === 409 || msg.includes('already registered')) {
+        setErrorMsg(msg);
+      } else {
+        setErrorMsg(msg || (isHindi ? 'सर्वर से कनेक्ट करने में त्रुटि।' : 'Failed to send OTP. Please check details.'));
+      }
     } finally {
-      setLoading(false);
+      setSendingOtp(false);
     }
   };
 
+  // Verify OTP and complete registration
+  const handleVerifyAndRegister = async () => {
+    setErrorMsg('');
+    const id = cleanFarmerId(farmerId);
+    const mob = cleanMobile(mobile);
+    const enteredOtp = (otp || '').trim();
+
+    if (!enteredOtp || enteredOtp.length !== 6) {
+      setErrorMsg(isHindi ? 'कृपया 6 अंकों का पूरा OTP दर्ज करें।' : 'Please enter the complete 6-digit OTP.');
+      return;
+    }
+
+    setVerifying(true);
+
+    try {
+      // Register farmer with ONLY Farmer ID + Mobile + OTP
+      const res = await authService.registerFarmer({
+        farmerId: id,
+        mobile: mob,
+        otp: enteredOtp,
+      });
+
+      if (res && res.success && res.data) {
+        login('farmer', res.data);
+        setSubmitted(true);
+        setTimeout(() => {
+          navigate('/farmer/dashboard', { replace: true });
+        }, 1200);
+      } else {
+        throw new Error(res?.message || 'Registration failed');
+      }
+    } catch (err) {
+      const msg = err?.message || '';
+      if (msg.toLowerCase().includes('not found') || err?.status === 404) {
+        setErrorMsg(isHindi ? 'किसान आईडी नहीं मिली। कृपया एक वैध किसान आईडी दर्ज करें।' : 'Farmer ID not found. Please enter a valid Farmer ID.');
+      } else if (msg.toLowerCase().includes('otp') || err?.status === 400) {
+        setErrorMsg(msg || (isHindi ? 'अमान्य अथवा समाप्त OTP। कृपया पुनः प्रयास करें।' : 'Invalid or expired OTP. Please try again.'));
+      } else {
+        setErrorMsg(msg || (isHindi ? 'पंजीकरण प्रक्रिया में त्रुटि हुई।' : 'Registration failed. Please check details.'));
+      }
+    } finally {
+      setVerifying(false);
+    }
+  };
+
+  // Success Screen
   if (submitted) {
     return (
-      <div style={{ minHeight: '80vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ textAlign: 'center', padding: '2rem' }}>
+      <div style={{
+        minHeight: '85vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: '2rem 1rem', background: 'linear-gradient(135deg, #F0FDF4 0%, #ECFDF5 100%)'
+      }}>
+        <div style={{
+          textAlign: 'center', padding: '2.5rem 2rem', background: '#FFFFFF',
+          borderRadius: '24px', boxShadow: '0 20px 40px rgba(0,0,0,0.08)',
+          maxWidth: '440px', width: '100%', border: '1.5px solid #86EFAC'
+        }}>
           <div style={{
-            width: 80, height: 80,
-            background: '#E8F5E9', borderRadius: '50%',
+            width: 76, height: 76, background: '#DCFCE7', borderRadius: '50%',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            margin: '0 auto 1rem',
+            margin: '0 auto 1.25rem', border: '2px solid #22C55E'
           }}>
-            <CheckCircle size={48} color="#2E7D32" />
+            <CheckCircle size={44} color="#16A34A" />
           </div>
-          <h2 style={{ color: '#2E7D32', fontWeight: 800, marginBottom: '0.5rem' }}>
-            Registration Successful! 🎉
+          <h2 style={{ color: '#15803D', fontWeight: 800, fontSize: '1.4rem', margin: '0 0 0.5rem' }}>
+            {isHindi ? 'पंजीकरण सफल! 🎉' : 'Registration Successful! 🎉'}
           </h2>
-          <p style={{ color: '#6B7280' }}>Profile and user details saved in database. Redirecting...</p>
+          <p style={{ color: '#475569', fontSize: '0.9rem', lineHeight: 1.5, margin: '0 0 1.25rem' }}>
+            {isHindi
+              ? 'किसान आईडी से पूर्ण विवरण प्राप्त कर डेटाबेस में सुरक्षित सहेज लिया गया है। डैशबोर्ड पर ले जाया जा रहा है...'
+              : 'Complete farmer details retrieved using Farmer ID and securely saved in database. Redirecting to your dashboard...'}
+          </p>
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
+            padding: '0.4rem 1rem', background: '#F1F5F9', borderRadius: '999px',
+            fontSize: '0.8rem', color: '#64748B', fontWeight: 700
+          }}>
+            <RefreshCw size={14} className="animate-spin" />
+            <span>{isHindi ? 'डैशबोर्ड लोड हो रहा है...' : 'Loading Dashboard...'}</span>
+          </div>
         </div>
       </div>
     );
@@ -183,215 +197,377 @@ const FarmerRegister = () => {
   return (
     <div style={{
       minHeight: '100vh',
-      background: 'linear-gradient(135deg, #F5F5F0, #E8F5E9)',
+      background: 'linear-gradient(135deg, #F0FDF4 0%, #F8FAFC 50%, #ECFDF5 100%)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
       padding: '2rem 1rem',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      position: 'relative',
     }}>
-      <div style={{ maxWidth: '600px', margin: '0 auto' }}>
-        {/* Header */}
-        <div style={{
-          background: 'linear-gradient(135deg, #1B5E20, #2E7D32)',
-          borderRadius: '16px 16px 0 0',
-          padding: '1.5rem',
-          textAlign: 'center',
-          color: 'white',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.6rem', marginBottom: '0.4rem' }}>
-            <img src="/logo.png" alt="KrishiMitra Logo" style={{ width: 36, height: 36, objectFit: 'contain', borderRadius: '8px', background: '#FFFFFF', padding: '2px' }} />
-            <h1 style={{ fontWeight: 800, fontSize: '1.3rem', margin: 0 }}>{t('farmerRegistration')}</h1>
-          </div>
-          <p style={{ opacity: 0.8, fontSize: '0.82rem', margin: 0 }}>Register to save your farmer details in database</p>
+      {/* Background soft blur accents */}
+      <div style={{
+        position: 'absolute', top: '-60px', right: '-60px', width: '340px', height: '340px',
+        borderRadius: '50%', background: 'radial-gradient(circle, rgba(34,197,94,0.15) 0%, transparent 70%)',
+        pointerEvents: 'none'
+      }} />
+      <div style={{
+        position: 'absolute', bottom: '-60px', left: '-60px', width: '340px', height: '340px',
+        borderRadius: '50%', background: 'radial-gradient(circle, rgba(16,185,129,0.12) 0%, transparent 70%)',
+        pointerEvents: 'none'
+      }} />
+
+      <div style={{
+        width: '100%',
+        maxWidth: '460px',
+        background: '#FFFFFF',
+        borderRadius: '24px',
+        boxShadow: '0 20px 45px -10px rgba(15, 23, 42, 0.12), 0 0 0 1px rgba(34, 197, 94, 0.1)',
+        padding: '2.25rem 2rem',
+        boxSizing: 'border-box',
+        position: 'relative',
+        zIndex: 1,
+      }}>
+
+        {/* Logo */}
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1rem' }}>
+          <img
+            src="/logo.png"
+            alt="KrishiMitra Logo"
+            style={{
+              width: 56,
+              height: 56,
+              objectFit: 'contain',
+              borderRadius: '14px',
+              border: '1px solid #E2E8F0',
+              padding: '4px',
+              background: '#FFFFFF',
+              boxShadow: '0 4px 12px rgba(16, 185, 129, 0.15)'
+            }}
+          />
         </div>
 
-        {/* Form body */}
-        <div style={{ background: 'white', padding: '1.75rem', borderRadius: '0 0 16px 16px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}>
+        {/* Header Title */}
+        <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+          <h1 style={{
+            fontSize: '1.5rem', fontWeight: 800, color: '#0F172A',
+            margin: '0 0 0.35rem', letterSpacing: '-0.02em'
+          }}>
+            {isHindi ? 'किसान पंजीकरण' : 'Farmer Registration'}
+          </h1>
+          <p style={{ color: '#64748B', fontSize: '0.85rem', margin: 0 }}>
+            {isHindi
+              ? 'किसान आईडी दर्ज करें, विवरण स्वतः प्राप्त होगा'
+              : 'Enter your Farmer ID to automatically fetch verified records'}
+          </p>
+        </div>
 
-          {errorMsg && (
-            <div style={{
-              backgroundColor: '#FEE2E2', border: '1.5px solid #FCA5A5',
-              borderRadius: '10px', padding: '0.75rem 1rem', marginBottom: '1.25rem',
-              color: '#DC2626', fontSize: '0.85rem', fontWeight: 600, textAlign: 'center'
-            }}>
-              ⚠️ {errorMsg}
-            </div>
-          )}
+        {/* Error notification banner */}
+        {errorMsg && (
+          <div style={{
+            backgroundColor: '#FEF2F2',
+            border: '1.5px solid #FCA5A5',
+            borderRadius: '12px',
+            padding: '0.75rem 1rem',
+            marginBottom: '1.25rem',
+            color: '#DC2626',
+            fontSize: '0.85rem',
+            fontWeight: 700,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+          }}>
+            <AlertCircle size={18} style={{ flexShrink: 0 }} />
+            <span>{errorMsg}</span>
+          </div>
+        )}
 
-          {/* ── Step 1: Farmer Details ── */}
-          {step === 1 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div>
-                <label className="input-label">Full Name <span style={{ color: '#D32F2F' }}>*</span></label>
+        {/* STEP 1: Farmer ID & Mobile Number */}
+        {step === 1 && (
+          <div>
+            {/* Field 1: Farmer ID */}
+            <div style={{ marginBottom: '1.25rem' }}>
+              <label style={{
+                color: '#334155', fontSize: '0.82rem', fontWeight: 800,
+                textTransform: 'uppercase', display: 'block', marginBottom: '0.4rem',
+                letterSpacing: '0.04em'
+              }}>
+                {t('farmerId') || 'Farmer ID'} <span style={{ color: '#DC2626' }}>*</span>
+              </label>
+
+              <div style={{ position: 'relative' }}>
                 <input
                   type="text"
-                  value={form.name}
-                  onChange={e => update('name', e.target.value)}
-                  placeholder="e.g. Ramesh Kumar"
+                  value={farmerId}
+                  onChange={e => {
+                    setFarmerId(e.target.value.toUpperCase());
+                    setErrorMsg('');
+                  }}
+                  placeholder={isHindi ? 'उदा. FRM123456' : 'e.g. FRM123456'}
                   className="input-field"
+                  style={{
+                    textTransform: 'uppercase',
+                    fontWeight: 700,
+                    letterSpacing: '0.05em',
+                  }}
+                  maxLength={20}
+                  disabled={sendingOtp}
                 />
-                {errors.name && <div style={{ color: '#D32F2F', fontSize: '0.8rem', marginTop: '0.25rem' }}>{errors.name}</div>}
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                <div>
-                  <label className="input-label">{t('mobileNumber')} <span style={{ color: '#D32F2F' }}>*</span></label>
-                  <input
-                    type="tel"
-                    value={form.mobile}
-                    onChange={e => update('mobile', e.target.value.replace(/\D/g, '').slice(0, 10))}
-                    placeholder="10-digit mobile"
-                    className="input-field"
-                    maxLength={10}
-                  />
-                  {errors.mobile && <div style={{ color: '#D32F2F', fontSize: '0.8rem', marginTop: '0.25rem' }}>{errors.mobile}</div>}
+              {/* Demo Helper Pills for instant testing in SIH presentation */}
+              <div style={{ marginTop: '0.5rem' }}>
+                <div style={{
+                  fontSize: '0.72rem', color: '#64748B', fontWeight: 700,
+                  display: 'flex', alignItems: 'center', gap: '0.3rem', marginBottom: '0.35rem'
+                }}>
+                  <Sparkles size={12} color="#059669" />
+                  <span>{isHindi ? 'त्वरित डेमो आईडी चुनें:' : 'Quick Demo IDs (Click to fill):'}</span>
                 </div>
-
-                <div>
-                  <label className="input-label">Aadhaar / Farmer ID <span style={{ color: '#D32F2F' }}>*</span></label>
-                  <input
-                    type="tel"
-                    value={form.farmerId}
-                    onChange={e => update('farmerId', e.target.value.replace(/\D/g, '').slice(0, 12))}
-                    placeholder="12-digit Aadhaar"
-                    className="input-field"
-                    maxLength={12}
-                  />
-                  {errors.farmerId && <div style={{ color: '#D32F2F', fontSize: '0.8rem', marginTop: '0.25rem' }}>{errors.farmerId}</div>}
-                </div>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                <div>
-                  <label className="input-label">State</label>
-                  <select
-                    value={form.state}
-                    onChange={e => update('state', e.target.value)}
-                    className="input-field"
-                  >
-                    {STATES.map(s => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="input-label">District</label>
-                  <input
-                    type="text"
-                    value={form.district}
-                    onChange={e => update('district', e.target.value)}
-                    placeholder="e.g. Lucknow"
-                    className="input-field"
-                  />
-                </div>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem' }}>
-                <div>
-                  <label className="input-label">Tehsil</label>
-                  <input type="text" value={form.tehsil} onChange={e => update('tehsil', e.target.value)} className="input-field" />
-                </div>
-                <div>
-                  <label className="input-label">Village</label>
-                  <input type="text" value={form.village} onChange={e => update('village', e.target.value)} className="input-field" />
-                </div>
-                <div>
-                  <label className="input-label">Pincode</label>
-                  <input type="text" value={form.pincode} onChange={e => update('pincode', e.target.value)} className="input-field" maxLength={6} />
-                </div>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                <div>
-                  <label className="input-label">Khasra Number</label>
-                  <input type="text" value={form.khasraNumber} onChange={e => update('khasraNumber', e.target.value)} className="input-field" placeholder="101/A" />
-                </div>
-                <div>
-                  <label className="input-label">Land Owner Name</label>
-                  <input type="text" value={form.landOwnerName} onChange={e => update('landOwnerName', e.target.value)} className="input-field" />
-                </div>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem' }}>
-                <div>
-                  <label className="input-label">Bank Name</label>
-                  <input type="text" value={form.bankName} onChange={e => update('bankName', e.target.value)} className="input-field" />
-                </div>
-                <div>
-                  <label className="input-label">Account No.</label>
-                  <input type="text" value={form.accountNumber} onChange={e => update('accountNumber', e.target.value)} className="input-field" placeholder="Account Number" />
-                </div>
-                <div>
-                  <label className="input-label">IFSC Code</label>
-                  <input type="text" value={form.ifscCode} onChange={e => update('ifscCode', e.target.value)} className="input-field" />
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+                  {demoFarmerPills.map((pill) => (
+                    <button
+                      key={pill.id}
+                      type="button"
+                      onClick={() => {
+                        setFarmerId(pill.id);
+                        setErrorMsg('');
+                      }}
+                      style={{
+                        padding: '0.25rem 0.55rem',
+                        borderRadius: '8px',
+                        background: farmerId === pill.id ? '#DCFCE7' : '#F1F5F9',
+                        border: `1px solid ${farmerId === pill.id ? '#22C55E' : '#CBD5E1'}`,
+                        color: farmerId === pill.id ? '#15803D' : '#334155',
+                        fontSize: '0.72rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.3rem',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      <span>{pill.id}</span>
+                      <span style={{ opacity: 0.65, fontSize: '0.68rem' }}>({pill.name})</span>
+                    </button>
+                  ))}
                 </div>
               </div>
             </div>
-          )}
 
-          {/* ── Step 2: OTP ── */}
-          {step === 2 && (
-            <>
-              <div style={{
-                background: '#E8F5E9', borderRadius: '10px', padding: '1rem',
-                marginBottom: '1.25rem', textAlign: 'center',
+            {/* Field 2: Mobile Number */}
+            <div style={{ marginBottom: '1.5rem' }}>
+              <label style={{
+                color: '#334155', fontSize: '0.82rem', fontWeight: 800,
+                textTransform: 'uppercase', display: 'block', marginBottom: '0.4rem',
+                letterSpacing: '0.04em'
               }}>
-                <p style={{ color: '#2E7D32', fontWeight: 500, fontSize: '0.9rem' }}>
-                  OTP sent to <strong>+91 {form.mobile || '9876543210'}</strong>
-                </p>
-                <p style={{ color: '#6B7280', fontSize: '0.8rem', marginTop: '0.3rem' }}>
-                  Demo Verification Code: <strong>{receivedOtp}</strong>
-                </p>
-              </div>
-              <div style={{ marginBottom: '1rem' }}>
-                <label className="input-label">Enter 6-digit OTP</label>
+                {t('mobileNumber') || 'Mobile Number'} <span style={{ color: '#DC2626' }}>*</span>
+              </label>
+
+              <div style={{ position: 'relative' }}>
+                <span style={{
+                  position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)',
+                  fontWeight: 800, color: '#059669', fontSize: '0.95rem',
+                }}>+91</span>
                 <input
                   type="tel"
-                  value={form.otp}
-                  onChange={e => update('otp', e.target.value.replace(/\D/g, '').slice(0, 6))}
-                  placeholder="123456"
+                  value={mobile}
+                  onChange={e => {
+                    setMobile(e.target.value.replace(/\D/g, '').slice(0, 10));
+                    setErrorMsg('');
+                  }}
+                  placeholder={t('enterMobile') || 'Enter 10-digit mobile number'}
                   className="input-field"
-                  style={{ textAlign: 'center', letterSpacing: '0.5em', fontSize: '1.2rem', fontWeight: 700 }}
-                  maxLength={6}
+                  style={{ paddingLeft: '3.5rem', fontWeight: 700 }}
+                  maxLength={10}
+                  disabled={sendingOtp}
                 />
-                {errors.otp && <div style={{ color: '#D32F2F', fontSize: '0.8rem', marginTop: '0.25rem', textAlign: 'center' }}>{errors.otp}</div>}
               </div>
-            </>
-          )}
+            </div>
 
-          {/* Navigation buttons */}
-          <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.5rem' }}>
-            {step > 1 && (
-              <button
-                onClick={() => setStep(s => s - 1)}
-                className="btn-outline"
-                style={{ flex: 1, justifyContent: 'center' }}
-              >
-                <ChevronLeft size={16} /> Back
-              </button>
-            )}
-            {step < 2 ? (
-              <button
-                onClick={handleNext}
-                className="btn-primary"
-                style={{ flex: 1, justifyContent: 'center' }}
-              >
-                Next <ChevronRight size={16} />
-              </button>
-            ) : (
-              <button
-                onClick={handleSubmit}
-                className="btn-primary"
-                style={{ flex: 1, justifyContent: 'center' }}
-                disabled={loading}
-              >
-                <CheckCircle size={16} /> {loading ? 'Saving to Database...' : t('submitRegister')}
-              </button>
-            )}
+            {/* Action 1: Send OTP */}
+            <button
+              type="button"
+              onClick={handleSendOTP}
+              className="btn-primary"
+              style={{
+                width: '100%', padding: '0.85rem', fontSize: '0.95rem',
+                borderRadius: '14px', cursor: sendingOtp ? 'not-allowed' : 'pointer',
+              }}
+              disabled={sendingOtp}
+            >
+              {sendingOtp ? (
+                <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'center' }}>
+                  <RefreshCw size={18} className="animate-spin" />
+                  {isHindi ? 'सत्यापित व OTP भेजा जा रहा है...' : 'Validating ID & Sending OTP...'}
+                </span>
+              ) : (
+                <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'center' }}>
+                  <Shield size={18} />
+                  {t('sendOTP') || 'Send OTP'}
+                </span>
+              )}
+            </button>
           </div>
+        )}
 
-          <div style={{ textAlign: 'center', marginTop: '1rem', fontSize: '0.85rem', color: '#6B7280' }}>
-            {t('alreadyAccount')}{' '}
-            <Link to="/login" style={{ color: '#2E7D32', fontWeight: 600, textDecoration: 'none' }}>
-              {t('loginHere')}
-            </Link>
+        {/* STEP 2: OTP Verification & Auto-registration */}
+        {step === 2 && (
+          <div>
+            {/* Back button to edit Farmer ID or Mobile */}
+            <button
+              type="button"
+              onClick={() => { setStep(1); setErrorMsg(''); }}
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: '0.3rem',
+                color: '#059669', fontWeight: 800, marginBottom: '1.25rem',
+                padding: 0, fontSize: '0.85rem'
+              }}
+            >
+              <ArrowLeft size={16} /> {isHindi ? 'आईडी / मोबाइल बदलें' : 'Edit ID / Mobile'}
+            </button>
+
+            {/* OTP notification banner + Verified Farmer badge */}
+            <div style={{
+              background: '#ECFDF5', borderRadius: '14px',
+              padding: '1rem', marginBottom: '1.5rem',
+              border: '1.5px solid #A7F3D0', color: '#065F46', fontSize: '0.85rem'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 800 }}>
+                <Shield size={16} color="#059669" />
+                <span>
+                  {isHindi ? 'OTP भेजा गया:' : 'OTP sent to'} <strong>+91 {mobile}</strong>
+                </span>
+              </div>
+
+              {farmerPreview && (
+                <div style={{
+                  marginTop: '0.4rem', fontSize: '0.8rem', color: '#047857',
+                  borderTop: '1px solid #D1FAE5', paddingTop: '0.4rem'
+                }}>
+                  👤 {isHindi ? 'किसान:' : 'Farmer:'} <strong>{farmerPreview.name}</strong> ({farmerPreview.district}, {farmerPreview.state})
+                </div>
+              )}
+
+              {/* Demo Code Auto-fill shortcut */}
+              <div style={{
+                marginTop: '0.6rem', display: 'flex', alignItems: 'center',
+                justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem'
+              }}>
+                <span style={{ fontSize: '0.8rem', color: '#047857' }}>
+                  {isHindi ? 'डेमो सत्यापन कोड:' : 'Demo Code:'} <strong>{receivedOtp}</strong>
+                </span>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOtp(receivedOtp || '123456');
+                    setErrorMsg('');
+                  }}
+                  style={{
+                    backgroundColor: '#10B981', color: '#FFFFFF',
+                    border: 'none', borderRadius: '8px', padding: '0.25rem 0.6rem',
+                    fontSize: '0.75rem', fontWeight: 800, cursor: 'pointer'
+                  }}
+                >
+                  ⚡ Auto-fill
+                </button>
+              </div>
+            </div>
+
+            {/* Field 3: OTP */}
+            <div style={{ marginBottom: '1.5rem' }}>
+              <label style={{
+                color: '#334155', fontSize: '0.82rem', fontWeight: 800,
+                textTransform: 'uppercase', display: 'block', marginBottom: '0.4rem',
+                textAlign: 'center', letterSpacing: '0.04em'
+              }}>
+                {t('enterOTP') || 'Enter 6-digit OTP'} <span style={{ color: '#DC2626' }}>*</span>
+              </label>
+
+              <input
+                type="tel"
+                value={otp}
+                onChange={e => {
+                  setOtp(e.target.value.replace(/\D/g, '').slice(0, 6));
+                  setErrorMsg('');
+                }}
+                placeholder="123456"
+                className="input-field"
+                style={{
+                  textAlign: 'center',
+                  letterSpacing: '0.4em',
+                  fontSize: '1.25rem',
+                  fontWeight: 800,
+                  color: '#065F46',
+                }}
+                maxLength={6}
+                disabled={verifying}
+                autoFocus
+              />
+            </div>
+
+            {/* Action 2: Verify OTP & Register */}
+            <button
+              type="button"
+              onClick={handleVerifyAndRegister}
+              className="btn-primary"
+              style={{
+                width: '100%', padding: '0.85rem', fontSize: '0.95rem',
+                borderRadius: '14px', cursor: verifying ? 'not-allowed' : 'pointer'
+              }}
+              disabled={verifying}
+            >
+              {verifying ? (
+                <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'center' }}>
+                  <RefreshCw size={18} className="animate-spin" />
+                  {isHindi ? 'सत्यापित व सहेजा जा रहा है...' : 'Verifying & Saving to Database...'}
+                </span>
+              ) : (
+                <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'center' }}>
+                  <Check size={18} />
+                  {isHindi ? 'OTP सत्यापित करें व पंजीकरण पूरा करें' : 'Verify OTP & Register'}
+                </span>
+              )}
+            </button>
+
+            {/* Resend Timer */}
+            <div style={{ textAlign: 'center', marginTop: '1.25rem', fontSize: '0.82rem', color: '#64748B' }}>
+              {timer > 0 ? (
+                <span>
+                  {isHindi ? 'पुनः कोड भेजें:' : 'Resend code in'} <strong>{timer}s</strong>
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleSendOTP}
+                  disabled={sendingOtp}
+                  style={{
+                    background: 'none', border: 'none', color: '#059669',
+                    fontWeight: 800, cursor: 'pointer', fontSize: '0.82rem'
+                  }}
+                >
+                  {t('resendOTP') || 'Resend OTP'}
+                </button>
+              )}
+            </div>
           </div>
+        )}
+
+        {/* Existing account link */}
+        <div style={{
+          textAlign: 'center', marginTop: '1.5rem', paddingTop: '1.25rem',
+          borderTop: '1px solid #F1F5F9', fontSize: '0.85rem', color: '#64748B'
+        }}>
+          {t('alreadyAccount') || 'Already have an account?'}{' '}
+          <Link to="/login" style={{ color: '#059669', fontWeight: 800, textDecoration: 'none' }}>
+            {t('loginHere') || 'Login here'}
+          </Link>
         </div>
+
       </div>
     </div>
   );

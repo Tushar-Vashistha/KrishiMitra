@@ -55,7 +55,7 @@ export const AuthProvider = ({ children }) => {
         dob: profile.dob || '',
         gender: profile.gender || '',
         aadhaar: profile.aadhaarMasked || '',
-        farmerId: profile.aadhaarMasked || profile.centreId || userObj.mobile || '',
+        farmerId: profile.farmerId || profile.aadhaarMasked || profile.centreId || userObj.mobile || '',
         centreId: profile.centreId || '',
         village: profile.village || '',
         tehsil: profile.tehsil || '',

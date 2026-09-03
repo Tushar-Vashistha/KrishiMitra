@@ -1,30 +1,38 @@
 const prisma = require('../config/db');
 
 /**
- * Generate a unique token number for a centre on a specific date.
+ * Generate a unique token number for a centre on a specific date and slot.
  * MUST be called inside a Prisma transaction to prevent duplicate token numbers.
  */
-const generateTokenNumber = async (tx, centreId, date) => {
-  const startOfDay = new Date(date);
+const generateTokenNumber = async (tx, centreId, date, slotTime = null) => {
+  const queryDate = new Date(date);
+  const startOfDay = new Date(queryDate);
   startOfDay.setHours(0, 0, 0, 0);
-  const endOfDay = new Date(date);
+  const endOfDay = new Date(queryDate);
   endOfDay.setHours(23, 59, 59, 999);
 
-  // Lock row or aggregate max token number for this centre today
-  const lastToken = await tx.queueToken.findFirst({
-    where: {
-      centreId,
-      createdAt: {
-        gte: startOfDay,
-        lte: endOfDay,
-      },
+  const whereClause = {
+    centreId,
+    date: {
+      gte: startOfDay,
+      lte: endOfDay,
     },
+  };
+  if (slotTime) {
+    whereClause.slotTime = slotTime;
+  }
+
+  const lastBooking = await tx.procurementBooking.findFirst({
+    where: whereClause,
     orderBy: {
       tokenNumber: 'desc',
     },
+    select: {
+      tokenNumber: true,
+    },
   });
 
-  return lastToken ? lastToken.tokenNumber + 1 : 1;
+  return lastBooking && lastBooking.tokenNumber ? lastBooking.tokenNumber + 1 : 1;
 };
 
 /**

@@ -38,7 +38,7 @@ const errorMiddleware = (err, req, res, next) => {
     if (err.code === 'P2002') {
       statusCode = 409;
       code = 'CONFLICT_ERROR';
-      message = 'A record with this value already exists';
+      message = 'This slot or token was just booked by another farmer and is no longer available. Please select another available slot.';
     } else if (err.code === 'P2025') {
       statusCode = 404;
       code = 'NOT_FOUND';
@@ -66,6 +66,11 @@ const errorMiddleware = (err, req, res, next) => {
       details,
     },
   };
+
+  if (err.nextAvailableSlot) {
+    response.nextAvailableSlot = err.nextAvailableSlot;
+    response.error.nextAvailableSlot = err.nextAvailableSlot;
+  }
 
   // Include stack trace only in development
   if (process.env.NODE_ENV === 'development') {

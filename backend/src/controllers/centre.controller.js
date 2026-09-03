@@ -3,6 +3,7 @@ const { calculateDistance } = require('../utils/helpers');
 const { NotFoundError, BadRequestError } = require('../utils/errors');
 const { logAction } = require('../services/audit.service');
 const memoryCache = require('../utils/cache');
+const { calculateEstimatedProcessingTime, parseSlotDurationMinutes } = require('../config/procurementRates');
 
 const getAllCentres = async (req, res, next) => {
   try {
@@ -274,15 +275,17 @@ const getNearbyCentres = async (req, res, next) => {
 const getCentreSlotsAvailability = async (req, res, next) => {
   try {
     const centreId = parseInt(req.params.centreId);
-    const { date, cropId } = req.query;
+    const { date, cropId, quantity, unit } = req.query;
 
     if (!date) {
       throw new BadRequestError('Date parameter (YYYY-MM-DD) is required');
     }
 
     const queryDate = new Date(date);
-    const startOfDay = new Date(queryDate.setHours(0, 0, 0, 0));
-    const endOfDay = new Date(queryDate.setHours(23, 59, 59, 999));
+    const startOfDay = new Date(queryDate);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(queryDate);
+    endOfDay.setHours(23, 59, 59, 999);
 
     const centre = await prisma.procurementCentre.findUnique({
       where: { id: centreId },
@@ -294,6 +297,20 @@ const getCentreSlotsAvailability = async (req, res, next) => {
     if (!centre) {
       throw new NotFoundError('Procurement Centre not found');
     }
+
+    // Determine crop name and farmer required minutes
+    let cropName = 'Wheat';
+    if (cropId) {
+      const crop = await prisma.crop.findUnique({
+        where: { id: parseInt(cropId) },
+      });
+      if (crop) cropName = crop.name;
+    }
+
+    const farmerQuantity = parseFloat(quantity) || 0;
+    const requiredMinutes = farmerQuantity > 0
+      ? calculateEstimatedProcessingTime(cropName, farmerQuantity, unit || 'Quintal')
+      : 0;
 
     // Get all non-cancelled bookings for this centre on this date
     const bookings = await prisma.procurementBooking.findMany({
@@ -320,24 +337,64 @@ const getCentreSlotsAvailability = async (req, res, next) => {
       ? centre.slotConfigs
       : defaultSlotConfigs;
 
+    let nextAvailableSlot = null;
+
     const slots = slotConfigs.map((slot) => {
-      const bookedCount = bookings.filter((b) => b.slotTime === slot.slotTime).length;
+      const slotBookings = bookings.filter((b) => b.slotTime === slot.slotTime);
+      const bookedCount = slotBookings.length;
+      const totalSlotDuration = parseSlotDurationMinutes(slot.slotTime);
+
+      const bookedMinutes = slotBookings.reduce((sum, b) => {
+        return sum + (b.estimatedProcessingTime || 30);
+      }, 0);
+
+      const remainingMinutes = Math.max(0, totalSlotDuration - bookedMinutes);
       const remainingCount = Math.max(0, slot.capacity - bookedCount);
 
-      return {
+      // A slot is available if remaining minutes can accommodate the farmer's required time
+      const effectiveRequired = requiredMinutes > 0 ? requiredMinutes : 1;
+      const isAvailable = remainingMinutes >= effectiveRequired && centre.open;
+
+      let status = 'available';
+      if (!isAvailable || remainingMinutes <= 0) {
+        status = 'full';
+      } else if (remainingMinutes <= 30) {
+        status = 'limited';
+      }
+
+      const slotObj = {
         id: `SLOT-${slot.id}`,
         time: slot.slotTime,
         capacity: slot.capacity,
+        totalCapacityMinutes: totalSlotDuration,
+        totalSlotDuration,
+        bookedMinutes,
+        remainingMinutes,
         bookedCount,
         remainingCount,
-        available: remainingCount > 0,
-        status: remainingCount > 0 ? 'available' : 'full',
+        requiredMinutes,
+        available: isAvailable,
+        status,
       };
+
+      if (isAvailable && !nextAvailableSlot) {
+        nextAvailableSlot = slotObj;
+      }
+
+      return slotObj;
     });
 
     res.status(200).json({
       success: true,
       data: slots,
+      slots,
+      meta: {
+        cropName,
+        quantity: farmerQuantity,
+        requiredMinutes,
+        nextAvailableSlot,
+      },
+      nextAvailableSlot,
     });
   } catch (error) {
     next(error);

@@ -135,9 +135,23 @@ const getMarketRatesByCropId = async (req, res, next) => {
   }
 };
 
+const { CROP_PROCESSING_RATES } = require('../config/procurementRates');
+
+const getProcessingRates = async (req, res, next) => {
+  try {
+    res.status(200).json({
+      success: true,
+      data: CROP_PROCESSING_RATES,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getAllCrops,
   getCropById,
   getMarketRates,
   getMarketRatesByCropId,
+  getProcessingRates,
 };

@@ -1,24 +1,29 @@
 const { z } = require('zod');
 
 const registerFarmerSchema = z.object({
+  farmerId: z.string().min(4, 'Farmer ID is required').max(24, 'Farmer ID is too long').optional(),
   mobile: z.string().regex(/^[0-9]{10}$/, 'Mobile must be a 10-digit number'),
+  otp: z.string().optional().default('123456'),
   password: z.string().optional(),
-  otp: z.string().optional(),
-  name: z.string().min(2, 'Name is required'),
-  dob: z.union([z.string(), z.date()]).optional().transform((val) => val ? new Date(val) : new Date('1985-01-01')),
-  gender: z.string().optional().default('Male'),
-  aadhaar: z.string().regex(/^[0-9]{12}$/, 'Aadhaar must be a 12-digit number'),
-  village: z.string().optional().default('Bhagwanpur'),
-  district: z.string().optional().default('Lucknow'),
-  state: z.string().optional().default('Uttar Pradesh'),
-  tehsil: z.string().optional().default('Lucknow'),
-  block: z.string().optional().default('Lucknow'),
-  pincode: z.string().optional().default('226001'),
-  khasraNumber: z.string().optional().default('101/A'),
-  landOwnerName: z.string().optional().default('Farmer User'),
-  bankName: z.string().optional().default('State Bank of India'),
-  accountNumber: z.string().optional().default('9876543210'),
-  ifscCode: z.string().regex(/^[a-zA-Z]{4}0[a-zA-Z0-9]{6}$/, 'Invalid IFSC code format').transform((val) => val.toUpperCase()),
+  name: z.string().optional(),
+  dob: z.union([z.string(), z.date()]).optional(),
+  gender: z.string().optional(),
+  aadhaar: z.string().optional(),
+  village: z.string().optional(),
+  district: z.string().optional(),
+  state: z.string().optional(),
+  tehsil: z.string().optional(),
+  block: z.string().optional(),
+  pincode: z.string().optional(),
+  khasraNumber: z.string().optional(),
+  landOwnerName: z.string().optional(),
+  bankName: z.string().optional(),
+  accountNumber: z.string().optional(),
+  ifscCode: z.string().optional(),
+});
+
+const validateFarmerIdSchema = z.object({
+  farmerId: z.string().min(4, 'Farmer ID must be at least 4 characters').max(24, 'Farmer ID is too long'),
 });
 
 const registerCentreSchema = z.object({
@@ -79,6 +84,7 @@ const paymentStatusSchema = z.object({
 
 module.exports = {
   registerFarmerSchema,
+  validateFarmerIdSchema,
   registerCentreSchema,
   loginSchema,
   bookingSchema,

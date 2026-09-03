@@ -10,8 +10,13 @@ const mockPrisma = {
   },
   farmerProfile: {
     findUnique: jest.fn(),
+    findFirst: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
+  },
+  farmerCropRegistration: {
+    findMany: jest.fn().mockResolvedValue([]),
+    createMany: jest.fn().mockResolvedValue({ count: 2 }),
   },
   staffProfile: {
     findUnique: jest.fn(),
@@ -29,7 +34,7 @@ const mockPrisma = {
   },
   crop: {
     findUnique: jest.fn(),
-    findMany: jest.fn(),
+    findMany: jest.fn().mockResolvedValue([{ id: 1, name: 'Wheat' }, { id: 2, name: 'Paddy' }]),
   },
   procurementBooking: {
     count: jest.fn(),
@@ -61,6 +66,14 @@ const mockPrisma = {
   notification: {
     create: jest.fn(),
   },
+  slotAllocation: {
+    findUnique: jest.fn(),
+    findFirst: jest.fn(),
+    upsert: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+  },
+  $queryRaw: jest.fn().mockResolvedValue([{ id: 1, lastTokenNumber: 5, bookedMinutes: 0 }]),
   $transaction: jest.fn((callback) => callback(mockPrisma)),
 };
 
@@ -83,40 +96,55 @@ describe('KrishiMitra API Suite', () => {
     });
   });
 
+  describe('POST /api/v1/auth/farmer/validate-id', () => {
+    it('should successfully validate an existing Farmer ID in the registry', async () => {
+      mockPrisma.farmerProfile.findFirst.mockResolvedValue(null);
+
+      const res = await request(app)
+        .post('/api/v1/auth/farmer/validate-id')
+        .send({ farmerId: 'FRM123456' });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.name).toBe('Ramesh Kumar');
+      expect(res.body.data.farmerId).toBe('FRM123456');
+    });
+
+    it('should return 404 for an unknown Farmer ID', async () => {
+      const res = await request(app)
+        .post('/api/v1/auth/farmer/validate-id')
+        .send({ farmerId: 'INVALID999' });
+
+      expect(res.statusCode).toBe(404);
+      expect(res.body.success).toBe(false);
+      expect(res.body.error.message).toContain('Farmer ID not found');
+    });
+  });
+
   describe('POST /api/v1/auth/register/farmer', () => {
-    it('should register a new farmer successfully', async () => {
+    it('should register a new farmer with ONLY Farmer ID, mobile and OTP', async () => {
+      mockPrisma.farmerProfile.findFirst.mockResolvedValue(null);
       mockPrisma.user.findUnique.mockResolvedValue(null);
-      mockPrisma.farmerProfile.findUnique.mockResolvedValue(null);
       
-      // Configure creation mocks to return valid data to prevent undefined errors
+      // Configure creation mocks
       mockPrisma.user.create.mockResolvedValue({ id: 1, mobile: '9876543210', role: 'FARMER' });
       mockPrisma.farmerProfile.create.mockResolvedValue({
         id: 10,
+        farmerId: 'FRM123456',
         name: 'Ramesh Kumar',
         mobile: '9876543210',
-        aadhaarMasked: 'XXXX XXXX 1234',
-        status: 'PENDING',
+        village: 'Bhagwanpur',
+        district: 'Lucknow',
+        state: 'Uttar Pradesh',
+        aadhaarMasked: 'XXXX XXXX 9012',
+        status: 'VERIFIED',
       });
       mockPrisma.auditLog.create.mockResolvedValue({});
 
       const payload = {
+        farmerId: 'FRM123456',
         mobile: '9876543210',
-        password: 'password123',
-        name: 'Ramesh Kumar',
-        dob: '1980-01-01',
-        gender: 'Male',
-        aadhaar: '123456789012',
-        village: 'Bhagwanpur',
-        district: 'Lucknow',
-        state: 'Uttar Pradesh',
-        tehsil: 'Lucknow',
-        block: 'Lucknow',
-        pincode: '226001',
-        khasraNumber: '123/4B',
-        landOwnerName: 'Ramesh Kumar',
-        bankName: 'State Bank of India',
-        accountNumber: '987654321012',
-        ifscCode: 'SBIN0001234',
+        otp: '123456',
       };
 
       const res = await request(app)
@@ -129,27 +157,33 @@ describe('KrishiMitra API Suite', () => {
       expect(res.body.data.profile.name).toBe('Ramesh Kumar');
     });
 
-    it('should return 409 Conflict if mobile is already registered', async () => {
-      mockPrisma.user.findUnique.mockResolvedValue({ id: 1, mobile: '9876543210' });
+    it('should return 404 when registering with invalid Farmer ID', async () => {
+      const payload = {
+        farmerId: 'UNKNOWN888',
+        mobile: '9876543210',
+        otp: '123456',
+      };
+
+      const res = await request(app)
+        .post('/api/v1/auth/register/farmer')
+        .send(payload);
+
+      expect(res.statusCode).toBe(404);
+      expect(res.body.success).toBe(false);
+      expect(res.body.error.message).toContain('Farmer ID not found');
+    });
+
+    it('should return 409 Conflict if Farmer ID is already registered to another mobile number', async () => {
+      mockPrisma.farmerProfile.findFirst.mockResolvedValue({
+        id: 1,
+        farmerId: 'FRM123456',
+        user: { mobile: '9999988888', role: 'FARMER' },
+      });
 
       const payload = {
+        farmerId: 'FRM123456',
         mobile: '9876543210',
-        password: 'password123',
-        name: 'Ramesh Kumar',
-        dob: '1980-01-01',
-        gender: 'Male',
-        aadhaar: '123456789012',
-        village: 'Bhagwanpur',
-        district: 'Lucknow',
-        state: 'Uttar Pradesh',
-        tehsil: 'Lucknow',
-        block: 'Lucknow',
-        pincode: '226001',
-        khasraNumber: '123/4B',
-        landOwnerName: 'Ramesh Kumar',
-        bankName: 'State Bank of India',
-        accountNumber: '987654321012',
-        ifscCode: 'SBIN0001234',
+        otp: '123456',
       };
 
       const res = await request(app)
@@ -220,6 +254,10 @@ describe('KrishiMitra API Suite', () => {
       mockPrisma.procurementSeason.findFirst.mockResolvedValue({ id: 1, name: 'Rabi 22' });
       mockPrisma.procurementBooking.count.mockResolvedValue(2); // 2 booked already (cap is 10)
       mockPrisma.procurementBooking.findFirst.mockResolvedValue(null); // no duplicates
+      mockPrisma.procurementBooking.findMany.mockResolvedValue([]);
+      mockPrisma.slotAllocation.upsert.mockResolvedValue({ id: 1, lastTokenNumber: 5, bookedMinutes: 0 });
+      mockPrisma.slotAllocation.update.mockResolvedValue({ id: 1, lastTokenNumber: 6, bookedMinutes: 30 });
+      mockPrisma.$queryRaw.mockResolvedValue([{ id: 1, lastTokenNumber: 5, bookedMinutes: 0 }]);
       mockPrisma.queueToken.findFirst.mockResolvedValue({ tokenNumber: 5 }); // last token number
       mockPrisma.queueToken.count.mockResolvedValue(1); // 1 waiting ahead
 

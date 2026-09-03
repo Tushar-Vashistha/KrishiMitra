@@ -3,71 +3,188 @@ const { generateAccessToken, generateRefreshToken, verifyRefreshToken } = requir
 const { hashSensitive, maskAadhaar, maskBankAccount } = require('../utils/helpers');
 const { logAction } = require('../services/audit.service');
 const { requestOTP, verifyOTP } = require('../services/otp.service');
-const { BadRequestError, ConflictError, UnauthorizedError } = require('../utils/errors');
+const { BadRequestError, ConflictError, UnauthorizedError, NotFoundError } = require('../utils/errors');
+const {
+  isValidFarmerIdFormat,
+  normalizeFarmerId,
+  findFarmerInRegistry,
+  getDemoFarmerOptions,
+} = require('../services/farmerRegistry.service');
 
 const registerFarmer = async (req, res, next) => {
   try {
     const data = req.body;
     const cleanMobile = data.mobile ? data.mobile.toString().replace(/\D/g, '').slice(-10) : '';
-    const aadhaarRaw = data.aadhaar ? data.aadhaar.toString().replace(/\D/g, '') : '987654321012';
-    const aadhaarHash = hashSensitive(aadhaarRaw);
-    const accountNumberRaw = data.accountNumber ? data.accountNumber.toString() : '9876543210';
-    const accountNumberHash = hashSensitive(accountNumberRaw);
-    const dobDate = data.dob ? new Date(data.dob) : new Date('1985-01-01');
-
-    // If OTP is provided during registration, verify it
-    if (data.otp) {
-      const verification = await verifyOTP(cleanMobile, data.otp);
-      if (!verification.valid) {
-        if (verification.reason === 'EXPIRED_OTP') {
-          throw new BadRequestError('OTP expired');
-        }
-        throw new BadRequestError('Invalid OTP');
-      }
+    if (!cleanMobile || cleanMobile.length !== 10) {
+      throw new BadRequestError('Valid 10-digit mobile number is required');
     }
 
-    // Check if user already exists
+    const rawFarmerId = data.farmerId || data.aadhaar;
+    if (!rawFarmerId || !isValidFarmerIdFormat(rawFarmerId)) {
+      throw new BadRequestError('Farmer ID not found. Please enter a valid Farmer ID.');
+    }
+
+    const normalized = normalizeFarmerId(rawFarmerId);
+    const registryFarmer = findFarmerInRegistry(normalized);
+    if (!registryFarmer) {
+      throw new NotFoundError('Farmer ID not found. Please enter a valid Farmer ID.');
+    }
+
+    // 1. Verify OTP
+    if (!data.otp) {
+      throw new BadRequestError('OTP is required for registration');
+    }
+    const verification = await verifyOTP(cleanMobile, data.otp);
+    if (!verification.valid) {
+      if (verification.reason === 'EXPIRED_OTP') {
+        throw new BadRequestError('OTP expired. Please request a new OTP.');
+      }
+      throw new BadRequestError('Invalid OTP. Please enter the correct code.');
+    }
+
+    // 2. Prepare verified farmer data from Government Registry
+    const aadhaarRaw = registryFarmer.aadhaar;
+    const aadhaarHash = hashSensitive(aadhaarRaw);
+    const accountNumberRaw = registryFarmer.accountNumber;
+    const accountNumberHash = hashSensitive(accountNumberRaw);
+    const dobDate = new Date(registryFarmer.dob);
+
+    // 3. Check existing FarmerProfile by farmerId or aadhaarHash
+    const existingProfile = await prisma.farmerProfile.findFirst({
+      where: {
+        OR: [
+          { farmerId: registryFarmer.farmerId },
+          { aadhaarHash },
+        ],
+      },
+      include: { user: true },
+    });
+
+    // Check existing User by mobile
     const existingUser = await prisma.user.findUnique({
       where: { mobile: cleanMobile },
+      include: { farmerProfile: true },
     });
-    if (existingUser) {
-      throw new ConflictError('A user with this mobile number already exists');
+
+    // Case A: Existing Farmer account with same mobile -> Seamless login without duplicate records
+    if (existingProfile && existingProfile.user.mobile === cleanMobile) {
+      if (!existingProfile.farmerId) {
+        await prisma.farmerProfile.update({
+          where: { id: existingProfile.id },
+          data: { farmerId: registryFarmer.farmerId },
+        });
+      }
+      const accessToken = generateAccessToken(existingProfile.user);
+      const refreshToken = generateRefreshToken(existingProfile.user);
+
+      logAction({
+        userId: existingProfile.user.id,
+        action: 'FARMER_LOGIN_VIA_REGISTRATION',
+        entity: 'FarmerProfile',
+        entityId: existingProfile.id,
+        metadata: { farmerId: registryFarmer.farmerId, mobile: cleanMobile },
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: 'Existing farmer account verified. Logged in successfully.',
+        data: {
+          accessToken,
+          refreshToken,
+          userId: existingProfile.user.id,
+          role: existingProfile.user.role,
+          profile: { ...existingProfile, farmerId: registryFarmer.farmerId },
+          user: {
+            id: existingProfile.user.id,
+            mobile: existingProfile.user.mobile,
+            role: existingProfile.user.role,
+            profile: { ...existingProfile, farmerId: registryFarmer.farmerId },
+          },
+        },
+      });
     }
 
+    // Case B: Farmer ID already registered to a DIFFERENT mobile number
+    if (existingProfile && existingProfile.user.mobile !== cleanMobile) {
+      throw new ConflictError('This Farmer ID is already registered with another mobile number.');
+    }
+
+    // Case C: Mobile already registered with a DIFFERENT Farmer ID
+    if (existingUser && existingUser.farmerProfile && existingUser.farmerProfile.farmerId && existingUser.farmerProfile.farmerId !== registryFarmer.farmerId) {
+      throw new ConflictError('This mobile number is already registered with another Farmer ID.');
+    }
+
+    // 4. Create or link Farmer account in database transaction
     const result = await prisma.$transaction(async (tx) => {
-      const user = await tx.user.create({
-        data: {
-          mobile: cleanMobile,
-          password: null,
-          role: 'FARMER',
-        },
+      let user = existingUser;
+      if (!user) {
+        user = await tx.user.create({
+          data: {
+            mobile: cleanMobile,
+            password: null,
+            role: 'FARMER',
+          },
+        });
+      }
+
+      let profile = user.farmerProfile;
+      const profileData = {
+        farmerId: registryFarmer.farmerId,
+        name: registryFarmer.name,
+        dob: dobDate,
+        gender: registryFarmer.gender,
+        aadhaarMasked: maskAadhaar(aadhaarRaw),
+        aadhaarHash,
+        mobile: cleanMobile,
+        village: registryFarmer.village,
+        district: registryFarmer.district,
+        state: registryFarmer.state,
+        tehsil: registryFarmer.tehsil,
+        block: registryFarmer.block || registryFarmer.tehsil,
+        pincode: registryFarmer.pincode,
+        khasraNumber: registryFarmer.khasraNumber,
+        landOwnerName: registryFarmer.landOwnerName,
+        bankName: registryFarmer.bankName,
+        accountNumberMasked: maskBankAccount(accountNumberRaw),
+        accountNumberHash,
+        ifscCode: registryFarmer.ifscCode,
+        trustScore: 100.0,
+        status: 'VERIFIED',
+      };
+
+      if (!profile) {
+        profile = await tx.farmerProfile.create({
+          data: {
+            userId: user.id,
+            ...profileData,
+          },
+        });
+      } else {
+        profile = await tx.farmerProfile.update({
+          where: { id: profile.id },
+          data: profileData,
+        });
+      }
+
+      // Ensure default crop registrations exist for immediate booking capability
+      const existingCrops = await tx.farmerCropRegistration.findMany({
+        where: { farmerProfileId: profile.id },
       });
 
-      const profile = await tx.farmerProfile.create({
-        data: {
-          userId: user.id,
-          name: data.name || 'Farmer User',
-          dob: dobDate,
-          gender: data.gender || 'Male',
-          aadhaarMasked: maskAadhaar(aadhaarRaw),
-          aadhaarHash,
-          mobile: cleanMobile,
-          village: data.village || 'Bhagwanpur',
-          district: data.district || 'Lucknow',
-          state: data.state || 'Uttar Pradesh',
-          tehsil: data.tehsil || 'Lucknow',
-          block: data.block || data.tehsil || 'Lucknow',
-          pincode: data.pincode || '226001',
-          khasraNumber: data.khasraNumber || '101/A',
-          landOwnerName: data.landOwnerName || data.name || 'Farmer User',
-          bankName: data.bankName || 'State Bank of India',
-          accountNumberMasked: maskBankAccount(accountNumberRaw),
-          accountNumberHash,
-          ifscCode: data.ifscCode || 'SBIN0001234',
-          trustScore: 100.0,
-          status: 'VERIFIED',
-        },
-      });
+      if (existingCrops.length === 0) {
+        const allCrops = await tx.crop.findMany({ take: 2 });
+        if (allCrops.length > 0) {
+          await tx.farmerCropRegistration.createMany({
+            data: allCrops.map((c, idx) => ({
+              farmerProfileId: profile.id,
+              cropId: c.id,
+              area: idx === 0 ? 2.5 : 3.0,
+              estimatedYield: idx === 0 ? 50.0 : 60.0,
+            })),
+            skipDuplicates: true,
+          });
+        }
+      }
 
       return { user, profile };
     });
@@ -80,7 +197,7 @@ const registerFarmer = async (req, res, next) => {
       action: 'FARMER_REGISTRATION',
       entity: 'FarmerProfile',
       entityId: result.profile.id,
-      metadata: { name: data.name, mobile: cleanMobile },
+      metadata: { farmerId: registryFarmer.farmerId, name: registryFarmer.name, mobile: cleanMobile },
     });
 
     res.status(201).json({
@@ -474,12 +591,103 @@ const getMe = async (req, res, next) => {
   }
 };
 
+const handleValidateFarmerId = async (req, res, next) => {
+  try {
+    const { farmerId } = req.body;
+    if (!isValidFarmerIdFormat(farmerId)) {
+      throw new BadRequestError('Farmer ID not found. Please enter a valid Farmer ID.');
+    }
+
+    const normalized = normalizeFarmerId(farmerId);
+    const registryRecord = findFarmerInRegistry(normalized);
+    if (!registryRecord) {
+      throw new NotFoundError('Farmer ID not found. Please enter a valid Farmer ID.');
+    }
+
+    const existingProfile = await prisma.farmerProfile.findFirst({
+      where: {
+        OR: [
+          { farmerId: registryRecord.farmerId },
+          { aadhaarHash: hashSensitive(registryRecord.aadhaar) },
+        ],
+      },
+      include: { user: true },
+    });
+
+    res.status(200).json({
+      success: true,
+      valid: true,
+      data: {
+        farmerId: registryRecord.farmerId,
+        name: registryRecord.name,
+        village: registryRecord.village,
+        district: registryRecord.district,
+        state: registryRecord.state,
+        alreadyRegistered: !!existingProfile,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const getDemoFarmerList = async (req, res, next) => {
+  try {
+    const options = getDemoFarmerOptions();
+    res.status(200).json({
+      success: true,
+      data: options,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 const handleRequestOTP = async (req, res, next) => {
   try {
-    const { mobile } = req.body;
+    const { mobile, farmerId } = req.body;
     const cleanMobile = mobile ? mobile.toString().replace(/\D/g, '').slice(-10) : '';
     if (!cleanMobile || cleanMobile.length !== 10) {
       throw new BadRequestError('Valid 10-digit mobile number is required');
+    }
+
+    // If farmerId is provided for registration, validate it
+    if (farmerId) {
+      if (!isValidFarmerIdFormat(farmerId)) {
+        throw new BadRequestError('Farmer ID not found. Please enter a valid Farmer ID.');
+      }
+      const normalized = normalizeFarmerId(farmerId);
+      const registryRecord = findFarmerInRegistry(normalized);
+      if (!registryRecord) {
+        throw new NotFoundError('Farmer ID not found. Please enter a valid Farmer ID.');
+      }
+
+      // Check if this Farmer ID is already registered
+      const existingProfile = await prisma.farmerProfile.findFirst({
+        where: {
+          OR: [
+            { farmerId: registryRecord.farmerId },
+            { aadhaarHash: hashSensitive(registryRecord.aadhaar) },
+          ],
+        },
+        include: { user: true },
+      });
+
+      if (existingProfile) {
+        // If registered to a DIFFERENT mobile number
+        if (existingProfile.user.mobile !== cleanMobile) {
+          throw new ConflictError('This Farmer ID is already registered with another mobile number.');
+        }
+      }
+
+      // Check if this mobile number is already registered to a DIFFERENT Farmer ID
+      const existingUser = await prisma.user.findUnique({
+        where: { mobile: cleanMobile },
+        include: { farmerProfile: true },
+      });
+      if (existingUser && existingUser.farmerProfile && existingUser.farmerProfile.farmerId && existingUser.farmerProfile.farmerId !== registryRecord.farmerId) {
+        throw new ConflictError('This mobile number is already registered with another Farmer ID.');
+      }
     }
 
     const result = await requestOTP(cleanMobile);
@@ -555,4 +763,6 @@ module.exports = {
   getMe,
   handleRequestOTP,
   handleVerifyOTP,
+  handleValidateFarmerId,
+  getDemoFarmerList,
 };

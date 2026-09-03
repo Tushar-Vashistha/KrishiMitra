@@ -102,13 +102,40 @@ const TrackSlot = () => {
             if (activeBooking) {
               bookingData = activeBooking;
               tokenData = activeBooking.queueToken || {
-                tokenNumber: 1,
+                tokenNumber: activeBooking.tokenNumber || 1,
+                formattedToken: activeBooking.formattedToken,
                 status: activeBooking.status === 'ARRIVED' ? 'ARRIVED' : 'WAITING',
               };
             }
           }
         } catch (bErr) {
           console.warn('Booking fallback check failed:', bErr);
+        }
+      }
+
+      if (!tokenData || !bookingData) {
+        try {
+          const localBookings = JSON.parse(localStorage.getItem('krishimitra_local_bookings') || '[]');
+          if (Array.isArray(localBookings) && localBookings.length > 0) {
+            const latest = localBookings[0];
+            bookingData = {
+              id: latest.id,
+              date: latest.date,
+              slotTime: latest.slotTime || latest.slot,
+              weight: latest.weight,
+              status: latest.status || 'BOOKED',
+              centre: { name: latest.centreName },
+              crop: { name: latest.cropName || latest.crop },
+              estimatedProcessingTime: latest.estimatedProcessingTime || 50,
+            };
+            tokenData = {
+              tokenNumber: latest.token || 1,
+              formattedToken: latest.formattedToken || `Token #${String(latest.token || 1).padStart(3, '0')}`,
+              status: 'WAITING',
+            };
+          }
+        } catch (lErr) {
+          console.warn('Local bookings parse error:', lErr);
         }
       }
 
@@ -126,6 +153,7 @@ const TrackSlot = () => {
           id: bookingData.id || prev.id,
           date: bookingData.date || prev.date,
           slotTime: bookingData.slotTime || prev.slotTime,
+          duration: `${bookingData.estimatedProcessingTime || 30} min`,
           centreName: bookingData.centre?.name || prev.centreName,
           commodity: bookingData.crop?.name || prev.commodity,
           quantity: `${bookingData.weight || 25} Quintal`,

@@ -85,6 +85,7 @@ model FarmerProfile {
   id                  Int                         @id @default(autoincrement())
   userId              Int                         @unique
   user                User                        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  farmerId            String?                     @unique
   name                String
   dob                 DateTime
   gender              String
@@ -178,6 +179,7 @@ model ProcurementCentre {
   tokens           QueueToken[]
   prices           CropPrice[]
   slotConfigs      SlotConfig[]
+  slotAllocations  SlotAllocation[]
 
   @@index([district])
   @@index([state])
@@ -256,6 +258,22 @@ model SlotConfig {
   capacity Int                @default(10)
 }
 
+model SlotAllocation {
+  id              Int               @id @default(autoincrement())
+  centreId        Int
+  centre          ProcurementCentre @relation(fields: [centreId], references: [id], onDelete: Cascade)
+  bookingDate     DateTime
+  slotTime        String
+  totalDuration   Int               @default(180)
+  bookedMinutes   Int               @default(0)
+  lastTokenNumber Int               @default(0)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@unique([centreId, bookingDate, slotTime])
+  @@index([centreId, bookingDate])
+}
+
 model SystemSetting {
   id    Int    @id @default(autoincrement())
   key   String @unique
@@ -273,28 +291,32 @@ model TrustScoreHistory {
 }
 
 model ProcurementBooking {
-  id              String                  @id
-  farmerProfileId Int
-  farmerProfile   FarmerProfile           @relation(fields: [farmerProfileId], references: [id], onDelete: Cascade)
-  centreId        Int
-  centre          ProcurementCentre       @relation(fields: [centreId], references: [id], onDelete: Cascade)
-  cropId          Int
-  crop            Crop                    @relation(fields: [cropId], references: [id], onDelete: Cascade)
-  seasonId        Int
-  season          ProcurementSeason       @relation(fields: [seasonId], references: [id])
-  weight          Float
-  date            DateTime
-  slotTime        String
-  status          BookingStatus           @default(BOOKED)
-  isTatkaal       Boolean                 @default(false)
-  tatkaalFeePaid  Float?
-  vehicleNumber   String?
-  vehicleType     String?
-  createdAt       DateTime                @default(now())
-  updatedAt       DateTime                @updatedAt
-  queueToken      QueueToken?
-  transaction     ProcurementTransaction?
+  id                      String                  @id
+  farmerProfileId         Int
+  farmerProfile           FarmerProfile           @relation(fields: [farmerProfileId], references: [id], onDelete: Cascade)
+  centreId                Int
+  centre                  ProcurementCentre       @relation(fields: [centreId], references: [id], onDelete: Cascade)
+  cropId                  Int
+  crop                    Crop                    @relation(fields: [cropId], references: [id], onDelete: Cascade)
+  seasonId                Int
+  season                  ProcurementSeason       @relation(fields: [seasonId], references: [id])
+  weight                  Float
+  date                    DateTime
+  slotTime                String
+  status                  BookingStatus           @default(BOOKED)
+  isTatkaal               Boolean                 @default(false)
+  tatkaalFeePaid          Float?
+  vehicleNumber           String?
+  vehicleType             String?
+  estimatedProcessingTime Int                     @default(30)
+  tokenNumber             Int?
+  formattedToken          String?
+  createdAt               DateTime                @default(now())
+  updatedAt               DateTime                @updatedAt
+  queueToken              QueueToken?
+  transaction             ProcurementTransaction?
 
+  @@unique([centreId, date, slotTime, tokenNumber])
   @@index([farmerProfileId])
   @@index([centreId])
   @@index([date])
@@ -307,6 +329,7 @@ model QueueToken {
   bookingId           String              @unique
   booking             ProcurementBooking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   tokenNumber         Int
+  formattedToken      String?
   centreId            Int
   centre              ProcurementCentre   @relation(fields: [centreId], references: [id], onDelete: Cascade)
   counterId           Int?
@@ -316,7 +339,7 @@ model QueueToken {
   calledAt            DateTime?
   arrivedAt           DateTime?
   processingStartedAt DateTime?
-  completedAt        DateTime?
+  completedAt         DateTime?
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
   statusHistory       TokenStatusHistory[]
