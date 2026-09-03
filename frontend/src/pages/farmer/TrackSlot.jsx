@@ -6,7 +6,7 @@ import {
   ArrowLeft, Bell, HelpCircle, MapPin, Ticket, RefreshCw, 
   Clock, Calendar, Phone, ChevronRight, 
   CalendarDays, Inbox, 
-  CreditCard, BarChart2, XCircle,
+  CreditCard, XCircle,
   Users, Volume2, Sparkles
 } from 'lucide-react';
 
@@ -31,9 +31,6 @@ const TrackSlot = () => {
   const [currentTokenNum, setCurrentTokenNum] = useState(1);
   const [tokensAhead, setTokensAhead] = useState(0);
   const [estimatedWait, setEstimatedWait] = useState(0);
-  const [completedCount, setCompletedCount] = useState(4);
-  const [waitingCount, setWaitingCount] = useState(1);
-  const [totalTokensToday] = useState(150);
 
   // Booking details matching user wireframe (4 Sep 2026, 7-10 AM, Bhagwanpur Centre, Paddy, 25 Quintal)
   const [bookingInfo, setBookingInfo] = useState({
@@ -122,8 +119,6 @@ const TrackSlot = () => {
         setTokensAhead(ahead);
         setCurrentTokenNum(res?.data?.currentServingToken || Math.max(1, num - ahead));
         setEstimatedWait(res?.data?.estimatedWaitMins || (ahead === 0 ? 0 : ahead * 5));
-        setCompletedCount(res?.data?.completedCount || 4);
-        setWaitingCount(res?.data?.waitingCount || (ahead + 1));
         setIsCancelled(bookingData.status === 'CANCELLED');
 
         setBookingInfo(prev => ({
@@ -164,8 +159,6 @@ const TrackSlot = () => {
       setCurrentTokenNum(1);
       setTokensAhead(0);
       setEstimatedWait(0);
-      setCompletedCount(4);
-      setWaitingCount(1);
       showToastMessage(isHindi ? 'दृश्य बदला गया: आपकी बारी (T-1)' : 'Scenario: YOUR TURN IS NOW (T-1)');
     } else {
       // 'inQueue' scenario matching T-20 ✓ → T-21 ✓ → T-22 🟢 → T-23 → T-24
@@ -173,8 +166,6 @@ const TrackSlot = () => {
       setCurrentTokenNum(22);
       setTokensAhead(0);
       setEstimatedWait(0);
-      setCompletedCount(21);
-      setWaitingCount(3);
       showToastMessage(isHindi ? 'दृश्य बदला गया: टोकन T-22 कतार' : 'Scenario: T-22 Queue Stepper');
     }
   };
@@ -183,8 +174,6 @@ const TrackSlot = () => {
   const handleAdvanceStep = () => {
     setCurrentTokenNum(prev => prev + 1);
     setTokensAhead(prev => Math.max(0, prev - 1));
-    setCompletedCount(prev => prev + 1);
-    setWaitingCount(prev => Math.max(0, prev - 1));
     showToastMessage(isHindi ? 'कतार एक टोकन आगे बढ़ी (+1)' : 'Queue advanced (+1 token)');
   };
 
@@ -655,16 +644,20 @@ const TrackSlot = () => {
                   backgroundColor: '#F8FAFC',
                   border: '1.5px solid #E2E8F0',
                   borderRadius: '20px',
-                  padding: '1.5rem 1.25rem',
+                  padding: '1.75rem 1.25rem',
                   textAlign: 'center',
-                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.02)'
+                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.02)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'center',
+                  minHeight: '180px'
                 }}>
-                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', color: '#64748B', fontSize: '0.85rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.45rem', color: '#64748B', fontSize: '0.85rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                     <Users size={18} color="#059669" />
                     <span>{t('peopleBeforeYou')}</span>
                   </div>
                   <div style={{
-                    fontSize: '3rem',
+                    fontSize: '3.2rem',
                     fontWeight: 900,
                     color: tokensAhead === 0 ? '#10B981' : '#0F172A',
                     marginTop: '0.4rem',
@@ -672,7 +665,7 @@ const TrackSlot = () => {
                   }}>
                     {tokensAhead}
                   </div>
-                  <div style={{ fontSize: '0.72rem', color: '#94A3B8', marginTop: '0.5rem', fontWeight: 600 }}>
+                  <div style={{ fontSize: '0.75rem', color: '#94A3B8', marginTop: '0.5rem', fontWeight: 600 }}>
                     {tokensAhead === 0 ? (isHindi ? 'आप कतार में सबसे आगे हैं' : 'You are next at counter') : (isHindi ? 'किसान आपसे पहले हैं' : 'farmers waiting ahead')}
                   </div>
                 </div>
@@ -682,16 +675,20 @@ const TrackSlot = () => {
                   backgroundColor: '#F8FAFC',
                   border: '1.5px solid #E2E8F0',
                   borderRadius: '20px',
-                  padding: '1.5rem 1.25rem',
+                  padding: '1.75rem 1.25rem',
                   textAlign: 'center',
-                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.02)'
+                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.02)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'center',
+                  minHeight: '180px'
                 }}>
-                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', color: '#64748B', fontSize: '0.85rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.45rem', color: '#64748B', fontSize: '0.85rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                     <Clock size={18} color="#0284C7" />
                     <span>{t('estimatedWait')}</span>
                   </div>
                   <div style={{
-                    fontSize: '3rem',
+                    fontSize: '3.2rem',
                     fontWeight: 900,
                     color: tokensAhead === 0 ? '#10B981' : '#0F172A',
                     marginTop: '0.4rem',
@@ -699,36 +696,11 @@ const TrackSlot = () => {
                   }}>
                     {tokensAhead === 0 ? (isHindi ? 'अभी' : 'NOW') : `~${estimatedWait}m`}
                   </div>
-                  <div style={{ fontSize: '0.72rem', color: '#94A3B8', marginTop: '0.5rem', fontWeight: 600 }}>
+                  <div style={{ fontSize: '0.75rem', color: '#94A3B8', marginTop: '0.5rem', fontWeight: 600 }}>
                     {tokensAhead === 0 ? (isHindi ? 'तत्काल पहुंचें' : 'Immediate entry') : (isHindi ? 'अनुमानित समय' : 'Estimated queue time')}
                   </div>
                 </div>
 
-              </div>
-
-              {/* Live Centre Summary Pill */}
-              <div style={{
-                backgroundColor: '#ECFDF5',
-                border: '1px solid #A7F3D0',
-                borderRadius: '16px',
-                padding: '0.85rem 1.25rem',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                flexWrap: 'wrap',
-                gap: '0.75rem'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                  <BarChart2 size={18} color="#059669" />
-                  <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#065F46' }}>
-                    {isHindi ? 'वर्तमान में तौल जारी:' : 'Currently Serving:'} <strong>T-{currentTokenNum}</strong> (Counter #1)
-                  </span>
-                </div>
-                <div style={{ fontSize: '0.78rem', color: '#047857', fontWeight: 700 }}>
-                  {t('totalTokens')}: <strong>{totalTokensToday}</strong> &nbsp;|&nbsp; 
-                  {t('completed')}: <strong>{completedCount}</strong> &nbsp;|&nbsp; 
-                  {t('waiting')}: <strong>{waitingCount}</strong>
-                </div>
               </div>
 
             </div>
