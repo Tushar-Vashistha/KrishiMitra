@@ -39,7 +39,11 @@ async function request(endpoint, options = {}) {
 
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
-      const errorMessage = data?.error?.message || data?.message || 'Something went wrong';
+      let errorMessage = data?.error?.message || data?.message || 'Something went wrong';
+      if (data?.error?.details && Array.isArray(data.error.details) && data.error.details.length > 0) {
+        const detailMsgs = data.error.details.map(d => `${d.field ? d.field + ': ' : ''}${d.message}`).join(', ');
+        errorMessage = `${errorMessage} (${detailMsgs})`;
+      }
       const error = new Error(errorMessage);
       error.status = response.status;
       error.response = data;
@@ -69,7 +73,7 @@ export const api = {
 export const authService = {
   requestOTP: (mobile) => api.post('/auth/otp/request', { mobile }),
   verifyOTP: (mobile, otp) => api.post('/auth/otp/verify', { mobile, otp }),
-  login: (mobile, password) => api.post('/auth/login', { mobile, password }),
+  login: (mobile, password, role) => api.post('/auth/login', { mobile, password, role }),
   registerFarmer: (data) => api.post('/auth/register/farmer', data),
   registerCentre: (data) => api.post('/auth/register/centre', data),
   logout: () => api.post('/auth/logout'),

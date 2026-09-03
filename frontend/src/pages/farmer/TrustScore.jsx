@@ -1,12 +1,51 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ShieldCheck, Award, TrendingUp, AlertCircle, HelpCircle } from 'lucide-react';
-import { mockUser } from '../../data/mockData';
+import { farmerService } from '../../services/api';
+import { useAuth } from '../../hooks/useAuth';
 
 const TrustScore = () => {
   const { t, i18n } = useTranslation();
+  const { user } = useAuth();
   const isHindi = i18n.language === 'hi';
-  const score = mockUser.farmer.trustScore; // 100
+
+  const [trustData, setTrustData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchTrustData = async () => {
+      try {
+        const res = await farmerService.getTrustScore();
+        if (isMounted && res.success && res.data) {
+          setTrustData(res.data);
+        }
+      } catch (err) {
+        console.error('Failed to fetch trust score data:', err);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+
+    fetchTrustData();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const score = trustData?.score ?? (user?.trustScore ?? 100);
+  const historyLogs = trustData?.history || [];
+
+  const formatEvent = (event) => {
+    if (!isHindi) return event;
+    if (event.includes('Arrived on time')) {
+      return event.replace('Arrived on time', 'समय पर पहुंचे');
+    }
+    if (event.includes('Absent on booked slot')) {
+      return event.replace('Absent on booked slot', 'बुक स्लॉट पर अनुपस्थित');
+    }
+    return event;
+  };
 
   // Determine color theme based on score value
   let circleBg = 'linear-gradient(135deg, #DCFCE7 0%, #86EFAC 100%)';
@@ -151,47 +190,73 @@ const TrustScore = () => {
               <span>🔄</span> {isHindi ? 'विश्वास स्कोर इतिहास लॉग' : 'Trust Score History Log'}
             </h3>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              {[
-                { date: '2026-08-28', change: '+10', reasonEn: 'Arrived on time (Wheat slot)', reasonHi: 'समय पर पहुंचे (गेहूं स्लॉट)', isPositive: true },
-                { date: '2026-08-25', change: '+10', reasonEn: 'Arrived on time (Wheat slot)', reasonHi: 'समय पर पहुंचे (गेहूं स्लॉट)', isPositive: true },
-                { date: '2026-08-10', change: '-25', reasonEn: 'Absent on booked slot (Mustard slot)', reasonHi: 'बुक स्लॉट पर अनुपस्थित (सरसों स्लॉट)', isPositive: false },
-                { date: '2026-07-28', change: '+10', reasonEn: 'Arrived on time (Paddy slot)', reasonHi: 'समय पर पहुंचे (धान स्लॉट)', isPositive: true },
-                { date: '2026-07-15', change: '+10', reasonEn: 'Arrived on time (Maize slot)', reasonHi: 'समय पर पहुंचे (मक्का स्लॉट)', isPositive: true }
-              ].map((log, i) => (
-                <div key={i} style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  padding: '1rem 1.25rem',
-                  borderRadius: '14px',
-                  background: '#F8FAFC',
-                  border: '1px solid #E2E8F0',
-                }}>
-                  <div>
-                    <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#1E293B', lineHeight: 1.35 }}>
-                      {isHindi ? log.reasonHi : log.reasonEn}
-                    </div>
-                    <div style={{ fontSize: '0.8rem', color: '#64748B', marginTop: '0.25rem' }}>
-                      {isHindi ? 'दिनांक' : 'Date'}: {log.date}
-                    </div>
-                  </div>
-
-                  <div style={{
-                    fontWeight: 800,
-                    fontSize: '0.95rem',
-                    padding: '6px 12px',
-                    borderRadius: '10px',
-                    color: log.isPositive ? '#166534' : '#991B1B',
-                    background: log.isPositive ? '#DCFCE7' : '#FEE2E2',
-                    border: `1px solid ${log.isPositive ? '#BBF7D0' : '#FCA5A5'}`,
-                    flexShrink: 0
-                  }}>
-                    {log.change}
-                  </div>
+            {loading ? (
+              <div style={{ padding: '2rem', textAlign: 'center', color: '#64748B' }}>
+                {isHindi ? 'स्कोर इतिहास लोड हो रहा है...' : 'Loading trust history...'}
+              </div>
+            ) : historyLogs.length === 0 ? (
+              <div style={{
+                textAlign: 'center',
+                padding: '2.5rem 1.25rem',
+                background: '#F8FAFC',
+                borderRadius: '16px',
+                border: '1px solid #E2E8F0',
+                color: '#64748B'
+              }}>
+                <div style={{ fontSize: '2.2rem', marginBottom: '0.5rem' }}>📜</div>
+                <div style={{ fontWeight: 800, fontSize: '1rem', color: '#334155', marginBottom: '0.3rem' }}>
+                  {isHindi ? 'कोई स्कोर इतिहास दर्ज नहीं है' : 'No Trust Score History Yet'}
                 </div>
-              ))}
-            </div>
+                <div style={{ fontSize: '0.85rem', color: '#64748B', lineHeight: 1.45 }}>
+                  {isHindi
+                    ? 'आपके द्वारा स्लॉट पर पहुंचने या अनुपस्थित रहने पर आपका रियल-टाइम स्कोर इतिहास यहां दिखाई देगा।'
+                    : 'Your score history will update here automatically as you complete or miss your booked procurement slots.'}
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {historyLogs.map((log, i) => {
+                  const pointsStr = typeof log.points === 'number'
+                    ? (log.points >= 0 ? `+${log.points}` : `${log.points}`)
+                    : String(log.points);
+                  const isPositive = !pointsStr.startsWith('-');
+
+                  return (
+                    <div key={log.id || i} style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      padding: '1rem 1.25rem',
+                      borderRadius: '14px',
+                      background: '#F8FAFC',
+                      border: '1px solid #E2E8F0',
+                    }}>
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#1E293B', lineHeight: 1.35 }}>
+                          {formatEvent(log.event)}
+                        </div>
+                        <div style={{ fontSize: '0.8rem', color: '#64748B', marginTop: '0.25rem' }}>
+                          {isHindi ? 'दिनांक' : 'Date'}: {log.date}
+                        </div>
+                      </div>
+
+                      <div style={{
+                        fontWeight: 800,
+                        fontSize: '0.95rem',
+                        padding: '6px 12px',
+                        borderRadius: '10px',
+                        color: isPositive ? '#166534' : '#991B1B',
+                        background: isPositive ? '#DCFCE7' : '#FEE2E2',
+                        border: `1px solid ${isPositive ? '#BBF7D0' : '#FCA5A5'}`,
+                        flexShrink: 0
+                      }}>
+                        {pointsStr}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* 2. Guidelines & Rules Card (Right Column) */}

@@ -192,14 +192,16 @@ const CentreRegister = () => {
     setLoading(true);
 
     try {
+      const cleanMobile = form.mobile.replace(/\D/g, '').slice(-10);
       const isManager = form.designation.toLowerCase().includes('manager') || form.designation.toLowerCase().includes('प्रबंधक');
+      const targetRole = isManager ? 'CENTRE_MANAGER' : 'CENTRE_STAFF';
       const payload = {
-        mobile: form.mobile,
+        mobile: cleanMobile,
         password: 'password123',
-        name: form.managerName,
-        designation: form.designation,
+        name: form.managerName.trim(),
+        designation: form.designation.trim(),
         centreId: selectedCentreId,
-        role: isManager ? 'CENTRE_MANAGER' : 'CENTRE_STAFF',
+        role: targetRole,
       };
 
       let regRes;
@@ -211,7 +213,7 @@ const CentreRegister = () => {
                             regErr.status === 409;
         if (isDuplicate) {
           try {
-            const loginRes = await authService.login(form.mobile, 'password123');
+            const loginRes = await authService.login(cleanMobile, 'password123', targetRole);
             if (loginRes.success && loginRes.data) {
               login('centre', loginRes.data);
               setSubmitted(true);
@@ -232,20 +234,20 @@ const CentreRegister = () => {
         login('centre', regRes.data);
       } else {
         try {
-          const loginRes = await authService.login(form.mobile, 'password123');
+          const loginRes = await authService.login(cleanMobile, 'password123', targetRole);
           if (loginRes.success && loginRes.data) {
             login('centre', loginRes.data);
           } else {
-            login('centre', { mobile: form.mobile, name: form.managerName, centreId: selectedCentreId });
+            login('centre', { mobile: cleanMobile, name: form.managerName, centreId: selectedCentreId });
           }
         } catch (lErr) {
-          login('centre', { mobile: form.mobile, name: form.managerName, centreId: selectedCentreId });
+          login('centre', { mobile: cleanMobile, name: form.managerName, centreId: selectedCentreId });
         }
       }
       setSubmitted(true);
     } catch (err) {
-      login('centre', { mobile: form.mobile, name: form.managerName, centreId: selectedCentreId });
-      setSubmitted(true);
+      setErrorMsg(err.message || (isHindi ? 'पंजीकरण विफल रहा। विवरण जांचें।' : 'Registration failed. Please check details.'));
+      window.scrollTo({ top: 120, behavior: 'smooth' });
     } finally {
       setLoading(false);
     }

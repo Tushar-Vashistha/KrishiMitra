@@ -6,6 +6,7 @@ const prisma = require('../config/db');
 const calculateTrustScore = async (farmerProfileId) => {
   const history = await prisma.trustScoreHistory.findMany({
     where: { farmerProfileId },
+    orderBy: { createdAt: 'desc' },
   });
 
   // Calculate score starting from 100

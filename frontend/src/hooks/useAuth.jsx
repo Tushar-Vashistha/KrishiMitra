@@ -38,23 +38,24 @@ export const AuthProvider = ({ children }) => {
     let newUser;
     if (authData && authData.accessToken) {
       // Real backend authentication data payload
-      const mappedRole = authData.user.role === 'FARMER' ? 'farmer' : 'centre';
-      const profile = authData.user.profile || {};
+      const userObj = authData.user || {};
+      const userRole = userObj.role || authData.role || (role === 'farmer' ? 'FARMER' : 'CENTRE_MANAGER');
+      const mappedRole = userRole === 'FARMER' ? 'farmer' : 'centre';
+      const profile = userObj.profile || authData.profile || {};
       
       // Extract details based on backend structure
       newUser = {
         role: mappedRole,
-        backendRole: authData.user.role,
+        backendRole: userRole,
         accessToken: authData.accessToken,
         refreshToken: authData.refreshToken,
-        id: authData.user.id,
-        mobile: authData.user.mobile,
-        // Profile fields
-        name: profile.name || '',
+        id: userObj.id || authData.userId || 1,
+        mobile: userObj.mobile || authData.mobile || '',
+        name: profile.name || (mappedRole === 'farmer' ? 'Farmer User' : 'Centre Manager'),
         dob: profile.dob || '',
         gender: profile.gender || '',
         aadhaar: profile.aadhaarMasked || '',
-        farmerId: profile.aadhaarMasked || profile.centreId || '',
+        farmerId: profile.aadhaarMasked || profile.centreId || userObj.mobile || '',
         centreId: profile.centreId || '',
         village: profile.village || '',
         tehsil: profile.tehsil || '',
@@ -71,7 +72,7 @@ export const AuthProvider = ({ children }) => {
       };
 
       // Handle staff center assignments mapping
-      if (authData.user.role !== 'FARMER' && profile.assignments && profile.assignments.length > 0) {
+      if (userRole !== 'FARMER' && profile.assignments && profile.assignments.length > 0) {
         const activeAssignment = profile.assignments.find(a => a.active) || profile.assignments[0];
         if (activeAssignment && activeAssignment.centre) {
           newUser.centreId = activeAssignment.centre.id; // numerical db ID

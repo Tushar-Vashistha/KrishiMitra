@@ -63,11 +63,6 @@ const PageLoader = () => (
 
 // Protected route components
 const GuestRoute = ({ children }) => {
-  const { user } = useAuth();
-  if (user) {
-    const targetPath = user.role === 'farmer' ? '/farmer/dashboard' : '/centre/dashboard';
-    return <Navigate to={targetPath} replace />;
-  }
   return children;
 };
 
@@ -86,26 +81,6 @@ const CentreRoute = ({ children }) => {
 };
 
 const App = () => {
-  React.useEffect(() => {
-    const handleAuthRedirect = () => {
-      const savedUser = localStorage.getItem('krishimitra_user');
-      const guestPaths = ['/', '/login', '/register', '/register/farmer', '/register/centre'];
-      if (savedUser && guestPaths.includes(window.location.pathname)) {
-        try {
-          const parsed = JSON.parse(savedUser);
-          const target = parsed.role === 'farmer' ? '/farmer/dashboard' : '/centre/dashboard';
-          window.location.replace(target);
-        } catch (e) {}
-      }
-    };
-
-    window.addEventListener('popstate', handleAuthRedirect);
-    window.addEventListener('pageshow', handleAuthRedirect);
-    return () => {
-      window.removeEventListener('popstate', handleAuthRedirect);
-      window.removeEventListener('pageshow', handleAuthRedirect);
-    };
-  }, []);
 
   return (
     <BrowserRouter>

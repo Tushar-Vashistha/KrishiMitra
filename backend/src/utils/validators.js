@@ -4,20 +4,20 @@ const registerFarmerSchema = z.object({
   mobile: z.string().regex(/^[0-9]{10}$/, 'Mobile must be a 10-digit number'),
   password: z.string().min(6, 'Password must be at least 6 characters long'),
   name: z.string().min(2, 'Name is required'),
-  dob: z.string().transform((val) => new Date(val)),
-  gender: z.string().min(1, 'Gender is required'),
+  dob: z.union([z.string(), z.date()]).optional().transform((val) => val ? new Date(val) : new Date('1985-01-01')),
+  gender: z.string().optional().default('Male'),
   aadhaar: z.string().regex(/^[0-9]{12}$/, 'Aadhaar must be a 12-digit number'),
-  village: z.string().min(1, 'Village is required'),
-  district: z.string().min(1, 'District is required'),
-  state: z.string().min(1, 'State is required'),
-  tehsil: z.string().min(1, 'Tehsil is required'),
-  block: z.string().min(1, 'Block is required'),
-  pincode: z.string().regex(/^[0-9]{6}$/, 'Pincode must be 6 digits'),
-  khasraNumber: z.string().min(1, 'Khasra number is required'),
-  landOwnerName: z.string().min(1, 'Land owner name is required'),
-  bankName: z.string().min(1, 'Bank name is required'),
-  accountNumber: z.string().min(9, 'Bank account number is required'),
-  ifscCode: z.string().regex(/^[A-Z]{4}0[A-Z0-9]{6}$/, 'Invalid IFSC code format'),
+  village: z.string().optional().default('Bhagwanpur'),
+  district: z.string().optional().default('Lucknow'),
+  state: z.string().optional().default('Uttar Pradesh'),
+  tehsil: z.string().optional().default('Lucknow'),
+  block: z.string().optional().default('Lucknow'),
+  pincode: z.string().optional().default('226001'),
+  khasraNumber: z.string().optional().default('101/A'),
+  landOwnerName: z.string().optional().default('Farmer User'),
+  bankName: z.string().optional().default('State Bank of India'),
+  accountNumber: z.string().optional().default('9876543210'),
+  ifscCode: z.string().regex(/^[a-zA-Z]{4}0[a-zA-Z0-9]{6}$/, 'Invalid IFSC code format').transform((val) => val.toUpperCase()),
 });
 
 const registerCentreSchema = z.object({
@@ -32,6 +32,7 @@ const registerCentreSchema = z.object({
 const loginSchema = z.object({
   mobile: z.string().regex(/^[0-9]{10}$/, 'Mobile must be a 10-digit number'),
   password: z.string().optional(),
+  role: z.enum(['FARMER', 'CENTRE_MANAGER', 'CENTRE_STAFF']).optional(),
 });
 
 const bookingSchema = z.object({
