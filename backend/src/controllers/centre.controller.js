@@ -2,6 +2,7 @@ const prisma = require('../config/db');
 const { calculateDistance } = require('../utils/helpers');
 const { NotFoundError, BadRequestError } = require('../utils/errors');
 const { logAction } = require('../services/audit.service');
+const { notifyCentreEvent } = require('../services/notification.service');
 const memoryCache = require('../utils/cache');
 const { calculateEstimatedProcessingTime, parseSlotDurationMinutes } = require('../config/procurementRates');
 
@@ -202,6 +203,46 @@ const updateCentreStatus = async (req, res, next) => {
       entity: 'ProcurementCentre',
       entityId: centreId,
     });
+
+    // Notify ONLY farmers who have active/upcoming bookings at this centre
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const relevantBookings = await prisma.procurementBooking.findMany({
+      where: {
+        centreId,
+        date: { gte: today },
+        status: {
+          in: ['BOOKED', 'ARRIVED', 'WEIGHING', 'QUALITY_CHECK'],
+        },
+      },
+      include: { farmerProfile: true },
+    });
+
+    // Extract unique userIds
+    const affectedUserIds = Array.from(
+      new Set(
+        relevantBookings
+          .map((b) => b.farmerProfile?.userId)
+          .filter((id) => Boolean(id))
+      )
+    );
+
+    const notifType = open ? 'CENTRE_OPEN' : 'CENTRE_CLOSED';
+    const notifTitle = open ? 'Procurement Centre Open' : 'Procurement Centre Closed';
+    const notifMessage = open
+      ? `Your procurement centre, ${centre.name}, is now open.`
+      : `Your procurement centre, ${centre.name}, has been temporarily closed.`;
+
+    for (const farmerUserId of affectedUserIds) {
+      await notifyCentreEvent({
+        userId: farmerUserId,
+        type: notifType,
+        title: notifTitle,
+        message: notifMessage,
+        relatedCentreId: centreId,
+      });
+    }
 
     res.status(200).json({
       success: true,

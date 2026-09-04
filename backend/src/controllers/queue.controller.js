@@ -1,7 +1,8 @@
 const prisma = require('../config/db');
 const { getQueueTrackingDetails } = require('../services/queue.service');
 const { logAction } = require('../services/audit.service');
-const { addTrustEvent } = require('../services/trust.service');
+const { addTrustEvent, calculateTrustScore } = require('../services/trust.service');
+const { notifySlotEvent } = require('../services/notification.service');
 const { NotFoundError, BadRequestError, ForbiddenError } = require('../utils/errors');
 
 const getTokenById = async (req, res, next) => {
@@ -202,9 +203,33 @@ const updateTokenStatus = (statusAction) => async (req, res, next) => {
       return updatedToken;
     });
 
-    // Award / deduct trust score points
+    // Award / deduct trust score points & recalculate stats
     if (statusAction === 'arrive') {
-      await addTrustEvent(token.booking.farmerProfileId, `Arrived on time (${token.booking.crop.name} slot)`, 10.0);
+      const existingEvent = await prisma.trustScoreHistory.findFirst({
+        where: {
+          farmerProfileId: token.booking.farmerProfileId,
+          event: { contains: `${token.booking.crop.name} slot` },
+          points: { gt: 0 },
+        },
+      });
+      if (!existingEvent) {
+        await addTrustEvent(token.booking.farmerProfileId, `Arrived on time (${token.booking.crop.name} slot)`, 10.0);
+      } else {
+        await calculateTrustScore(token.booking.farmerProfileId);
+      }
+    } else if (statusAction === 'complete') {
+      const existingEvent = await prisma.trustScoreHistory.findFirst({
+        where: {
+          farmerProfileId: token.booking.farmerProfileId,
+          event: { contains: `${token.booking.crop.name} slot` },
+          points: { gt: 0 },
+        },
+      });
+      if (!existingEvent) {
+        await addTrustEvent(token.booking.farmerProfileId, `Completed slot (${token.booking.crop.name} slot)`, 10.0);
+      } else {
+        await calculateTrustScore(token.booking.farmerProfileId);
+      }
     } else if (statusAction === 'no-show') {
       await addTrustEvent(token.booking.farmerProfileId, `Absent on booked slot (${token.booking.crop.name} slot)`, -25.0);
     }
@@ -216,6 +241,48 @@ const updateTokenStatus = (statusAction) => async (req, res, next) => {
       entityId: tokenId,
       metadata: { counterId },
     });
+
+    // Trigger Notification for the farmer
+    const farmerProf = await prisma.farmerProfile.findUnique({
+      where: { id: token.booking.farmerProfileId },
+    });
+
+    if (farmerProf && farmerProf.userId) {
+      let notifType = 'SLOT_UPDATE';
+      let notifTitle = 'Token Status Update';
+      let notifMessage = `Your token #${token.tokenNumber} status is now ${status}.`;
+
+      if (statusAction === 'call') {
+        notifType = 'TOKEN_CALLED';
+        notifTitle = 'Your Turn Approaching';
+        notifMessage = `Your turn is approaching! Token #${token.tokenNumber} has been called${counterId ? ` to Counter #${counterId}` : ''}.`;
+      } else if (statusAction === 'arrive') {
+        notifType = 'TOKEN_ARRIVED';
+        notifTitle = 'Arrival Recorded';
+        notifMessage = `Arrival confirmed for Token #${token.tokenNumber}. Please proceed to counter/weighbridge.`;
+      } else if (statusAction === 'start') {
+        notifType = 'TOKEN_PROCESSING';
+        notifTitle = 'Token Now Processing';
+        notifMessage = `Your token #${token.tokenNumber} for ${token.booking.crop.name} is now being processed.`;
+      } else if (statusAction === 'complete') {
+        notifType = 'SLOT_COMPLETED';
+        notifTitle = 'Slot Completed';
+        notifMessage = `Your procurement slot for ${token.booking.crop.name} (Booking #${token.bookingId}) has been completed successfully.`;
+      } else if (statusAction === 'cancel') {
+        notifType = 'BOOKING_CANCELLED';
+        notifTitle = 'Token Cancelled';
+        notifMessage = `Your queue token #${token.tokenNumber} has been cancelled.`;
+      }
+
+      await notifySlotEvent({
+        userId: farmerProf.userId,
+        type: notifType,
+        title: notifTitle,
+        message: notifMessage,
+        relatedBookingId: token.bookingId,
+        relatedCentreId: token.centreId,
+      });
+    }
 
     res.status(200).json({
       success: true,

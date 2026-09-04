@@ -439,17 +439,24 @@ model Payment {
 }
 
 model Notification {
-  id        Int      @id @default(autoincrement())
-  userId    Int
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  title     String
-  message   String
-  type      String
-  isRead    Boolean  @default(false)
-  createdAt DateTime @default(now())
+  id               Int      @id @default(autoincrement())
+  userId           Int
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category         String   @default("SLOT") // SLOT, PAYMENT, CENTRE
+  type             String
+  title            String
+  message          String
+  relatedBookingId String?
+  relatedPaymentId Int?
+  relatedCentreId  Int?
+  isRead           Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt @default(now())
 
   @@index([userId])
   @@index([userId, isRead])
+  @@index([userId, createdAt])
+  @@index([userId, category])
 }
 
 model AuditLog {

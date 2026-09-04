@@ -1,6 +1,7 @@
 const prisma = require('../config/db');
 const { calculateProcurementPrice } = require('../services/pricing.service');
 const { logAction } = require('../services/audit.service');
+const { addTrustEvent, calculateTrustScore } = require('../services/trust.service');
 const { NotFoundError, BadRequestError, ForbiddenError } = require('../utils/errors');
 
 const createProcurement = async (req, res, next) => {
@@ -245,6 +246,12 @@ const registerQualityInspection = async (req, res, next) => {
         data: { status: finalStatus },
       });
 
+      // Also update QueueToken if present
+      await tx.queueToken.updateMany({
+        where: { bookingId: transaction.bookingId },
+        data: { status: finalStatus === 'COMPLETED' ? 'COMPLETED' : 'CANCELLED', completedAt: new Date() },
+      });
+
       // If passed, automatically create a payment record
       let payment = null;
       if (result !== 'FAILED') {
@@ -264,6 +271,21 @@ const registerQualityInspection = async (req, res, next) => {
 
       return { inspection, transaction: updatedTx, payment };
     });
+
+    if (result !== 'FAILED') {
+      const existingEvent = await prisma.trustScoreHistory.findFirst({
+        where: {
+          farmerProfileId: transaction.booking.farmerProfileId,
+          event: { contains: `${transaction.booking.crop?.name || 'Procurement'} slot` },
+          points: { gt: 0 },
+        },
+      });
+      if (!existingEvent) {
+        await addTrustEvent(transaction.booking.farmerProfileId, `Completed slot (${transaction.booking.crop?.name || 'Procurement'} slot)`, 10.0);
+      } else {
+        await calculateTrustScore(transaction.booking.farmerProfileId);
+      }
+    }
 
     await logAction({
       userId: req.user.id,

@@ -1,6 +1,7 @@
 const prisma = require('../config/db');
 const { processPayment } = require('../services/payment.service');
 const { logAction } = require('../services/audit.service');
+const { notifyPaymentEvent } = require('../services/notification.service');
 const { NotFoundError, BadRequestError, ForbiddenError } = require('../utils/errors');
 
 const getMyPayments = async (req, res, next) => {
@@ -112,7 +113,12 @@ const triggerPayment = async (req, res, next) => {
 
     const transaction = await prisma.procurementTransaction.findUnique({
       where: { id: parseInt(transactionId) },
-      include: { payment: true, booking: true },
+      include: {
+        payment: true,
+        booking: {
+          include: { farmerProfile: true },
+        },
+      },
     });
 
     if (!transaction) {
@@ -160,6 +166,18 @@ const triggerPayment = async (req, res, next) => {
       entity: 'Payment',
       entityId: payment.id,
     });
+
+    if (transaction.booking?.farmerProfile?.userId) {
+      const formattedAmount = Number(payment.amount).toLocaleString('en-IN');
+      await notifyPaymentEvent({
+        userId: transaction.booking.farmerProfile.userId,
+        type: 'PAYMENT_INITIATED',
+        title: 'Payment Initiated',
+        message: `Payment of ₹${formattedAmount} for Booking #${transaction.bookingId} has been initiated.`,
+        relatedPaymentId: payment.id,
+        relatedBookingId: transaction.bookingId,
+      });
+    }
 
     res.status(201).json({
       success: true,
@@ -230,15 +248,41 @@ const updatePaymentStatus = async (req, res, next) => {
       entityId: paymentId,
     });
 
-    // Notify farmer about payment status change
-    await prisma.notification.create({
-      data: {
-        userId: payment.transaction.booking.farmerProfileId,
-        title: `Payment ${status}`,
-        message: `Your payment of ₹${payment.amount} for booking ${payment.transaction.bookingId} is now ${status}.`,
-        type: 'PAYMENT',
-      },
+    // Notify farmer about payment status change using notifyPaymentEvent
+    const farmerProf = await prisma.farmerProfile.findUnique({
+      where: { id: payment.transaction.booking.farmerProfileId },
     });
+
+    if (farmerProf && farmerProf.userId) {
+      const formattedAmount = Number(updatedPayment.amount).toLocaleString('en-IN');
+      const bookingIdStr = payment.transaction.bookingId;
+      let notifType = `PAYMENT_${status}`;
+      let notifTitle = `Payment ${status}`;
+      let notifMsg = `Payment of ₹${formattedAmount} for Booking #${bookingIdStr} status updated to ${status}.`;
+
+      if (status === 'SUCCESS') {
+        notifType = 'PAYMENT_SUCCESS';
+        notifTitle = 'Payment Credited Successfully';
+        notifMsg = `Payment of ₹${formattedAmount} for Booking #${bookingIdStr} has been credited successfully.`;
+      } else if (status === 'PROCESSING') {
+        notifType = 'PAYMENT_PROCESSING';
+        notifTitle = 'Payment Processing';
+        notifMsg = `Payment of ₹${formattedAmount} for Booking #${bookingIdStr} is currently being processed.`;
+      } else if (status === 'FAILED') {
+        notifType = 'PAYMENT_FAILED';
+        notifTitle = 'Payment Failed';
+        notifMsg = `Payment of ₹${formattedAmount} for Booking #${bookingIdStr} failed to process. Please check bank details.`;
+      }
+
+      await notifyPaymentEvent({
+        userId: farmerProf.userId,
+        type: notifType,
+        title: notifTitle,
+        message: notifMsg,
+        relatedPaymentId: paymentId,
+        relatedBookingId: bookingIdStr,
+      });
+    }
 
     res.status(200).json({
       success: true,

@@ -155,9 +155,54 @@ const TrustScore = () => {
             </p>
             <p style={{ color: '#64748B', fontSize: '0.95rem', marginTop: '0.75rem', marginBlockEnd: 0, lineHeight: 1.5 }}>
               {isHindi 
-                ? 'सभी किसानों का प्रारंभिक विश्वास स्कोर 100 होता है। बुक किए गए स्लॉट के लिए समय पर आने पर अंक मिलते हैं, जबकि अनुपस्थित होने पर यह घट जाता है। 25 से कम स्कोर होने पर सामान्य बुकिंग प्रतिबंधित कर दी जाती है।' 
-                : 'All farmers start with a default Trust Score of 100. Timely arrivals for booked slots earn points, while absents decrease it. Scores below 25 blacklist users from general bookings.'}
+                ? 'सभी किसानों का प्रारंभिक विश्वास स्कोर 100 होता है। बुक किए गए स्लॉट के लिए समय पर आने पर अंक मिलते हैं, जबकि अनुपस्थित होने पर यह घट जाता है। 25 या उससे कम स्कोर होने पर सामान्य बुकिंग प्रतिबंधित कर दी जाती है।' 
+                : 'All farmers start with a default Trust Score of 100. Timely arrivals for booked slots earn points, while absents decrease it. Scores of 25 or below blacklist users from general bookings.'}
             </p>
+          </div>
+        </div>
+
+        {/* Breakdown Stats Grid */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+          gap: '1.25rem',
+          marginTop: '1.75rem',
+          marginBottom: '0.25rem'
+        }}>
+          <div style={{ background: '#FFFFFF', padding: '1.25rem 1.5rem', borderRadius: '16px', border: '1px solid #E2E8F0', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
+            <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>
+              {isHindi ? 'कुल बुकिंग' : 'Total Bookings'}
+            </div>
+            <div style={{ fontSize: '1.8rem', fontWeight: 900, color: '#1E293B', marginTop: '0.25rem' }}>
+              {trustData?.totalBookings ?? 0}
+            </div>
+          </div>
+
+          <div style={{ background: '#FFFFFF', padding: '1.25rem 1.5rem', borderRadius: '16px', border: '1px solid #E2E8F0', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
+            <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#166534', textTransform: 'uppercase' }}>
+              {isHindi ? 'पूर्ण स्लॉट' : 'Completed Slots'}
+            </div>
+            <div style={{ fontSize: '1.8rem', fontWeight: 900, color: '#15803D', marginTop: '0.25rem' }}>
+              {trustData?.completedBookings ?? 0}
+            </div>
+          </div>
+
+          <div style={{ background: '#FFFFFF', padding: '1.25rem 1.5rem', borderRadius: '16px', border: '1px solid #E2E8F0', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
+            <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#0369A1', textTransform: 'uppercase' }}>
+              {isHindi ? 'समय पर दर' : 'On-Time Rate'}
+            </div>
+            <div style={{ fontSize: '1.8rem', fontWeight: 900, color: '#0284C7', marginTop: '0.25rem' }}>
+              {trustData?.onTimeRate ?? 100}%
+            </div>
+          </div>
+
+          <div style={{ background: '#FFFFFF', padding: '1.25rem 1.5rem', borderRadius: '16px', border: '1px solid #E2E8F0', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
+            <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#991B1B', textTransform: 'uppercase' }}>
+              {isHindi ? 'अनुपस्थिति दर' : 'No-Show Rate'}
+            </div>
+            <div style={{ fontSize: '1.8rem', fontWeight: 900, color: '#DC2626', marginTop: '0.25rem' }}>
+              {trustData?.noShowRate ?? 0}%
+            </div>
           </div>
         </div>
 

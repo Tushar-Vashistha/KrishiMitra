@@ -9,12 +9,7 @@ import {
   Sparkles, AlertTriangle, FileText, CheckCircle2, UserCheck,
   XCircle, Activity
 } from 'lucide-react';
-import {
-  getFarmerNotifications,
-  markNotificationAsRead,
-  markAllNotificationsAsRead,
-  clearAllNotifications
-} from '../data/notifications';
+import { notificationService } from '../services/api';
 
 const Header = () => {
   const { t, i18n } = useTranslation();
@@ -23,26 +18,42 @@ const Header = () => {
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
-  const [notifications, setNotifications] = useState(getFarmerNotifications);
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   const isHindi = i18n.language === 'hi';
   const isAuthPage = ['/login', '/register/farmer', '/register/centre'].includes(location.pathname);
   const showNavItems = user && !isAuthPage;
 
-  // Sync notifications on custom and storage events
-  useEffect(() => {
-    const updateNotifs = () => {
-      setNotifications(getFarmerNotifications());
-    };
-    window.addEventListener('storage', updateNotifs);
-    window.addEventListener('krishimitra_notification_update', updateNotifs);
-    return () => {
-      window.removeEventListener('storage', updateNotifs);
-      window.removeEventListener('krishimitra_notification_update', updateNotifs);
-    };
-  }, []);
+  // Fetch real notifications and unread count from backend API
+  const fetchBackendNotifications = async () => {
+    if (!user || user.role !== 'farmer') return;
+    try {
+      const [notifRes, unreadRes] = await Promise.all([
+        notificationService.getMy().catch(() => null),
+        notificationService.getUnreadCount().catch(() => null),
+      ]);
+      if (notifRes && notifRes.success && Array.isArray(notifRes.data)) {
+        setNotifications(notifRes.data);
+      }
+      if (unreadRes && unreadRes.success) {
+        setUnreadCount(unreadRes.unreadCount ?? unreadRes.count ?? 0);
+      }
+    } catch (err) {
+      console.error('Failed to load notifications:', err);
+    }
+  };
 
-  const unreadCount = notifications.filter(n => !n.read).length;
+  useEffect(() => {
+    if (!user || user.role !== 'farmer') return;
+    fetchBackendNotifications();
+    const interval = setInterval(fetchBackendNotifications, 15000);
+    window.addEventListener('krishimitra_notification_update', fetchBackendNotifications);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('krishimitra_notification_update', fetchBackendNotifications);
+    };
+  }, [user?.id, user?.role]);
 
   const toggleLanguage = () => {
     i18n.changeLanguage(isHindi ? 'en' : 'hi');
@@ -61,11 +72,34 @@ const Header = () => {
     navigate('/');
   };
 
-  const handleNotificationClick = (notif) => {
-    markNotificationAsRead(notif.id);
+  const handleNotificationClick = async (notif) => {
+    if (!notif.isRead) {
+      try {
+        await notificationService.markRead(notif.id);
+        setNotifications((prev) =>
+          prev.map((n) => (n.id === notif.id ? { ...n, isRead: true } : n))
+        );
+        setUnreadCount((prev) => Math.max(0, prev - 1));
+      } catch (e) {
+        console.error('Failed to mark notification read:', e);
+      }
+    }
     setNotifOpen(false);
-    if (notif.link) {
-      navigate(notif.link);
+
+    if (notif.category === 'PAYMENT' || (notif.type && notif.type.startsWith('PAYMENT'))) {
+      navigate('/farmer/payment-history');
+    } else {
+      navigate('/farmer/track-slot');
+    }
+  };
+
+  const handleMarkAllRead = async () => {
+    try {
+      await notificationService.markAllRead();
+      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+      setUnreadCount(0);
+    } catch (e) {
+      console.error('Failed to mark all notifications read:', e);
     }
   };
 
@@ -209,7 +243,7 @@ const Header = () => {
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
                     {unreadCount > 0 && (
                       <button
-                        onClick={markAllNotificationsAsRead}
+                        onClick={handleMarkAllRead}
                         style={{
                           background: 'rgba(255, 255, 255, 0.2)',
                           border: 'none',
@@ -247,16 +281,24 @@ const Header = () => {
                   {notifications.length === 0 ? (
                     <div style={{ textAlign: 'center', padding: '2.5rem 1rem', color: '#64748B' }}>
                       <CheckCircle2 size={32} color="#10B981" style={{ margin: '0 auto 0.5rem' }} />
-                      <div style={{ fontWeight: 800, fontSize: '0.9rem', color: '#1E293B' }}>
-                        {isHindi ? 'कोई नई सूचना नहीं है' : 'All caught up!'}
+                      <div style={{ fontWeight: 800, fontSize: '0.95rem', color: '#1E293B' }}>
+                        ✓ {isHindi ? 'आपकी सभी सूचनाएं देखी जा चुकी हैं!' : "You're all caught up!"}
                       </div>
-                      <p style={{ fontSize: '0.78rem', margin: '0.2rem 0 0', opacity: 0.8 }}>
-                        {isHindi ? 'केंद्र द्वारा कोई भी नया अपडेट यहाँ दिखाई देगा' : 'Centre updates will appear here in real-time'}
+                      <p style={{ fontSize: '0.8rem', margin: '0.3rem 0 0', opacity: 0.85 }}>
+                        {isHindi ? 'फिलहाल कोई नई सूचना उपलब्ध नहीं है।' : 'No new notifications at the moment.'}
                       </p>
                     </div>
                   ) : (
                     notifications.map((notif) => {
-                      const isUnread = !notif.read;
+                      const isUnread = !notif.isRead;
+                      const cat = notif.category || 'SLOT';
+                      const formattedTime = notif.createdAt
+                        ? new Date(notif.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                        : 'Recently';
+
+                      const badgeBg = cat === 'PAYMENT' ? '#DCFCE7' : cat === 'CENTRE' ? '#FEF3C7' : '#E0F2FE';
+                      const badgeColor = cat === 'PAYMENT' ? '#15803D' : cat === 'CENTRE' ? '#B45309' : '#0369A1';
+
                       return (
                         <div
                           key={notif.id}
@@ -274,26 +316,26 @@ const Header = () => {
                           onMouseEnter={e => e.currentTarget.style.background = '#ECFDF5'}
                           onMouseLeave={e => e.currentTarget.style.background = isUnread ? '#F0FDF4' : '#FFFFFF'}
                         >
-                          {/* Type Icon Badge */}
+                          {/* Type / Category Icon Badge */}
                           <div style={{
                             width: 32,
                             height: 32,
                             borderRadius: '10px',
-                            background: notif.type === 'bill' ? '#DCFCE7' : notif.type === 'arrived' ? '#E0F2FE' : notif.type === 'processing' ? '#FEF3C7' : notif.type === 'cancelled' ? '#FEE2E2' : '#F1F5F9',
-                            color: notif.type === 'bill' ? '#15803D' : notif.type === 'arrived' ? '#0369A1' : notif.type === 'processing' ? '#B45309' : notif.type === 'cancelled' ? '#DC2626' : '#475569',
+                            background: badgeBg,
+                            color: badgeColor,
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
                             flexShrink: 0,
                             marginTop: '2px'
                           }}>
-                            {notif.type === 'bill' ? <FileText size={16} /> : notif.type === 'arrived' ? <UserCheck size={16} /> : notif.type === 'processing' ? <Activity size={16} /> : notif.type === 'cancelled' ? <XCircle size={16} /> : <Bell size={16} />}
+                            {cat === 'PAYMENT' ? <CreditCard size={16} /> : cat === 'CENTRE' ? <Building2 size={16} /> : <Bell size={16} />}
                           </div>
 
                           <div style={{ flex: 1 }}>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
                               <span style={{ fontWeight: 800, fontSize: '0.85rem', color: '#0F172A' }}>
-                                {isHindi ? (notif.title || notif.titleEn) : (notif.titleEn || notif.title)}
+                                {notif.title}
                               </span>
                               {isUnread && (
                                 <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#10B981', flexShrink: 0 }} />
@@ -301,12 +343,12 @@ const Header = () => {
                             </div>
 
                             <p style={{ margin: '0.2rem 0 0', fontSize: '0.78rem', color: '#475569', lineHeight: 1.35 }}>
-                              {isHindi ? (notif.message || notif.messageEn) : (notif.messageEn || notif.message)}
+                              {notif.message}
                             </p>
 
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.35rem', fontSize: '0.7rem', color: '#94A3B8' }}>
-                              <span>🏛️ {notif.centreName || "Govt. Centre"}</span>
-                              <span>⏱️ {notif.time || "Recently"}</span>
+                              <span style={{ fontWeight: 700, color: badgeColor }}>[{cat}]</span>
+                              <span>⏱️ {formattedTime}</span>
                             </div>
                           </div>
                         </div>
@@ -326,7 +368,7 @@ const Header = () => {
                     justifyContent: 'space-between'
                   }}>
                     <button
-                      onClick={clearAllNotifications}
+                      onClick={handleMarkAllRead}
                       style={{
                         background: 'transparent',
                         border: 'none',
@@ -339,7 +381,7 @@ const Header = () => {
                         gap: '0.25rem'
                       }}
                     >
-                      <Trash2 size={12} /> {isHindi ? 'सभी साफ़ करें' : 'Clear all'}
+                      <CheckCheck size={12} /> {isHindi ? 'सभी पढ़ा हुआ मार्क करें' : 'Mark all read'}
                     </button>
 
                     <Link

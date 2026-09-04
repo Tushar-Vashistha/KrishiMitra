@@ -196,7 +196,8 @@ export const paymentService = {
 };
 
 export const notificationService = {
-  getMy: () => api.get('/notifications'),
+  getMy: (category) => api.get(`/notifications${category ? `?category=${category}` : ''}`),
+  getUnreadCount: () => api.get('/notifications/unread-count'),
   markRead: (id) => api.patch(`/notifications/${id}/read`),
   markAllRead: () => api.patch('/notifications/read-all'),
 };

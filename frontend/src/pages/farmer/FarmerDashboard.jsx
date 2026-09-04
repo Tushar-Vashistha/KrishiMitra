@@ -9,12 +9,7 @@ import {
   Zap, Star, Clock, CheckCircle, AlertCircle, Wheat, MapPin, ChevronRight,
   Bell, CheckCheck, Trash2, X, Sparkles, FileText, UserCheck, XCircle, Activity
 } from 'lucide-react';
-import {
-  getFarmerNotifications,
-  markNotificationAsRead,
-  markAllNotificationsAsRead,
-  clearAllNotifications
-} from '../../data/notifications';
+
 
 const FarmerDashboard = () => {
   const { t, i18n } = useTranslation();
@@ -76,16 +71,17 @@ const FarmerDashboard = () => {
 
       if (notifRes.success && notifRes.data) {
         const mappedNotifs = notifRes.data.map(n => ({
-          id: n.id.toString(),
+          id: n.id,
           title: n.title,
-          titleEn: n.title,
           message: n.message,
-          messageEn: n.message,
-          type: n.type.toLowerCase(),
+          category: n.category,
+          type: n.type,
           read: n.isRead,
+          isRead: n.isRead,
           time: new Date(n.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          date: 'Today',
+          date: new Date(n.createdAt).toLocaleDateString(),
           timestamp: new Date(n.createdAt).getTime(),
+          link: n.category === 'PAYMENT' ? '/farmer/payment-history' : '/farmer/track-slot',
         }));
         setNotifications(mappedNotifs);
       }
@@ -828,11 +824,11 @@ const FarmerDashboard = () => {
                   return (
                     <div
                       key={notif.id}
-                      onClick={() => {
-                        markNotificationAsRead(notif.id);
-                        if (notif.link) {
-                          setShowNotifModal(false);
-                        }
+                      onClick={async () => {
+                        await notificationService.markRead(notif.id).catch(() => {});
+                        window.dispatchEvent(new Event('krishimitra_notification_update'));
+                        loadDashboardData();
+                        setShowNotifModal(false);
                       }}
                       style={{
                         background: isUnread ? '#F0FDF4' : '#FFFFFF',
@@ -904,8 +900,9 @@ const FarmerDashboard = () => {
                         <div style={{ marginTop: '0.65rem', display: 'flex', justifyContent: 'flex-end' }}>
                           <Link
                             to={notif.link}
-                            onClick={() => {
-                              markNotificationAsRead(notif.id);
+                            onClick={async () => {
+                              await notificationService.markRead(notif.id).catch(() => {});
+                              window.dispatchEvent(new Event('krishimitra_notification_update'));
                               setShowNotifModal(false);
                             }}
                             style={{

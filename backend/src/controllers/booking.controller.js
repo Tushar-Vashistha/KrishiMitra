@@ -1,6 +1,7 @@
 const prisma = require('../config/db');
 const { generateTokenNumber } = require('../services/queue.service');
 const { logAction } = require('../services/audit.service');
+const { notifySlotEvent } = require('../services/notification.service');
 const { NotFoundError, BadRequestError } = require('../utils/errors');
 const { calculateEstimatedProcessingTime, parseSlotDurationMinutes } = require('../config/procurementRates');
 
@@ -16,11 +17,6 @@ const createBooking = async (req, res, next) => {
         data: { status: 'VERIFIED' },
       });
       req.user.farmerProfile.status = 'VERIFIED';
-    }
-
-    // Blacklist check: if trust score is below 25, prevent booking
-    if (req.user.farmerProfile.trustScore < 25) {
-      throw new BadRequestError('Booking blocked: Your Trust Score is below 25. You are currently blacklisted.');
     }
 
     const cropWeight = parseFloat(weight);
@@ -62,6 +58,41 @@ const createBooking = async (req, res, next) => {
 
     if (!centre.open) {
       throw new BadRequestError('Procurement centre is closed');
+    }
+
+    // Blacklist Policy check (trustScore <= 25)
+    const currentTrustScore = req.user.farmerProfile?.trustScore ?? 100.0;
+    if (currentTrustScore <= 25) {
+      const allSlotTimes = (centre.slotConfigs && centre.slotConfigs.length > 0)
+        ? centre.slotConfigs.map(sc => sc.slotTime)
+        : ['07:00 AM - 10:00 AM', '10:00 AM - 01:00 PM', '02:00 PM - 05:00 PM', '05:00 PM - 08:00 PM'];
+      const lastSlotTime = allSlotTimes[allSlotTimes.length - 1];
+
+      const isLastSlot = slotTime && (
+        slotTime === lastSlotTime || 
+        slotTime.includes(lastSlotTime) || 
+        slotTime.includes('05:00 PM - 08:00 PM') || 
+        allSlotTimes.indexOf(slotTime) === allSlotTimes.length - 1
+      );
+
+      if (!isLastSlot) {
+        throw new BadRequestError(`Booking blocked: Your Trust Score is ${currentTrustScore} (Blacklisted). You are only allowed to book the last slot of the day (${lastSlotTime}).`);
+      }
+
+      const blacklistedCount = await prisma.procurementBooking.count({
+        where: {
+          centreId: targetCentreId,
+          date: { gte: startOfDay, lte: endOfDay },
+          status: { not: 'CANCELLED' },
+          farmerProfile: {
+            trustScore: { lte: 25 },
+          },
+        },
+      });
+
+      if (blacklistedCount >= 2) {
+        throw new BadRequestError('Booking blocked: Maximum quota of 2 blacklisted farmers for the last slot per day has been reached for this centre.');
+      }
     }
 
     // Verify crop exists
@@ -309,6 +340,25 @@ const createBooking = async (req, res, next) => {
       },
     });
 
+    // Trigger Notifications (Category: SLOT)
+    const formattedDate = new Date(bookingResult.booking.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+    await notifySlotEvent({
+      userId: req.user.id,
+      type: 'BOOKING_CONFIRMED',
+      title: 'Slot Booking Confirmed',
+      message: `Your ${bookingResult.crop.name} procurement slot (${bookingResult.booking.weight} Qtl, ${bookingResult.booking.slotTime}) for ${formattedDate} at ${bookingResult.centre.name} has been confirmed.`,
+      relatedBookingId: bookingResult.booking.id,
+      relatedCentreId: bookingResult.centre.id,
+    });
+    await notifySlotEvent({
+      userId: req.user.id,
+      type: 'TOKEN_GENERATED',
+      title: 'Token Generated',
+      message: `Token #${bookingResult.token.tokenNumber} (${bookingResult.token.formattedToken}) generated for your ${bookingResult.crop.name} booking.`,
+      relatedBookingId: bookingResult.booking.id,
+      relatedCentreId: bookingResult.centre.id,
+    });
+
     res.status(201).json({
       success: true,
       message: 'Booking created successfully',
@@ -346,9 +396,30 @@ const createTatkaalBooking = async (req, res, next) => {
       req.user.farmerProfile.status = 'VERIFIED';
     }
 
-    // Blacklist check
-    if (req.user.farmerProfile.trustScore < 25) {
-      throw new BadRequestError('Booking blocked: Your Trust Score is below 25. You are currently blacklisted.');
+    // Blacklist check (trustScore <= 25)
+    const currentTrustScore = req.user.farmerProfile?.trustScore ?? 100.0;
+    if (currentTrustScore <= 25) {
+      const queryDate = new Date(date);
+      const startOfDay = new Date(queryDate);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(queryDate);
+      endOfDay.setHours(23, 59, 59, 999);
+
+      const targetCentreId = parseInt(centreId) || 1;
+      const blacklistedCount = await prisma.procurementBooking.count({
+        where: {
+          centreId: targetCentreId,
+          date: { gte: startOfDay, lte: endOfDay },
+          status: { not: 'CANCELLED' },
+          farmerProfile: {
+            trustScore: { lte: 25 },
+          },
+        },
+      });
+
+      if (blacklistedCount >= 2) {
+        throw new BadRequestError('Booking blocked: Maximum quota of 2 blacklisted farmers for the last slot per day has been reached for this centre.');
+      }
     }
 
     const cropWeight = parseFloat(weight);
@@ -499,6 +570,25 @@ const createTatkaalBooking = async (req, res, next) => {
       },
     });
 
+    // Trigger Notifications (Category: SLOT)
+    const formattedTatkaalDate = new Date(bookingResult.booking.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+    await notifySlotEvent({
+      userId: req.user.id,
+      type: 'BOOKING_CONFIRMED',
+      title: 'Tatkaal Slot Confirmed',
+      message: `Your Tatkaal ${bookingResult.crop.name} procurement slot (${bookingResult.booking.weight} Qtl) for ${formattedTatkaalDate} at ${bookingResult.centre.name} has been confirmed.`,
+      relatedBookingId: bookingResult.booking.id,
+      relatedCentreId: bookingResult.centre.id,
+    });
+    await notifySlotEvent({
+      userId: req.user.id,
+      type: 'TOKEN_GENERATED',
+      title: 'Token Generated',
+      message: `Tatkaal Token #${bookingResult.token.tokenNumber} generated for your ${bookingResult.crop.name} booking.`,
+      relatedBookingId: bookingResult.booking.id,
+      relatedCentreId: bookingResult.centre.id,
+    });
+
     res.status(201).json({
       success: true,
       message: 'Tatkaal booking created successfully',
@@ -627,6 +717,17 @@ const cancelBooking = async (req, res, next) => {
       entity: 'ProcurementBooking',
       entityId: bookingId,
     });
+
+    if (booking.farmerProfile && booking.farmerProfile.userId) {
+      await notifySlotEvent({
+        userId: booking.farmerProfile.userId,
+        type: 'BOOKING_CANCELLED',
+        title: 'Slot Booking Cancelled',
+        message: `Your procurement booking #${bookingId} has been cancelled successfully.`,
+        relatedBookingId: bookingId,
+        relatedCentreId: booking.centreId,
+      });
+    }
 
     res.status(200).json({
       success: true,
