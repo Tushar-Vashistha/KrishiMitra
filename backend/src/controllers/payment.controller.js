@@ -361,8 +361,9 @@ const syncPaymentStatus = async (req, res, next) => {
     }
 
     // Verify staff assignment safely if applicable
-    if (req.user && req.user.role !== 'ADMIN' && req.user.role !== 'FARMER' && req.user.staffProfile?.assignments) {
-      const isAssigned = req.user.staffProfile.assignments.some(
+    if (req.user && req.user.role !== 'ADMIN' && req.user.role !== 'CENTRE_MANAGER' && req.user.role !== 'FARMER') {
+      const assignments = req.user.staffProfile?.assignments || [];
+      const isAssigned = assignments.some(
         (a) => a.centreId === transaction.booking.centreId
       );
       if (!isAssigned) {
