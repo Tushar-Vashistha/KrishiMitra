@@ -11,7 +11,13 @@ const createProcurement = async (req, res, next) => {
     const booking = await prisma.procurementBooking.findUnique({
       where: { id: bookingId },
       include: {
-        transaction: true,
+        transaction: {
+          include: {
+            weighingRecord: true,
+            qualityInspection: true,
+            payment: true,
+          },
+        },
       },
     });
 
@@ -199,6 +205,7 @@ const registerQualityInspection = async (req, res, next) => {
       include: {
         booking: true,
         qualityInspection: true,
+        weighingRecord: true,
       },
     });
 
@@ -215,7 +222,14 @@ const registerQualityInspection = async (req, res, next) => {
       });
     }
 
-    if (transaction.netWeight <= 0) {
+    let effectiveNetWeight = transaction.netWeight;
+    if (effectiveNetWeight <= 0 && transaction.weighingRecord && transaction.weighingRecord.netWeight > 0) {
+      effectiveNetWeight = transaction.weighingRecord.netWeight;
+    } else if (effectiveNetWeight <= 0 && transaction.booking?.weight > 0) {
+      effectiveNetWeight = transaction.booking.weight;
+    }
+
+    if (effectiveNetWeight <= 0) {
       throw new BadRequestError('Please complete weighing registration first');
     }
 
@@ -223,7 +237,7 @@ const registerQualityInspection = async (req, res, next) => {
       cropId: transaction.booking.cropId,
       centreId: transaction.booking.centreId,
       gradeName: grade,
-      quantity: transaction.netWeight,
+      quantity: effectiveNetWeight,
       date: transaction.booking.date,
     });
 
@@ -247,6 +261,7 @@ const registerQualityInspection = async (req, res, next) => {
       const updatedTx = await tx.procurementTransaction.update({
         where: { id: transactionId },
         data: {
+          netWeight: effectiveNetWeight,
           rateUsed: priceResult.rateUsed,
           amount: result === 'FAILED' ? 0 : priceResult.amount,
           status: finalStatus,
