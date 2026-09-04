@@ -101,6 +101,7 @@ const CentreDashboard = () => {
   // Active item for modal actions
   const [activeBooking, setActiveBooking] = useState(null);
   const [toastMessage, setToastMessage] = useState(null);
+  const [isSubmittingBill, setIsSubmittingBill] = useState(false);
 
   // Form for Bill Generation
   const [billForm, setBillForm] = useState({
@@ -326,6 +327,16 @@ const CentreDashboard = () => {
     const net = weight;
     const total = net * cropRate;
 
+    let initialPaymentStatus = "Processing";
+    const rawPay = (booking.paymentStatus || booking.payment || "").toUpperCase();
+    if (rawPay.includes("PAID") || rawPay === "SUCCESS" || rawPay.includes("APPROVED")) {
+      initialPaymentStatus = "Paid";
+    } else if (rawPay.includes("PROCESS")) {
+      initialPaymentStatus = "Processing";
+    } else if (rawPay.includes("DUE") || rawPay === "PENDING") {
+      initialPaymentStatus = "Due";
+    }
+
     setBillForm({
       crop: booking.crop || "Wheat",
       qualityGrade: booking.qualityGrade || "FAQ Grade-I",
@@ -336,7 +347,7 @@ const CentreDashboard = () => {
       mspRate: cropRate,
       deductions: 0,
       totalAmount: total,
-      paymentStatus: booking.paymentStatus || "Processing",
+      paymentStatus: initialPaymentStatus,
       bankName: booking.bankName || "State Bank of India",
       accountNo: booking.accountNo || "XXXX-XXXX-5678",
       ifsc: booking.ifsc || "SBIN0001234",
@@ -345,10 +356,12 @@ const CentreDashboard = () => {
     setShowBillModal(true);
   };
 
-  // Action: Submit Generated Bill
+  // Action: Submit Generated Bill & Sync Payment Status
   const handleSubmitBill = async (e) => {
     if (e) e.preventDefault();
-    if (!activeBooking) return;
+    if (!activeBooking || isSubmittingBill) return;
+    setIsSubmittingBill(true);
+
     try {
       // Step 1: Create/Get procurement transaction
       const pRes = await procurementService.create({ bookingId: activeBooking.id });
@@ -356,33 +369,60 @@ const CentreDashboard = () => {
         throw new Error('Failed to initialize procurement transaction');
       }
       const txId = pRes.data.id;
+      const procurementTx = pRes.data;
 
-      // Step 2: Register weighing
-      const weighRes = await procurementService.registerWeighing(txId, {
-        grossWeight: parseFloat(billForm.grossWeight),
-        tareWeight: parseFloat(billForm.tareWeight),
-      });
-      if (!weighRes.success) {
-        throw new Error('Failed to register weighing record');
+      // Step 2: Register weighing (only if not already created)
+      if (!procurementTx.weighingRecord) {
+        const weighRes = await procurementService.registerWeighing(txId, {
+          grossWeight: parseFloat(billForm.grossWeight),
+          tareWeight: parseFloat(billForm.tareWeight),
+        });
+        if (!weighRes.success) {
+          throw new Error('Failed to register weighing record');
+        }
       }
 
-      // Step 3: Register quality inspection
-      const qualRes = await procurementService.registerQuality(txId, {
-        moisture: parseFloat(billForm.moisture),
-        foreignMatter: parseFloat(billForm.deductions || 0),
-        grade: billForm.qualityGrade,
-        result: 'PASSED',
-      });
-      if (!qualRes.success) {
-        throw new Error('Failed to register quality check');
+      // Step 3: Register quality inspection (only if not already created)
+      if (!procurementTx.qualityInspection) {
+        const qualRes = await procurementService.registerQuality(txId, {
+          moisture: parseFloat(billForm.moisture),
+          foreignMatter: parseFloat(billForm.deductions || 0),
+          grade: billForm.qualityGrade,
+          result: 'PASSED',
+        });
+        if (!qualRes.success) {
+          throw new Error('Failed to register quality check');
+        }
       }
 
-      showToast(isHindi ? `विधेयक और जे-फॉर्म सफलतापूर्वक उत्पन्न!` : `J-Form generated successfully!`);
+      // Step 4: Sync & Update Payment Status
+      const payRes = await paymentService.syncStatus({
+        bookingId: activeBooking.id,
+        transactionId: txId,
+        paymentStatus: billForm.paymentStatus,
+      });
+
+      if (!payRes.success) {
+        throw new Error('Failed to synchronize payment status');
+      }
+
+      const statusLabel = billForm.paymentStatus === 'Paid'
+        ? (isHindi ? '✓ खाते में अंतरित (सफल)' : '✓ Paid / Transferred')
+        : billForm.paymentStatus === 'Processing'
+        ? (isHindi ? '🔄 प्रक्रियाधीन' : '🔄 Processing (DBT)')
+        : (isHindi ? '⏳ भुगतान देय' : '⏳ Payment Due');
+
+      showToast(isHindi 
+        ? `खरीद बिल एवं भुगतान स्थिति (${statusLabel}) सफलतापूर्वक अपडेट!` 
+        : `Bill & Payment Status (${statusLabel}) updated successfully!`);
+
       setShowBillModal(false);
-      fetchDashboardData();
+      await fetchDashboardData();
     } catch (err) {
-      console.error(err);
+      console.error('Submit Bill Error:', err);
       alert(err.message || 'Failed to process J-Form and bill.');
+    } finally {
+      setIsSubmittingBill(false);
     }
   };
 
@@ -2398,16 +2438,28 @@ const CentreDashboard = () => {
                 </button>
                 <button
                   type="submit"
+                  disabled={isSubmittingBill}
                   className="btn-primary"
                   style={{
                     flex: 2,
                     justifyContent: "center",
                     background: "linear-gradient(135deg, #065F46 0%, #047857 50%, #059669 100%)",
-                    boxShadow: "0 4px 14px rgba(4, 120, 87, 0.3)"
+                    boxShadow: "0 4px 14px rgba(4, 120, 87, 0.3)",
+                    opacity: isSubmittingBill ? 0.7 : 1,
+                    cursor: isSubmittingBill ? "not-allowed" : "pointer",
                   }}
                 >
-                  <CheckCircle size={18} />
-                  {isHindi ? "खरीद बिल जमा करें" : "Submit Bill & Sync Receipt"}
+                  {isSubmittingBill ? (
+                    <>
+                      <RefreshCw className="animate-spin" size={18} />
+                      {isHindi ? "प्रक्रिया जारी है..." : "Processing..."}
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle size={18} />
+                      {isHindi ? "खरीद बिल जमा करें" : "Submit Bill & Sync Receipt"}
+                    </>
+                  )}
                 </button>
               </div>
 

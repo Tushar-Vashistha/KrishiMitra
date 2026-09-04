@@ -133,7 +133,11 @@ const registerWeighing = async (req, res, next) => {
     }
 
     if (transaction.weighingRecord) {
-      throw new BadRequestError('Weighing record already exists and cannot be overwritten');
+      return res.status(200).json({
+        success: true,
+        message: 'Weighing record already exists',
+        data: { record: transaction.weighingRecord, transaction },
+      });
     }
 
     const result = await prisma.$transaction(async (tx) => {
@@ -200,6 +204,15 @@ const registerQualityInspection = async (req, res, next) => {
 
     if (!transaction) {
       throw new NotFoundError('Procurement transaction not found');
+    }
+
+    if (transaction.qualityInspection) {
+      const existingPayment = await prisma.payment.findUnique({ where: { transactionId } });
+      return res.status(200).json({
+        success: true,
+        message: 'Quality inspection record already exists',
+        data: { inspection: transaction.qualityInspection, transaction, payment: existingPayment },
+      });
     }
 
     if (transaction.netWeight <= 0) {

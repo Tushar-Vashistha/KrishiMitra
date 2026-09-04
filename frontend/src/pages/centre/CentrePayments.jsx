@@ -36,7 +36,8 @@ const CentrePayments = () => {
         const mappedBills = res.data.map(p => {
           let statusText = 'Due';
           if (p.payment?.status === 'SUCCESS') statusText = 'Approved';
-          else if (p.payment?.status === 'PENDING') statusText = 'Processing';
+          else if (p.payment?.status === 'PROCESSING') statusText = 'Processing';
+          else if (p.payment?.status === 'PENDING') statusText = 'Due';
 
           return {
             id: `WS-${p.id}`,
@@ -76,9 +77,9 @@ const CentrePayments = () => {
       alert("No active payment record found for this transaction yet.");
       return;
     }
-    const backendStatus = newStatus === 'Approved' ? 'SUCCESS' : 'PENDING';
+    const backendStatus = newStatus === 'Approved' ? 'SUCCESS' : newStatus === 'Processing' ? 'PROCESSING' : 'PENDING';
     try {
-      const res = await paymentService.updateStatus(paymentId, { status: backendStatus });
+      const res = await paymentService.syncStatus({ paymentId, paymentStatus: backendStatus });
       if (res.success) {
         showToast(isHindi ? `लेनदेन की स्थिति बदलकर '${newStatus}' की गई!` : `Payment status updated to '${newStatus}'!`);
         fetchPaymentsData();

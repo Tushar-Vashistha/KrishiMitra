@@ -294,9 +294,173 @@ const updatePaymentStatus = async (req, res, next) => {
   }
 };
 
+const syncPaymentStatus = async (req, res, next) => {
+  try {
+    const { bookingId, transactionId, paymentId, status, paymentStatus, referenceId } = req.body;
+
+    const rawStatus = (paymentStatus || status || '').toString().trim();
+    let targetStatus = 'PENDING';
+    if (rawStatus.toUpperCase().includes('PAID') || rawStatus.toUpperCase() === 'SUCCESS' || rawStatus.toUpperCase().includes('TRANSFERRED') || rawStatus.toUpperCase().includes('APPROVED')) {
+      targetStatus = 'SUCCESS';
+    } else if (rawStatus.toUpperCase().includes('PROCESS') || rawStatus.toUpperCase() === 'PROCESSING') {
+      targetStatus = 'PROCESSING';
+    } else if (rawStatus.toUpperCase().includes('DUE') || rawStatus.toUpperCase() === 'PENDING') {
+      targetStatus = 'PENDING';
+    } else if (['FAILED', 'CANCELLED'].includes(rawStatus.toUpperCase())) {
+      targetStatus = rawStatus.toUpperCase();
+    }
+
+    // 1. Locate ProcurementTransaction & Booking
+    let transaction = null;
+    if (transactionId) {
+      transaction = await prisma.procurementTransaction.findUnique({
+        where: { id: parseInt(transactionId) },
+        include: { booking: { include: { farmerProfile: true, crop: true, centre: true } }, payment: true, weighingRecord: true },
+      });
+    } else if (bookingId) {
+      transaction = await prisma.procurementTransaction.findUnique({
+        where: { bookingId: String(bookingId) },
+        include: { booking: { include: { farmerProfile: true, crop: true, centre: true } }, payment: true, weighingRecord: true },
+      });
+    } else if (paymentId) {
+      const existingPay = await prisma.payment.findUnique({
+        where: { id: parseInt(paymentId) },
+        include: { transaction: { include: { booking: { include: { farmerProfile: true, crop: true, centre: true } }, payment: true, weighingRecord: true } } },
+      });
+      if (existingPay) {
+        transaction = existingPay.transaction;
+      }
+    }
+
+    if (!transaction) {
+      if (bookingId) {
+        const booking = await prisma.procurementBooking.findUnique({
+          where: { id: String(bookingId) },
+          include: { crop: true, centre: true, farmerProfile: true }
+        });
+        if (!booking) {
+          throw new NotFoundError('Booking not found');
+        }
+        const defaultRate = 2275;
+        const defaultWeight = booking.weight || 25;
+        const defaultAmount = defaultWeight * defaultRate;
+        
+        transaction = await prisma.procurementTransaction.create({
+          data: {
+            bookingId: booking.id,
+            netWeight: defaultWeight,
+            rateUsed: defaultRate,
+            amount: defaultAmount,
+            status: 'COMPLETED',
+          },
+          include: { booking: { include: { farmerProfile: true, crop: true, centre: true } }, payment: true, weighingRecord: true },
+        });
+      } else {
+        throw new NotFoundError('Procurement transaction not found');
+      }
+    }
+
+    // Verify staff assignment safely if applicable
+    if (req.user && req.user.role !== 'ADMIN' && req.user.role !== 'FARMER' && req.user.staffProfile?.assignments) {
+      const isAssigned = req.user.staffProfile.assignments.some(
+        (a) => a.centreId === transaction.booking.centreId
+      );
+      if (!isAssigned) {
+        throw new ForbiddenError('You are not authorized to update payments for this centre');
+      }
+    }
+
+    // 2. Find or Create Payment record
+    let payment = transaction.payment;
+    if (!payment) {
+      const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '');
+      const randomTxCode = Math.floor(100000 + Math.random() * 900000);
+      const transactionNumber = `TXN-${dateStr}-${randomTxCode}`;
+
+      payment = await prisma.payment.create({
+        data: {
+          transactionId: transaction.id,
+          transactionNumber,
+          amount: transaction.amount > 0 ? transaction.amount : (transaction.booking.weight * 2275),
+          status: targetStatus,
+          processedAt: targetStatus === 'SUCCESS' ? new Date() : null,
+          referenceId: targetStatus === 'SUCCESS' ? (referenceId || `TXN-BANK-${Math.floor(1000000000 + Math.random() * 9000000000)}`) : null,
+        },
+      });
+    } else {
+      const updateData = {
+        status: targetStatus,
+        updatedAt: new Date(),
+      };
+      if (targetStatus === 'SUCCESS') {
+        updateData.processedAt = new Date();
+        if (!payment.referenceId || referenceId) {
+          updateData.referenceId = referenceId || payment.referenceId || `TXN-BANK-${Math.floor(1000000000 + Math.random() * 9000000000)}`;
+        }
+      }
+      payment = await prisma.payment.update({
+        where: { id: payment.id },
+        data: updateData,
+      });
+    }
+
+    // 3. Update ProcurementTransaction & ProcurementBooking & QueueToken status
+    const finalBookingStatus = targetStatus === 'SUCCESS' ? 'COMPLETED' : transaction.booking.status;
+    await prisma.procurementTransaction.update({
+      where: { id: transaction.id },
+      data: { status: 'COMPLETED' },
+    });
+
+    await prisma.procurementBooking.update({
+      where: { id: transaction.bookingId },
+      data: { status: finalBookingStatus },
+    });
+
+    await prisma.queueToken.updateMany({
+      where: { bookingId: transaction.bookingId },
+      data: { status: 'COMPLETED', completedAt: new Date() },
+    });
+
+    // 4. Notify Farmer
+    if (transaction.booking?.farmerProfile?.userId) {
+      const formattedAmount = Number(payment.amount).toLocaleString('en-IN');
+      const bId = transaction.bookingId;
+      await notifyPaymentEvent({
+        userId: transaction.booking.farmerProfile.userId,
+        type: targetStatus === 'SUCCESS' ? 'PAYMENT_SUCCESS' : targetStatus === 'PROCESSING' ? 'PAYMENT_PROCESSING' : 'PAYMENT_UPDATED',
+        title: targetStatus === 'SUCCESS' ? 'Payment Credited Successfully' : targetStatus === 'PROCESSING' ? 'Payment Processing' : 'Payment Status Updated',
+        message: `Payment of ₹${formattedAmount} for Booking #${bId} status updated to ${targetStatus === 'SUCCESS' ? 'Paid / Transferred (SUCCESS)' : targetStatus}.`,
+        relatedPaymentId: payment.id,
+        relatedBookingId: bId,
+      });
+    }
+
+    await logAction({
+      userId: req.user ? req.user.id : null,
+      action: `SYNC_PAYMENT_STATUS_${targetStatus}`,
+      entity: 'Payment',
+      entityId: payment.id,
+      metadata: { targetStatus, bookingId: transaction.bookingId },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: `Payment status synchronized to '${targetStatus}' successfully`,
+      data: {
+        payment,
+        transaction,
+        status: targetStatus,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getMyPayments,
   getPaymentById,
   triggerPayment,
   updatePaymentStatus,
+  syncPaymentStatus,
 };

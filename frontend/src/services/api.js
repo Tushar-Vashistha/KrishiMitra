@@ -37,7 +37,7 @@ async function request(endpoint, options = {}) {
   }
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 10000);
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
 
   const config = {
     ...options,
@@ -193,6 +193,7 @@ export const paymentService = {
   getById: (id) => api.get(`/payments/${id}`),
   trigger: (data) => api.post('/payments', data),
   updateStatus: (id, data) => api.patch(`/payments/${id}/status`, data),
+  syncStatus: (data) => api.post('/payments/sync', data),
 };
 
 export const notificationService = {
