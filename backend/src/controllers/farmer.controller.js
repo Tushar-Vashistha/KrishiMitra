@@ -127,6 +127,7 @@ const getMeStatistics = async (req, res, next) => {
         pendingBookings,
         totalWeightProcured,
         totalEarnings,
+        trustScore: parseFloat(farmer.trustScore ?? 100.0),
       },
     });
   } catch (error) {
@@ -371,6 +372,9 @@ const verifyFarmer = async (req, res, next) => {
       });
 
       return updatedFarmer;
+    }, {
+      maxWait: 20000,
+      timeout: 60000,
     });
 
     await logAction({

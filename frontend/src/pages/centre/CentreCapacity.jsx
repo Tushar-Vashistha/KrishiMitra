@@ -27,11 +27,12 @@ const CentreCapacity = () => {
   const [slots, setSlots] = useState(mockCentreCapacityData.slotTimings);
   const [showSavedToast, setShowSavedToast] = useState(false);
 
+  const targetCentreId = user?.centreId || user?.centreCode || user?.staffProfile?.assignments?.[0]?.centreId || 6;
+
   useEffect(() => {
     const fetchStatus = async () => {
-      if (!user || !user.centreId) return;
       try {
-        const res = await centreService.getById(user.centreId);
+        const res = await centreService.getById(targetCentreId);
         if (res.success && res.data) {
           setIsOpenToday(res.data.open);
           if (res.data.capacity) {
@@ -43,7 +44,7 @@ const CentreCapacity = () => {
       }
     };
     fetchStatus();
-  }, [user]);
+  }, [user, targetCentreId]);
 
   // Toggle slot enabled state
   const toggleSlot = (id) => {
@@ -72,9 +73,8 @@ const CentreCapacity = () => {
   // Save changes handler
   const handleSave = async (e) => {
     e.preventDefault();
-    if (!user || !user.centreId) return;
     try {
-      await centreService.updateCentreStatus(user.centreId, isOpenToday);
+      await centreService.updateCentreStatus(targetCentreId, isOpenToday);
       setShowSavedToast(true);
       setTimeout(() => setShowSavedToast(false), 3500);
     } catch (err) {

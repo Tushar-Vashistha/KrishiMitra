@@ -1,4 +1,5 @@
 const request = require('supertest');
+jest.mock('../src/config/db', () => ({}));
 const app = require('../src/app');
 
 describe('Chatbot API Endpoint (/api/v1/chatbot)', () => {

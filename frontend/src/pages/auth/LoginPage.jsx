@@ -107,11 +107,29 @@ const LoginPage = () => {
   };
 
   const handleOtpChange = (i, val) => {
-    if (!/^\d?$/.test(val)) return;
+    const cleanDigits = val.replace(/\D/g, '');
+    if (!cleanDigits) {
+      const newOtp = [...otp];
+      newOtp[i] = '';
+      setOtp(newOtp);
+      return;
+    }
+
+    if (cleanDigits.length > 1) {
+      const digits = cleanDigits.slice(0, 6).split('');
+      while (digits.length < 6) digits.push('');
+      setOtp(digits);
+      setError('');
+      const lastIndex = Math.min(5, cleanDigits.length - 1);
+      document.getElementById(`otp-${lastIndex}`)?.focus();
+      return;
+    }
+
     const newOtp = [...otp];
-    newOtp[i] = val;
+    newOtp[i] = cleanDigits;
     setOtp(newOtp);
-    if (val && i < 5) {
+    setError('');
+    if (cleanDigits && i < 5) {
       document.getElementById(`otp-${i + 1}`)?.focus();
     }
   };
@@ -273,7 +291,7 @@ const LoginPage = () => {
         )}
 
         {step === 1 && (
-          <>
+          <form onSubmit={(e) => { e.preventDefault(); handleSendOTP(); }}>
             {/* Role Selector: Farmer vs Centre */}
             <div style={{ marginBottom: '1.25rem' }}>
               <label style={{ color: '#334155', fontSize: '0.82rem', fontWeight: 800, textTransform: 'uppercase', display: 'block', marginBottom: '0.4rem', letterSpacing: '0.04em' }}>
@@ -366,8 +384,7 @@ const LoginPage = () => {
 
             {/* Send OTP Button */}
             <button
-              type="button"
-              onClick={handleSendOTP}
+              type="submit"
               className="btn-primary"
               style={{ width: '100%', padding: '0.85rem', fontSize: '0.95rem', borderRadius: '14px' }}
               disabled={loading}
@@ -449,12 +466,12 @@ const LoginPage = () => {
                 {t('registerHere')}
               </Link>
             </div>
-          </>
+          </form>
         )}
 
         {/* STEP 2: OTP VERIFICATION */}
         {step === 2 && (
-          <>
+          <form onSubmit={(e) => { e.preventDefault(); handleVerify(); }}>
             <button
               type="button"
               onClick={() => { setStep(1); setOtp(['', '', '', '', '', '']); setError(''); }}
@@ -539,8 +556,7 @@ const LoginPage = () => {
 
             {/* Verify Button */}
             <button
-              type="button"
-              onClick={handleVerify}
+              type="submit"
               className="btn-primary"
               style={{ width: '100%', padding: '0.85rem', fontSize: '1rem', borderRadius: '14px' }}
               disabled={loading}
@@ -573,7 +589,7 @@ const LoginPage = () => {
                 </button>
               )}
             </div>
-          </>
+          </form>
         )}
 
       </div>

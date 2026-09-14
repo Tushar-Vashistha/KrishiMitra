@@ -59,6 +59,9 @@ const createProcurement = async (req, res, next) => {
           status: 'ARRIVED',
         },
       });
+    }, {
+      maxWait: 20000,
+      timeout: 60000,
     });
 
     await logAction({
@@ -175,6 +178,9 @@ const registerWeighing = async (req, res, next) => {
       });
 
       return { record, transaction: updatedTx };
+    }, {
+      maxWait: 20000,
+      timeout: 60000,
     });
 
     await logAction({
@@ -298,6 +304,9 @@ const registerQualityInspection = async (req, res, next) => {
       }
 
       return { inspection, transaction: updatedTx, payment };
+    }, {
+      maxWait: 20000,
+      timeout: 60000,
     });
 
     if (result !== 'FAILED') {

@@ -1,8 +1,13 @@
-const defaultApiUrl = typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1'
-  ? 'https://krishimitra-backend-rbzu.onrender.com/api/v1'
-  : 'http://localhost:8080/api/v1';
+const isLocalhost = typeof window !== 'undefined' && 
+  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
-const rawBaseUrl = import.meta.env.VITE_API_BASE_URL || defaultApiUrl;
+const configuredUrl = import.meta.env.VITE_API_BASE_URL;
+
+// If running locally, default to local backend unless explicitly pointing to a custom local host
+const rawBaseUrl = (isLocalhost && (!configuredUrl || configuredUrl.includes('onrender.com')))
+  ? 'http://localhost:8080/api/v1'
+  : (configuredUrl || (isLocalhost ? 'http://localhost:8080/api/v1' : 'https://krishimitra-backend-rbzu.onrender.com/api/v1'));
+
 const API_BASE_URL = rawBaseUrl.replace(/\/+$/, '');
 
 const clientCache = new Map();

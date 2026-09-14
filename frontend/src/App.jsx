@@ -69,14 +69,18 @@ const GuestRoute = ({ children }) => {
 const FarmerRoute = ({ children }) => {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
-  if (user.role !== 'farmer') return <Navigate to="/centre/dashboard" replace />;
+  const isFarmer = user.role?.toLowerCase() === 'farmer' || user.backendRole === 'FARMER';
+  if (!isFarmer) return <Navigate to="/centre/dashboard" replace />;
   return children;
 };
 
 const CentreRoute = ({ children }) => {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
-  if (user.role !== 'centre') return <Navigate to="/farmer/dashboard" replace />;
+  const isCentre = user.role?.toLowerCase() === 'centre' || 
+                   user.role?.toLowerCase() === 'center' || 
+                   ['CENTRE_MANAGER', 'CENTRE_STAFF', 'ADMIN'].includes(user.backendRole);
+  if (!isCentre) return <Navigate to="/farmer/dashboard" replace />;
   return children;
 };
 

@@ -201,6 +201,9 @@ const updateTokenStatus = (statusAction) => async (req, res, next) => {
       });
 
       return updatedToken;
+    }, {
+      maxWait: 20000,
+      timeout: 60000,
     });
 
     // Award / deduct trust score points & recalculate stats

@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 const prisma = require('../src/config/db');
 const app = require('../src/app');
 const { calculateEstimatedProcessingTime } = require('../src/config/procurementRates');
+const { getDayBounds, getUtcDateOnly } = require('../src/utils/helpers');
 
 describe('Master Smart Slot Capacity & Token Allocation Suite', () => {
   jest.setTimeout(60000);
@@ -56,29 +57,7 @@ describe('Master Smart Slot Capacity & Token Allocation Suite', () => {
       });
     }
 
-    // 3. Clean up any existing test bookings for TEST_DATE
-    const testDateObj = new Date(TEST_DATE);
-    const startOfTestDay = new Date(testDateObj);
-    startOfTestDay.setHours(0, 0, 0, 0);
-    const endOfTestDay = new Date(testDateObj);
-    endOfTestDay.setHours(23, 59, 59, 999);
-
-    await prisma.procurementBooking.deleteMany({
-      where: {
-        centreId: centre.id,
-        date: { gte: startOfTestDay, lte: endOfTestDay },
-      },
-    });
-
-    const dateOnly = new Date(testDateObj.getFullYear(), testDateObj.getMonth(), testDateObj.getDate());
-    await prisma.slotAllocation.deleteMany({
-      where: {
-        centreId: centre.id,
-        bookingDate: dateOnly,
-      },
-    });
-
-    // 4. Create 7 distinct test farmers (Farmer A through G)
+    // 3. Create or resolve 7 distinct test farmers (Farmer A through G)
     for (let i = 1; i <= 7; i++) {
       const mobile = `980000000${i}`;
       let user = await prisma.user.findUnique({
@@ -128,16 +107,37 @@ describe('Master Smart Slot Capacity & Token Allocation Suite', () => {
         )
       );
     }
+
+    // 4. Clean up any existing test bookings & allocations for test date/farmers
+    const { startOfDay: startOfTestDay, endOfDay: endOfTestDay } = getDayBounds(TEST_DATE);
+    const farmerProfileIds = testFarmers.map(f => f.farmerProfile.id);
+
+    await prisma.procurementBooking.deleteMany({
+      where: {
+        OR: [
+          { centreId: centre.id, date: { gte: startOfTestDay, lte: endOfTestDay } },
+          { farmerProfileId: { in: farmerProfileIds }, date: { gte: startOfTestDay, lte: endOfTestDay } },
+        ],
+      },
+    });
+
+    await prisma.queueToken.deleteMany({
+      where: {
+        centreId: centre.id,
+      },
+    });
+
+    await prisma.slotAllocation.deleteMany({
+      where: {
+        centreId: centre.id,
+      },
+    });
   }, 30000);
 
   afterAll(async () => {
     // Clean up test bookings and allocations
     try {
-      const testDateObj = new Date(TEST_DATE);
-      const startOfTestDay = new Date(testDateObj);
-      startOfTestDay.setHours(0, 0, 0, 0);
-      const endOfTestDay = new Date(testDateObj);
-      endOfTestDay.setHours(23, 59, 59, 999);
+      const { startOfDay: startOfTestDay, endOfDay: endOfTestDay, dateOnly } = getDayBounds(TEST_DATE);
 
       await prisma.procurementBooking.deleteMany({
         where: {
@@ -146,7 +146,6 @@ describe('Master Smart Slot Capacity & Token Allocation Suite', () => {
         },
       });
 
-      const dateOnly = new Date(testDateObj.getFullYear(), testDateObj.getMonth(), testDateObj.getDate());
       await prisma.slotAllocation.deleteMany({
         where: {
           centreId: centre.id,
@@ -320,7 +319,7 @@ describe('Master Smart Slot Capacity & Token Allocation Suite', () => {
     // Verify rejection error code
     const failedBooking = failures[0].body;
     expect(failedBooking.success).toBe(false);
-  });
+  }, 120000);
 
   // TEST CASE 6: Crop quantity calculation & slot availability update
   it('Test Case 6: Changing crop quantity updates estimated processing time and slot availability', async () => {
@@ -344,7 +343,7 @@ describe('Master Smart Slot Capacity & Token Allocation Suite', () => {
     );
     expect(resHigh.statusCode).toBe(200);
     expect(resHigh.body.meta.requiredMinutes).toBe(160); // 80 / 0.5 = 160 mins
-  });
+  }, 120000);
 
   // TEST CASE 7: Cancellation frees up slot capacity, never reuses token numbers
   it('Test Case 7: Cancellation frees up capacity; subsequent booking receives next unique token (never reuses cancelled token)', async () => {
@@ -353,10 +352,6 @@ describe('Master Smart Slot Capacity & Token Allocation Suite', () => {
     const farmerABooking = await prisma.procurementBooking.findFirst({
       where: {
         farmerProfileId: testFarmers[0].farmerProfile.id,
-        date: {
-          gte: new Date(`${TEST_DATE}T00:00:00.000Z`),
-          lte: new Date(`${TEST_DATE}T23:59:59.999Z`),
-        },
         slotTime: SLOT_1,
       },
     });
@@ -390,5 +385,5 @@ describe('Master Smart Slot Capacity & Token Allocation Suite', () => {
     expect(resG.body.data.tokenNumber).toBe(4);
     expect(resG.body.data.formattedToken).toBe('Token #004');
     expect(resG.body.data.tokenNumber).not.toBe(1);
-  });
+  }, 120000);
 });

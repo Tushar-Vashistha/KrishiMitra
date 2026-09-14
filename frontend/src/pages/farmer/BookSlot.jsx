@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { useAuth } from '../../hooks/useAuth';
 import { cropService, centreService, bookingService } from '../../services/api';
 import { Calendar, Clock, MapPin, Wheat, CheckCircle2, ChevronRight, AlertCircle, Info, Sparkles, Check, ArrowRight } from 'lucide-react';
 
@@ -72,6 +73,7 @@ const BookSlot = () => {
   const { t, i18n } = useTranslation();
   const isHindi = i18n.language === 'hi';
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   const getTomorrowDate = () => {
     const d = new Date();
@@ -307,10 +309,10 @@ const BookSlot = () => {
         token: tokenNumber,
         formattedToken: formattedToken,
         queueTokenId: tokenInfo.id || null,
-        farmer: "Ramesh Kumar",
-        farmerName: "Ramesh Kumar",
-        mobile: "9876543210",
-        farmerMobile: "9876543210",
+        farmer: user?.name || "Farmer User",
+        farmerName: user?.name || "Farmer User",
+        mobile: user?.mobile || "9876543210",
+        farmerMobile: user?.mobile || "9876543210",
         crop: activeCropObj?.name || selectedCropName || "Wheat",
         cropName: activeCropObj?.name || selectedCropName || "Wheat",
         cropHi: activeCropObj?.nameHi || "गेहूं",
@@ -324,7 +326,7 @@ const BookSlot = () => {
         centreName: activeCentreObj?.name || "Procurement Centre",
         estimatedProcessingTime: procTime,
         isTatkaal: false,
-        aadhaar: "XXXX-XXXX-1234",
+        aadhaar: user?.aadhaar || "XXXX-XXXX-1234",
         paymentStatus: "Due",
       };
 

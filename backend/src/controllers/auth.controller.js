@@ -187,6 +187,9 @@ const registerFarmer = async (req, res, next) => {
       }
 
       return { user, profile };
+    }, {
+      maxWait: 20000,
+      timeout: 60000,
     });
 
     const accessToken = generateAccessToken(result.user);
@@ -357,6 +360,9 @@ const registerCentre = async (req, res, next) => {
       }
 
       return { user, profile, centre };
+    }, {
+      maxWait: 20000,
+      timeout: 60000,
     });
 
     const accessToken = generateAccessToken(result.user);
@@ -487,6 +493,9 @@ const login = async (req, res, next) => {
           });
           return { ...newUser, staffProfile: profile };
         }
+      }, {
+        maxWait: 20000,
+        timeout: 60000,
       });
       user = result;
     }

@@ -284,7 +284,7 @@ const FarmerRegister = () => {
 
         {/* STEP 1: Farmer ID & Mobile Number */}
         {step === 1 && (
-          <div>
+          <form onSubmit={(e) => { e.preventDefault(); handleSendOTP(); }}>
             {/* Field 1: Farmer ID */}
             <div style={{ marginBottom: '1.25rem' }}>
               <label style={{
@@ -389,8 +389,7 @@ const FarmerRegister = () => {
 
             {/* Action 1: Send OTP */}
             <button
-              type="button"
-              onClick={handleSendOTP}
+              type="submit"
               className="btn-primary"
               style={{
                 width: '100%', padding: '0.85rem', fontSize: '0.95rem',
@@ -410,12 +409,12 @@ const FarmerRegister = () => {
                 </span>
               )}
             </button>
-          </div>
+          </form>
         )}
 
         {/* STEP 2: OTP Verification & Auto-registration */}
         {step === 2 && (
-          <div>
+          <form onSubmit={(e) => { e.preventDefault(); handleVerifyAndRegister(); }}>
             {/* Back button to edit Farmer ID or Mobile */}
             <button
               type="button"
@@ -495,6 +494,13 @@ const FarmerRegister = () => {
                   setOtp(e.target.value.replace(/\D/g, '').slice(0, 6));
                   setErrorMsg('');
                 }}
+                onPaste={e => {
+                  const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+                  if (pasted) {
+                    setOtp(pasted);
+                    setErrorMsg('');
+                  }
+                }}
                 placeholder="123456"
                 className="input-field"
                 style={{
@@ -512,8 +518,7 @@ const FarmerRegister = () => {
 
             {/* Action 2: Verify OTP & Register */}
             <button
-              type="button"
-              onClick={handleVerifyAndRegister}
+              type="submit"
               className="btn-primary"
               style={{
                 width: '100%', padding: '0.85rem', fontSize: '0.95rem',
@@ -554,7 +559,7 @@ const FarmerRegister = () => {
                 </button>
               )}
             </div>
-          </div>
+          </form>
         )}
 
         {/* Existing account link */}

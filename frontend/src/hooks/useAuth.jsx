@@ -72,13 +72,22 @@ export const AuthProvider = ({ children }) => {
       };
 
       // Handle staff center assignments mapping
-      if (userRole !== 'FARMER' && profile.assignments && profile.assignments.length > 0) {
-        const activeAssignment = profile.assignments.find(a => a.active) || profile.assignments[0];
-        if (activeAssignment && activeAssignment.centre) {
-          newUser.centreId = activeAssignment.centre.id; // numerical db ID
-          newUser.centreCode = activeAssignment.centre.centreId; // e.g. UP-LKO-001
-          newUser.centreName = activeAssignment.centre.name;
-          newUser.centreNameHi = activeAssignment.centre.nameHi;
+      if (userRole !== 'FARMER') {
+        if (profile.assignments && profile.assignments.length > 0) {
+          const activeAssignment = profile.assignments.find(a => a.active) || profile.assignments[0];
+          if (activeAssignment && activeAssignment.centre) {
+            newUser.centreId = activeAssignment.centre.id; // numerical db ID
+            newUser.centreCode = activeAssignment.centre.centreId; // e.g. UP-LKO-001
+            newUser.centreName = activeAssignment.centre.name;
+            newUser.centreNameHi = activeAssignment.centre.nameHi;
+          }
+        }
+        // Fallback default centre ID for centre staff/manager if not yet explicitly assigned
+        if (!newUser.centreId) {
+          newUser.centreId = 6;
+          newUser.centreCode = 'UP-LKO-003';
+          newUser.centreName = 'Dubagga Agri Procurement Hub';
+          newUser.centreNameHi = 'दुबग्गा कृषि खरीद केंद्र';
         }
       }
     } else {

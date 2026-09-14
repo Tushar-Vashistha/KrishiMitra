@@ -4,6 +4,7 @@ const { logAction } = require('../services/audit.service');
 const { notifySlotEvent } = require('../services/notification.service');
 const { NotFoundError, BadRequestError } = require('../utils/errors');
 const { calculateEstimatedProcessingTime, parseSlotDurationMinutes } = require('../config/procurementRates');
+const { getDayBounds, getUtcDateOnly } = require('../utils/helpers');
 
 const createBooking = async (req, res, next) => {
   try {
@@ -24,12 +25,8 @@ const createBooking = async (req, res, next) => {
       throw new BadRequestError('Crop quantity must be greater than zero');
     }
 
-    const queryDate = new Date(date);
-    const startOfDay = new Date(queryDate);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(queryDate);
-    endOfDay.setHours(23, 59, 59, 999);
-    const dateOnly = new Date(queryDate.getFullYear(), queryDate.getMonth(), queryDate.getDate());
+    const { startOfDay, endOfDay, dateOnly } = getDayBounds(date);
+    const queryDate = dateOnly;
 
     // Verify centre exists and is open (outside transaction for low latency)
     let parsedId = parseInt(centreId);
@@ -126,38 +123,42 @@ const createBooking = async (req, res, next) => {
     }
 
     const bookingResult = await prisma.$transaction(async (tx) => {
-      // 6. Concurrency control: acquire row lock on SlotAllocation in Postgres
-      const allocation = await tx.slotAllocation.upsert({
+      // 6. Concurrency control: safely ensure SlotAllocation exists
+      let allocation = await tx.slotAllocation.findFirst({
         where: {
-          centreId_bookingDate_slotTime: {
+          centreId: targetCentreId,
+          bookingDate: { gte: startOfDay, lte: endOfDay },
+          slotTime,
+        },
+      });
+
+      if (!allocation) {
+        allocation = await tx.slotAllocation.create({
+          data: {
             centreId: targetCentreId,
             bookingDate: dateOnly,
             slotTime,
+            totalDuration: totalSlotDuration,
+            bookedMinutes: 0,
+            lastTokenNumber: 0,
           },
-        },
-        create: {
-          centreId: targetCentreId,
-          bookingDate: dateOnly,
-          slotTime,
-          totalDuration: totalSlotDuration,
-          bookedMinutes: 0,
-          lastTokenNumber: 0,
-        },
-        update: {},
-      });
+        });
+      }
 
       let lockedAllocation = null;
-      try {
-        const rawLocked = await tx.$queryRaw`
-          SELECT * FROM "SlotAllocation"
-          WHERE "id" = ${allocation.id}
-          FOR UPDATE;
-        `;
-        if (Array.isArray(rawLocked) && rawLocked.length > 0) {
-          lockedAllocation = rawLocked[0];
+      if (allocation && allocation.id) {
+        try {
+          const rawLocked = await tx.$queryRaw`
+            SELECT * FROM "SlotAllocation"
+            WHERE "id" = ${allocation.id}
+            FOR UPDATE;
+          `;
+          if (Array.isArray(rawLocked) && rawLocked.length > 0) {
+            lockedAllocation = rawLocked[0];
+          }
+        } catch (lockErr) {
+          lockedAllocation = allocation;
         }
-      } catch (lockErr) {
-        lockedAllocation = allocation;
       }
 
       // 7. Check actual booked minutes from active bookings in this slot
@@ -254,8 +255,21 @@ const createBooking = async (req, res, next) => {
       }
 
       // 9. Generate strictly unique sequential token number
+      const maxBookingTokenObj = await tx.procurementBooking.findFirst({
+        where: {
+          centreId: targetCentreId,
+          date: { gte: startOfDay, lte: endOfDay },
+          slotTime,
+        },
+        orderBy: { tokenNumber: 'desc' },
+        select: { tokenNumber: true },
+      });
+
+      const dbLastToken = lockedAllocation?.lastTokenNumber ?? lockedAllocation?.lasttokennumber ?? allocation?.lastTokenNumber ?? 0;
+      const maxBookingToken = maxBookingTokenObj?.tokenNumber || 0;
       const prevMaxToken = Math.max(
-        lockedAllocation?.lastTokenNumber || allocation.lastTokenNumber || 0,
+        dbLastToken,
+        maxBookingToken,
         ...activeSlotBookings.map((b) => b.tokenNumber || 0)
       );
       const nextTokenNumber = prevMaxToken + 1;
@@ -341,12 +355,16 @@ const createBooking = async (req, res, next) => {
     });
 
     // Trigger Notifications (Category: SLOT)
+    const cropNameStr = bookingResult.crop?.name || 'Crop';
+    const weightStr = bookingResult.booking?.weight ?? '—';
+    const centreNameStr = bookingResult.centre?.name || 'Procurement Centre';
     const formattedDate = new Date(bookingResult.booking.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+
     await notifySlotEvent({
       userId: req.user.id,
       type: 'BOOKING_CONFIRMED',
       title: 'Slot Booking Confirmed',
-      message: `Your ${bookingResult.crop.name} procurement slot (${bookingResult.booking.weight} Qtl, ${bookingResult.booking.slotTime}) for ${formattedDate} at ${bookingResult.centre.name} has been confirmed.`,
+      message: `Your ${cropNameStr} procurement slot (${weightStr} Qtl, ${bookingResult.booking.slotTime}) for ${formattedDate} at ${centreNameStr} has been confirmed.`,
       relatedBookingId: bookingResult.booking.id,
       relatedCentreId: bookingResult.centre.id,
     });
@@ -354,7 +372,7 @@ const createBooking = async (req, res, next) => {
       userId: req.user.id,
       type: 'TOKEN_GENERATED',
       title: 'Token Generated',
-      message: `Token #${bookingResult.token.tokenNumber} (${bookingResult.token.formattedToken}) generated for your ${bookingResult.crop.name} booking.`,
+      message: `Token #${bookingResult.token.tokenNumber} (${bookingResult.token.formattedToken || `Token #${bookingResult.token.tokenNumber}`}) generated for your ${cropNameStr} booking.`,
       relatedBookingId: bookingResult.booking.id,
       relatedCentreId: bookingResult.centre.id,
     });
@@ -396,15 +414,12 @@ const createTatkaalBooking = async (req, res, next) => {
       req.user.farmerProfile.status = 'VERIFIED';
     }
 
+    const { startOfDay, endOfDay, dateOnly } = getDayBounds(date);
+    const queryDate = dateOnly;
+
     // Blacklist check (trustScore <= 25)
     const currentTrustScore = req.user.farmerProfile?.trustScore ?? 100.0;
     if (currentTrustScore <= 25) {
-      const queryDate = new Date(date);
-      const startOfDay = new Date(queryDate);
-      startOfDay.setHours(0, 0, 0, 0);
-      const endOfDay = new Date(queryDate);
-      endOfDay.setHours(23, 59, 59, 999);
-
       const targetCentreId = parseInt(centreId) || 1;
       const blacklistedCount = await prisma.procurementBooking.count({
         where: {
@@ -426,12 +441,6 @@ const createTatkaalBooking = async (req, res, next) => {
     if (isNaN(cropWeight) || cropWeight <= 0) {
       throw new BadRequestError('Crop quantity must be greater than zero');
     }
-
-    const queryDate = new Date(date);
-    const startOfDay = new Date(queryDate);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(queryDate);
-    endOfDay.setHours(23, 59, 59, 999);
 
     // Get Tatkaal fee from setting, default to 50.0
     const feeSetting = await prisma.systemSetting.findUnique({
@@ -689,7 +698,7 @@ const cancelBooking = async (req, res, next) => {
 
       // Free up reserved minutes in SlotAllocation immediately, while keeping lastTokenNumber intact
       if (booking.slotTime && booking.centreId && booking.date) {
-        const dateOnly = new Date(booking.date.getFullYear(), booking.date.getMonth(), booking.date.getDate());
+        const dateOnly = getUtcDateOnly(booking.date);
         const alloc = await tx.slotAllocation.findUnique({
           where: {
             centreId_bookingDate_slotTime: {
@@ -709,6 +718,9 @@ const cancelBooking = async (req, res, next) => {
           });
         }
       }
+    }, {
+      maxWait: 20000,
+      timeout: 60000,
     });
 
     await logAction({
@@ -773,9 +785,7 @@ const getTatkaalAvailability = async (req, res, next) => {
       throw new BadRequestError('centreId and date (YYYY-MM-DD) query parameters are required');
     }
 
-    const queryDate = new Date(date);
-    const startOfDay = new Date(queryDate.setHours(0, 0, 0, 0));
-    const endOfDay = new Date(queryDate.setHours(23, 59, 59, 999));
+    const { startOfDay, endOfDay } = getDayBounds(date);
 
     // Get active Tatkaal bookings today for this centre
     const bookings = await prisma.procurementBooking.findMany({

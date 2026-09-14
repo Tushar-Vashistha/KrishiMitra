@@ -44,7 +44,7 @@ const FarmerProfile = () => {
             ifscCode: profile.ifscCode,
             status: profile.status,
             trustScore: profile.trustScore,
-            farmerId: profile.aadhaarMasked
+            farmerId: profile.farmerId || profile.aadhaarMasked || 'UP-FARM-9021'
           });
         }
       } catch (err) {

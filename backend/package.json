@@ -6,7 +6,10 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "test": "jest --runInBand --detectOpenHandles --forceExit",
+    "test": "npm run test:unit",
+    "test:unit": "jest tests/api.test.js tests/chatbot.test.js",
+    "test:integration": "jest tests/smart-slot-capacity.test.js tests/trust.test.js --runInBand --testTimeout=60000",
+    "test:all": "jest --runInBand --detectOpenHandles --forceExit --testTimeout=60000",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "node prisma/seed.js"

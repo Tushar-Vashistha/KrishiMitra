@@ -200,6 +200,9 @@ const assignTokenToCounter = async (req, res, next) => {
       });
 
       return updatedToken;
+    }, {
+      maxWait: 20000,
+      timeout: 60000,
     });
 
     await logAction({

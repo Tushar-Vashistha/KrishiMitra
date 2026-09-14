@@ -118,11 +118,30 @@ const getQueueTrackingDetails = async (tokenId) => {
   const avgProcTime = await getAverageProcessingTime(token.centreId);
   const estimatedWaitingTime = (peopleAhead + (token.status === 'WAITING' ? 1 : 0)) * avgProcTime;
 
+  // Query current serving token at the centre
+  const currentServing = await prisma.queueToken.findFirst({
+    where: {
+      centreId: token.centreId,
+      status: { in: ['PROCESSING', 'CALLED', 'ARRIVED'] },
+      createdAt: {
+        gte: startOfDay,
+        lte: endOfDay,
+      },
+    },
+    orderBy: { tokenNumber: 'asc' },
+    select: { tokenNumber: true },
+  });
+
+  const currentServingToken = currentServing ? currentServing.tokenNumber : Math.max(1, token.tokenNumber - peopleAhead);
+
   return {
     token,
     queuePosition: peopleAhead + 1,
     peopleAhead,
+    tokensAhead: peopleAhead,
     estimatedWaitingTime,
+    estimatedWaitMins: estimatedWaitingTime,
+    currentServingToken,
   };
 };
 

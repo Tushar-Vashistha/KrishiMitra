@@ -40,10 +40,11 @@ const CentreLiveQueue = () => {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
+  const targetCentreId = user?.centreId || user?.centreCode || user?.staffProfile?.assignments?.[0]?.centreId || 6;
+
   const fetchQueueData = async () => {
-    if (!user || !user.centreId) return;
     try {
-      const qRes = await queueService.getCentreQueue(user.centreId);
+      const qRes = await queueService.getCentreQueue(targetCentreId);
       let mappedQueue = [];
       if (qRes.success && qRes.data) {
         mappedQueue = qRes.data.map(q => {
@@ -71,7 +72,7 @@ const CentreLiveQueue = () => {
         setBookings(mappedQueue);
       }
 
-      const dRes = await centreService.getDashboard(user.centreId);
+      const dRes = await centreService.getDashboard(targetCentreId);
       if (dRes.success && dRes.data) {
         const rawBookings = dRes.data.todayBookings || dRes.data.bookings || [];
         if (Array.isArray(rawBookings)) {

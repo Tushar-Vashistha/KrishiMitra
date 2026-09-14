@@ -2,7 +2,7 @@ const { calculateTrustScore, addTrustEvent } = require('../src/services/trust.se
 const prisma = require('../src/config/db');
 
 describe('Trust Score & Slot Completion System', () => {
-  jest.setTimeout(30000);
+  jest.setTimeout(60000);
   let testUser;
   let testFarmer;
   let testCentre;

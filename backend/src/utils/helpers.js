@@ -50,9 +50,38 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
   return parseFloat(distance.toFixed(2));
 };
 
+/**
+ * Get a UTC normalized Date object stripped of time components (00:00:00.000Z)
+ */
+const getUtcDateOnly = (inputDate) => {
+  if (!inputDate) return new Date();
+  if (typeof inputDate === 'string') {
+    const cleanStr = inputDate.split('T')[0];
+    if (cleanStr.includes('-')) {
+      const [y, m, d] = cleanStr.split('-').map(Number);
+      return new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
+    }
+  }
+  const dt = new Date(inputDate);
+  return new Date(Date.UTC(dt.getUTCFullYear(), dt.getUTCMonth(), dt.getUTCDate(), 0, 0, 0, 0));
+};
+
+/**
+ * Get strict UTC startOfDay and endOfDay boundary Date objects for a date
+ */
+const getDayBounds = (inputDate) => {
+  const dateOnly = getUtcDateOnly(inputDate);
+  const startOfDay = new Date(dateOnly.getTime());
+  const endOfDay = new Date(dateOnly.getTime());
+  endOfDay.setUTCHours(23, 59, 59, 999);
+  return { startOfDay, endOfDay, dateOnly };
+};
+
 module.exports = {
   hashSensitive,
   maskAadhaar,
   maskBankAccount,
   calculateDistance,
+  getUtcDateOnly,
+  getDayBounds,
 };

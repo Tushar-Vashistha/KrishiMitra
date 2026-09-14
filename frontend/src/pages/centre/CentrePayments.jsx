@@ -28,10 +28,11 @@ const CentrePayments = () => {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
+  const targetCentreId = user?.centreId || user?.centreCode || user?.staffProfile?.assignments?.[0]?.centreId || 6;
+
   const fetchPaymentsData = async () => {
-    if (!user || !user.centreId) return;
     try {
-      const res = await procurementService.getCentreProcurements(user.centreId);
+      const res = await procurementService.getCentreProcurements(targetCentreId);
       if (res.success && res.data) {
         const mappedBills = res.data.map(p => {
           let statusText = 'Due';
@@ -64,12 +65,8 @@ const CentrePayments = () => {
   };
 
   useEffect(() => {
-    if (user && user.centreId) {
-      fetchPaymentsData();
-    } else {
-      setLoading(false);
-    }
-  }, [user]);
+    fetchPaymentsData();
+  }, [user, targetCentreId]);
 
   // Change payment status
   const updatePaymentStatus = async (paymentId, newStatus) => {

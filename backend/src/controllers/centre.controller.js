@@ -1,5 +1,5 @@
 const prisma = require('../config/db');
-const { calculateDistance } = require('../utils/helpers');
+const { calculateDistance, getDayBounds } = require('../utils/helpers');
 const { NotFoundError, BadRequestError } = require('../utils/errors');
 const { logAction } = require('../services/audit.service');
 const { notifyCentreEvent } = require('../services/notification.service');
@@ -109,6 +109,9 @@ const createCentre = async (req, res, next) => {
       }
 
       return created;
+    }, {
+      maxWait: 20000,
+      timeout: 60000,
     });
 
     await logAction({
@@ -322,11 +325,7 @@ const getCentreSlotsAvailability = async (req, res, next) => {
       throw new BadRequestError('Date parameter (YYYY-MM-DD) is required');
     }
 
-    const queryDate = new Date(date);
-    const startOfDay = new Date(queryDate);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(queryDate);
-    endOfDay.setHours(23, 59, 59, 999);
+    const { startOfDay, endOfDay } = getDayBounds(date);
 
     const centre = await prisma.procurementCentre.findUnique({
       where: { id: centreId },

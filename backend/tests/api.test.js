@@ -64,7 +64,9 @@ const mockPrisma = {
     create: jest.fn(),
   },
   notification: {
-    create: jest.fn(),
+    create: jest.fn().mockResolvedValue({ id: 1 }),
+    findFirst: jest.fn().mockResolvedValue(null),
+    findMany: jest.fn().mockResolvedValue([]),
   },
   slotAllocation: {
     findUnique: jest.fn(),
@@ -255,7 +257,9 @@ describe('KrishiMitra API Suite', () => {
       mockPrisma.procurementBooking.count.mockResolvedValue(2); // 2 booked already (cap is 10)
       mockPrisma.procurementBooking.findFirst.mockResolvedValue(null); // no duplicates
       mockPrisma.procurementBooking.findMany.mockResolvedValue([]);
+      mockPrisma.slotAllocation.findUnique.mockResolvedValue({ id: 1, lastTokenNumber: 5, bookedMinutes: 0 });
       mockPrisma.slotAllocation.upsert.mockResolvedValue({ id: 1, lastTokenNumber: 5, bookedMinutes: 0 });
+      mockPrisma.slotAllocation.create.mockResolvedValue({ id: 1, lastTokenNumber: 5, bookedMinutes: 0 });
       mockPrisma.slotAllocation.update.mockResolvedValue({ id: 1, lastTokenNumber: 6, bookedMinutes: 30 });
       mockPrisma.$queryRaw.mockResolvedValue([{ id: 1, lastTokenNumber: 5, bookedMinutes: 0 }]);
       mockPrisma.queueToken.findFirst.mockResolvedValue({ tokenNumber: 5 }); // last token number

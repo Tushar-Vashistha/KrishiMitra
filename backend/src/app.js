@@ -80,7 +80,6 @@ app.get('/', (req, res) => {
 
 // Mount REST Routes
 app.use('/api/v1', routes);
-app.use('/api/notifications', require('./routes/notification.routes'));
 
 // 404 Route handler
 app.use((req, res, next) => {
